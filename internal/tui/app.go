@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -15,6 +17,7 @@ import (
 	"github.com/dr4zz/nexus/internal/session"
 	"github.com/dr4zz/nexus/internal/audit"
 	"github.com/dr4zz/nexus/internal/template"
+	"github.com/dr4zz/nexus/internal/importexport"
 )
 
 type viewKind int
@@ -1630,6 +1633,10 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		return a.handleNoteCommand(msg.Args)
 	case "field":
 		return a.handleFieldCommand(msg.Args)
+	case "import":
+		return a.handleImportCommand(msg.Args)
+	case "export":
+		return a.handleExportCommand(msg.Args)
 	default:
 		a.log.warn("Unknown command: %s", msg.Name)
 		a.statusBar.setFlash("Unknown command: "+msg.Name, flashError)
@@ -1956,22 +1963,42 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 	case "import-ssh":
 		return a.importSSH()
 	case "import-csv":
-		a.statusBar.setFlash("CSV import not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+		a.command.activate()
+		a.command.input.SetValue("import csv ")
+		a.command.input.SetCursor(11)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
 	case "import-json":
-		a.statusBar.setFlash("JSON import not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+		a.command.activate()
+		a.command.input.SetValue("import json ")
+		a.command.input.SetCursor(12)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
 
 	// Export
 	case "export-all":
-		a.statusBar.setFlash("Export all not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+		a.command.activate()
+		a.command.input.SetValue("export json ")
+		a.command.input.SetCursor(12)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
 	case "export-selection":
-		a.statusBar.setFlash("Export selection not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+		a.command.activate()
+		a.command.input.SetValue("export json ")
+		a.command.input.SetCursor(12)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
 	case "export-group":
-		a.statusBar.setFlash("Export group not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+		a.command.activate()
+		a.command.input.SetValue("export yaml ")
+		a.command.input.SetCursor(12)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
 
 	// Tags
 	case "filter-by-tag":
@@ -3066,5 +3093,144 @@ func (a App) handleFieldCommand(args string) (tea.Model, tea.Cmd) {
 		a.detail.setConnection(c, a.detail.status, a.detail.latency)
 	}
 
+	return a, scheduleFlashClear()
+}
+
+// ---------- Import / Export command handlers ----------
+
+func (a App) handleImportCommand(args string) (tea.Model, tea.Cmd) {
+	parts := strings.SplitN(strings.TrimSpace(args), " ", 2)
+	if len(parts) < 2 || parts[1] == "" {
+		a.statusBar.setFlash("Usage: :import <csv|json> <path>", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	format := strings.ToLower(parts[0])
+	path := strings.TrimSpace(parts[1])
+
+	// Expand ~ to home directory.
+	if strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			path = filepath.Join(home, path[2:])
+		}
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		a.log.error("Import open: %v", err)
+		a.statusBar.setFlash("Cannot open file: "+err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+	defer f.Close()
+
+	var imp importexport.Importer
+	switch format {
+	case "csv":
+		imp = &importexport.CSVImporter{}
+	case "json":
+		imp = &importexport.JSONImporter{}
+	default:
+		a.statusBar.setFlash("Unsupported import format: "+format+" (use csv or json)", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	conns, err := imp.Import(f)
+	if err != nil {
+		a.log.error("Import parse: %v", err)
+		a.statusBar.setFlash("Import error: "+err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+
+	merged, result := importexport.ApplyMerge(a.cfg.Connections, conns, importexport.MergeSkip)
+	a.cfg.Connections = merged
+	if err := config.Save(a.cfg); err != nil {
+		a.log.error("Import save: %v", err)
+		a.statusBar.setFlash("Save error: "+err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+
+	a.list.filtered = a.cfg.Connections
+	a.list.rebuildTable()
+	a.syncHeaderView()
+	a.syncCursorPosition()
+
+	msg := fmt.Sprintf("Imported %d created, %d skipped", result.Created, result.Skipped)
+	a.log.info("Import %s: %s", format, msg)
+	a.statusBar.setFlash(msg, flashInfo)
+
+	return a, tea.Batch(
+		health.CheckAll(a.list.healthTargets()),
+		scheduleFlashClear(),
+	)
+}
+
+func (a App) handleExportCommand(args string) (tea.Model, tea.Cmd) {
+	parts := strings.SplitN(strings.TrimSpace(args), " ", 2)
+	if len(parts) < 2 || parts[1] == "" {
+		a.statusBar.setFlash("Usage: :export <csv|json|yaml> <path>", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	format := strings.ToLower(parts[0])
+	path := strings.TrimSpace(parts[1])
+
+	// Expand ~ to home directory.
+	if strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			path = filepath.Join(home, path[2:])
+		}
+	}
+
+	// Determine which connections to export.
+	var conns []config.Connection
+	if a.visualState.Active() {
+		// Export only visually selected connections.
+		indices := a.visualState.SelectedIndices()
+		for _, idx := range indices {
+			if idx >= 0 && idx < len(a.list.filtered) {
+				conns = append(conns, a.list.filtered[idx])
+			}
+		}
+	} else {
+		conns = a.list.filtered
+	}
+
+	if len(conns) == 0 {
+		a.statusBar.setFlash("No connections to export", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	opts := importexport.ExportOptions{IncludeCredentials: false}
+
+	var exp importexport.Exporter
+	switch format {
+	case "csv":
+		exp = &importexport.CSVExporter{Options: opts}
+	case "json":
+		exp = &importexport.JSONExporter{Options: opts}
+	case "yaml":
+		exp = &importexport.YAMLExporter{Options: opts}
+	default:
+		a.statusBar.setFlash("Unsupported export format: "+format+" (use csv, json, or yaml)", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	outFile, err := os.Create(path)
+	if err != nil {
+		a.log.error("Export create: %v", err)
+		a.statusBar.setFlash("Cannot create file: "+err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+	defer outFile.Close()
+
+	if err := exp.Export(outFile, conns); err != nil {
+		a.log.error("Export write: %v", err)
+		a.statusBar.setFlash("Export error: "+err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+
+	flashMsg := fmt.Sprintf("Exported %d connections to %s", len(conns), filepath.Base(path))
+	a.log.info("Export %s: %s", format, flashMsg)
+	a.statusBar.setFlash(flashMsg, flashInfo)
 	return a, scheduleFlashClear()
 }
