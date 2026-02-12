@@ -1,0 +1,43 @@
+# Project Constitution
+
+## Core Principles
+
+## Nexus Project Constitution
+
+### Vision
+Nexus is a production-grade terminal UI (TUI) remote session manager that challenges Devolutions Remote Desktop Manager in feature depth while delivering the keyboard-driven, information-dense experience of k9s with neovim-familiar controls.
+
+### Core Principles
+
+1. **Keyboard-First, Mouse-Never**: Every operation is reachable via keyboard. Neovim modal model (Normal/Insert/Command modes). Space as leader key. hjkl navigation everywhere. The UI must feel like an extension of the terminal, not a GUI crammed into a terminal.
+
+2. **Information Density Over Whitespace**: Every pixel of terminal real estate earns its place. Tables show maximum useful data. Status indicators are single characters. Statusline packs mode, context, and position into one line. Inspired by k9s's "wall of useful data" aesthetic.
+
+3. **Progressive Disclosure**: Simple by default, powerful on demand. Core operations (connect, filter, navigate) require 1-2 keystrokes. Advanced features (jump hosts, macros, bulk ops) are accessible via leader key groups with which-key popups. Help is always one `?` away.
+
+4. **Zero-Config to Full-Config**: Works immediately with ~/.ssh/config import. Scales to thousands of connections with folders, tags, groups, inheritance, and templates. Single YAML config file for simple setups, SQLite database for large deployments.
+
+5. **Security as Default**: Credentials encrypted at rest (AES-256-GCM). Master password or system keyring integration. SSH agent forwarding. Credential brokering (connect without seeing passwords). Audit logging of all connection events.
+
+6. **Composable Architecture**: Modular internal design. Each feature is a self-contained package. New protocols added via interface implementation. New views added via the bubbletea model pattern. Plugins extend functionality without core changes.
+
+### Technical Constraints
+
+- **Language**: Go (existing codebase, excellent terminal library ecosystem)
+- **TUI Framework**: Bubbletea (charmbracelet) with lipgloss styling
+- **Config Format**: YAML for human-editable config, SQLite for large-scale storage
+- **Terminal Compatibility**: Minimum 80x24, optimized for modern terminals (256-color, true-color)
+- **Platforms**: Linux primary, macOS secondary, Windows (WSL) tertiary
+- **Dependencies**: Minimize external runtime dependencies. Ship as single binary.
+- **Performance**: Startup < 200ms. Filter/search response < 16ms. Support 10,000+ connections without lag.
+
+### Development Standards
+
+- Follow existing Go project structure (cmd/, internal/)
+- All new features must compile cleanly (go build ./...)
+- All new packages must have test coverage
+- Keybindings must not conflict with each other within the same mode/view
+- Color scheme must use semantic color names, not hardcoded hex
+- Every view must have context-sensitive keyhint bar and help overlay
+- State changes must be undoable where feasible
+- Error messages must be actionable, not cryptic
