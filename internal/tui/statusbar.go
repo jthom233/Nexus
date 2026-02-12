@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -29,11 +30,12 @@ type statusBarModel struct {
 	offline      int
 	sessionCount int
 	flash        *flash
+	view         string
 	width        int
 }
 
 func newStatusBar() statusBarModel {
-	return statusBarModel{}
+	return statusBarModel{view: "list"}
 }
 
 func (s *statusBarModel) setFlash(text string, kind flashKind) {
@@ -42,6 +44,52 @@ func (s *statusBarModel) setFlash(text string, kind flashKind) {
 
 func (s *statusBarModel) clearFlash() {
 	s.flash = nil
+}
+
+type keyHint struct {
+	key  string
+	desc string
+}
+
+func hintsForView(view string) []keyHint {
+	switch view {
+	case "list":
+		return []keyHint{
+			{"a", "Add"}, {"e", "Edit"}, {"d", "Delete"}, {"D", "Detail"},
+			{"/", "Filter"}, {":", "Cmd"}, {"?", "Help"}, {"q", "Quit"},
+		}
+	case "detail":
+		return []keyHint{
+			{"enter", "Connect"}, {"e", "Edit"}, {"p", "Password"},
+			{"esc", "Back"}, {"?", "Help"}, {"q", "Quit"},
+		}
+	case "sessions":
+		return []keyHint{
+			{"enter", "Reattach"}, {"d", "Kill"},
+			{"esc", "Back"}, {"?", "Help"}, {"q", "Quit"},
+		}
+	case "form":
+		return []keyHint{
+			{"tab", "Next"}, {"shift+tab", "Prev"},
+			{"enter", "Submit"}, {"esc", "Cancel"},
+		}
+	case "log":
+		return []keyHint{
+			{"j/k", "Scroll"}, {"esc", "Back"}, {"q", "Quit"},
+		}
+	default:
+		return []keyHint{{"?", "Help"}, {"q", "Quit"}}
+	}
+}
+
+func renderKeyHints(hints []keyHint, width int) string {
+	var parts []string
+	for _, h := range hints {
+		part := KeyHintKeyStyle.Render(h.key) + " " + KeyHintDescStyle.Render(h.desc)
+		parts = append(parts, part)
+	}
+	line := " " + strings.Join(parts, "  ")
+	return KeyHintBarStyle.Width(width).Render(line)
 }
 
 func (s statusBarModel) View() string {
@@ -73,5 +121,9 @@ func (s statusBarModel) View() string {
 	padding := lipgloss.NewStyle().Width(gap).Render("")
 
 	row := lipgloss.JoinHorizontal(lipgloss.Center, left, padding, right)
-	return StatusBarStyle.Width(s.width).Render(row)
+	statusLine := StatusBarStyle.Width(s.width).Render(row)
+
+	hintLine := renderKeyHints(hintsForView(s.view), s.width)
+
+	return lipgloss.JoinVertical(lipgloss.Left, statusLine, hintLine)
 }

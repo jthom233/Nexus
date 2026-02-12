@@ -79,6 +79,17 @@ var (
 
 	FlashErrorStyle = lipgloss.NewStyle().
 			Foreground(ColorRed)
+
+	KeyHintKeyStyle = lipgloss.NewStyle().
+				Foreground(ColorPink).
+				Bold(true)
+
+	KeyHintDescStyle = lipgloss.NewStyle().
+				Foreground(ColorSubtle)
+
+	KeyHintBarStyle = lipgloss.NewStyle().
+			Foreground(ColorSubtle).
+			Padding(0, 1)
 )
 
 // Status indicator styles

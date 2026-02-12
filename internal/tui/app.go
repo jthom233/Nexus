@@ -87,6 +87,7 @@ func (a App) currentView() viewKind {
 func (a *App) pushView(v viewKind) {
 	a.viewStack = append(a.viewStack, v)
 	a.updateBreadcrumbs()
+	a.syncStatusBarView()
 }
 
 func (a *App) popView() {
@@ -94,6 +95,22 @@ func (a *App) popView() {
 		a.viewStack = a.viewStack[:len(a.viewStack)-1]
 	}
 	a.updateBreadcrumbs()
+	a.syncStatusBarView()
+}
+
+func (a *App) syncStatusBarView() {
+	switch a.currentView() {
+	case viewList:
+		a.statusBar.view = "list"
+	case viewDetail:
+		a.statusBar.view = "detail"
+	case viewForm:
+		a.statusBar.view = "form"
+	case viewLog:
+		a.statusBar.view = "log"
+	case viewSessions:
+		a.statusBar.view = "sessions"
+	}
 }
 
 func (a *App) updateBreadcrumbs() {
@@ -215,6 +232,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 
 	case launcher.LaunchFinishedMsg:
+		// Clean up dead managed sessions
+		a.sessions.CleanDead()
+		a.updateSessionCount()
+
 		if msg.Err != nil {
 			fullErr := msg.Err.Error()
 			// Log the full error
@@ -240,6 +261,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusBar.setFlash(fmt.Sprintf("Session detached [s:sessions]"), flashInfo)
 		a.updateSessionCount()
 		cmds = append(cmds, scheduleFlashClear())
+		// Refresh sessions view so status shows "detached"
+		if a.currentView() == viewSessions {
+			a.sessionsView.setSessions(a.sessions.All())
+		}
 		// Start watching for session death
 		if sess := a.sessions.Get(msg.SessionID); sess != nil {
 			cmds = append(cmds, watchSessionDone(sess))
@@ -313,10 +338,17 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
+func (a *App) confirmQuit() {
+	a.confirm.show("Quit Nexus?", "quit", "")
+	a.confirm.width = a.width
+	a.confirm.height = a.height
+}
+
 func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":
-		return a, tea.Quit
+		a.confirmQuit()
+		return a, nil
 	case "?":
 		a.help.view = "list"
 		a.help.toggle()
@@ -404,7 +436,8 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":
-		return a, tea.Quit
+		a.confirmQuit()
+		return a, nil
 	case "?":
 		a.help.view = "detail"
 		a.help.toggle()
@@ -449,7 +482,8 @@ func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (a App) handleSessionsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":
-		return a, tea.Quit
+		a.confirmQuit()
+		return a, nil
 	case "?":
 		a.help.view = "sessions"
 		a.help.toggle()
@@ -486,7 +520,8 @@ func (a App) handleSessionsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (a App) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":
-		return a, tea.Quit
+		a.confirmQuit()
+		return a, nil
 	case "esc":
 		a.popView()
 		return a, nil
@@ -618,7 +653,8 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 	a.log.info("Command: :%s %s", msg.Name, msg.Args)
 	switch msg.Name {
 	case "q", "quit":
-		return a, tea.Quit
+		a.confirmQuit()
+		return a, nil
 	case "add":
 		a.form.startAdd(a.cfg.GroupNames())
 		a.form.width = a.width
@@ -772,6 +808,9 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg.Action {
+	case "quit":
+		return a, tea.Quit
+
 	case "delete":
 		conn := a.cfg.FindConnection(msg.ID)
 		name := msg.ID
@@ -880,8 +919,8 @@ func (a *App) layout() {
 }
 
 func (a App) contentHeight() int {
-	// header ~ 2 lines, statusbar ~ 2 lines, some padding
-	h := a.height - 4
+	// header ~ 2 lines, statusbar ~ 2 lines, keyhint bar ~ 1 line, some padding
+	h := a.height - 5
 	if h < 5 {
 		h = 5
 	}

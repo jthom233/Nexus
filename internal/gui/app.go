@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"os"
 	"sync"
 
 	"github.com/dr4zz/nexus/internal/ipc"
@@ -127,6 +128,30 @@ func (a *App) Draw(screen *ebiten.Image) {
 		return
 	}
 
+	// Show status messages for non-connected states
+	switch activeTab.Status {
+	case "connecting":
+		msg := "Connecting..."
+		cx := a.width/2 - len(msg)*3
+		cy := chromeHeight + (a.height-chromeHeight)/2
+		ebitenutil.DebugPrintAt(screen, msg, cx, cy)
+		return
+	case "error":
+		errMsg := "Connection failed"
+		if activeTab.Error != nil {
+			errMsg = activeTab.Error.Error()
+		}
+		// Truncate long error messages
+		if len(errMsg) > 80 {
+			errMsg = errMsg[:80] + "..."
+		}
+		label := "[!] " + errMsg
+		cx := a.width/2 - len(label)*3
+		cy := chromeHeight + (a.height-chromeHeight)/2
+		ebitenutil.DebugPrintAt(screen, label, cx, cy)
+		return
+	}
+
 	// Draw active session framebuffer scaled to fit
 	if activeTab.Session != nil {
 		fb := activeTab.Session.Framebuffer()
@@ -206,7 +231,13 @@ func (a *App) drawTabBar(screen *ebiten.Image) {
 
 		// Tab background
 		var bgColor color.RGBA
-		if tab.ConnID == activeID {
+		if tab.Status == "error" {
+			if tab.ConnID == activeID {
+				bgColor = color.RGBA{R: 120, G: 50, B: 50, A: 255} // red-tinted active
+			} else {
+				bgColor = color.RGBA{R: 90, G: 40, B: 40, A: 255} // red-tinted inactive
+			}
+		} else if tab.ConnID == activeID {
 			bgColor = color.RGBA{R: 69, G: 71, B: 90, A: 255} // #45475A
 		} else {
 			bgColor = color.RGBA{R: 49, G: 50, B: 68, A: 255} // #313244
@@ -218,8 +249,11 @@ func (a *App) drawTabBar(screen *ebiten.Image) {
 		op.GeoM.Translate(float64(x+1), 1)
 		screen.DrawImage(tabImg, op)
 
-		// Tab label text (truncate to fit, leave room for close button)
+		// Tab label text — prefix with [!] for error tabs
 		label := tab.Label
+		if tab.Status == "error" {
+			label = "[!] " + label
+		}
 		maxChars := (tabWidth - tabCloseRegion - 10) / 6 // ~6px per char
 		if len(label) > maxChars {
 			label = label[:maxChars-1] + ".."
@@ -339,6 +373,10 @@ func (a *App) closeTabFromGUI(connID string) {
 	}
 
 	a.tabs.Remove(connID)
+
+	if a.tabs.Count() == 0 {
+		os.Exit(0)
+	}
 }
 
 // OpenTab adds a new tab for a graphical session.
@@ -391,6 +429,7 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 		Protocol:  protocol,
 		Label:     connID + " (" + protocol + ")",
 		Session:   sess,
+		Status:    "connecting",
 		ReplyFunc: reply,
 	}
 	a.tabs.Add(tab)
@@ -399,6 +438,7 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 	go func() {
 		if err := sess.Connect(); err != nil {
 			tab.Error = err
+			tab.Status = "error"
 			if reply != nil {
 				reply(ipc.MsgTabError, &ipc.TabErrorEvent{
 					ConnID: connID,
@@ -407,6 +447,7 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 			}
 			return
 		}
+		tab.Status = "connected"
 		if reply != nil {
 			reply(ipc.MsgTabOpened, &ipc.TabOpenedEvent{ConnID: connID})
 		}
@@ -425,6 +466,10 @@ func (a *App) CloseTab(connID string) {
 		tab.Session.Close()
 	}
 	a.tabs.Remove(connID)
+
+	if a.tabs.Count() == 0 {
+		os.Exit(0)
+	}
 }
 
 // SessionSize returns available session area (below chrome).

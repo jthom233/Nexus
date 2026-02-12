@@ -87,7 +87,7 @@ func (h helpModel) entriesForView() []helpEntry {
 		return append([]helpEntry{
 			{"j/k ↑/↓", "Navigate sessions"},
 			{"enter", "Reattach to session"},
-			{"d", "Disconnect/kill session"},
+			{"d", "Kill/disconnect session"},
 			{"L", "View event log"},
 		}, common...)
 	case "form":

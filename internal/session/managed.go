@@ -6,8 +6,10 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -104,6 +106,12 @@ func (r *ringBuffer) Drain() []byte {
 	return result
 }
 
+// stdinResult carries data or an error from the stdin reader goroutine.
+type stdinResult struct {
+	data []byte
+	err  error
+}
+
 // ManagedSession wraps an SSH connection with detach/reattach support.
 // It implements tea.ExecCommand (Run, SetStdin, SetStdout, SetStderr).
 type ManagedSession struct {
@@ -192,6 +200,9 @@ func (m *ManagedSession) Run() error {
 		m.connected = true
 		m.ConnectedAt = time.Now()
 		m.setStatus(StatusConnected)
+
+		// Clear terminal for new session
+		m.stdout.Write([]byte("\033[2J\033[H"))
 
 		// Launch background goroutines for the lifetime of the SSH connection
 		go m.readOutput()
@@ -317,14 +328,10 @@ func (m *ManagedSession) waitDone() {
 // attachLoop enters raw mode and runs the interactive I/O loop.
 // Returns ErrDetached on Ctrl+\ or the session error when SSH exits.
 func (m *ManagedSession) attachLoop() error {
-	// Determine terminal fd
-	stdinFile, isFile := m.stdin.(*os.File)
-	var fd int
-	var hasTerminal bool
-	if isFile {
-		fd = int(stdinFile.Fd())
-		hasTerminal = term.IsTerminal(fd)
-	}
+	// Use os.Stdin directly for terminal operations — the reader passed by
+	// bubbletea may be wrapped and not type-assertable to *os.File.
+	fd := int(os.Stdin.Fd())
+	hasTerminal := term.IsTerminal(fd)
 
 	if hasTerminal {
 		oldState, err := term.MakeRaw(fd)
@@ -333,6 +340,13 @@ func (m *ManagedSession) attachLoop() error {
 		}
 		defer term.Restore(fd, oldState)
 	}
+
+	// Catch SIGQUIT (Ctrl+\ when terminal is not in raw mode) as a fallback
+	// detach mechanism. In raw mode, Ctrl+\ sends byte 0x1C which is caught
+	// in the stdin read loop below.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGQUIT)
+	defer signal.Stop(sigCh)
 
 	// Send current terminal size
 	if hasTerminal {
@@ -351,12 +365,46 @@ func (m *ManagedSession) attachLoop() error {
 		m.stderr.Write(data)
 	}
 
-	// Channel for stdin reading results
-	type stdinResult struct {
-		data []byte
-		err  error
-	}
+	// detachCh is closed when this attachLoop exits (detach, session end,
+	// or error). The stdin reader goroutine monitors it so it stops
+	// competing for os.Stdin once this session is no longer attached.
+	detachCh := make(chan struct{})
+	defer close(detachCh)
+
 	stdinCh := make(chan stdinResult, 1)
+
+	// Start a stdin reader goroutine scoped to this attach cycle.
+	// It exits when detachCh is closed (checked after each Read).
+	go func() {
+		buf := make([]byte, 4*1024)
+		for {
+			n, err := m.stdin.Read(buf)
+
+			// Check if we've detached while blocked on Read.
+			select {
+			case <-detachCh:
+				return
+			default:
+			}
+
+			if n > 0 {
+				data := make([]byte, n)
+				copy(data, buf[:n])
+				select {
+				case stdinCh <- stdinResult{data: data}:
+				case <-detachCh:
+					return
+				}
+			}
+			if err != nil {
+				select {
+				case stdinCh <- stdinResult{err: err}:
+				case <-detachCh:
+				}
+				return
+			}
+		}
+	}()
 
 	// Channel to stop the resize watcher
 	stopResize := make(chan struct{})
@@ -385,23 +433,6 @@ func (m *ManagedSession) attachLoop() error {
 		}()
 	}
 
-	// Start stdin reader goroutine
-	go func() {
-		buf := make([]byte, 4*1024)
-		for {
-			n, err := m.stdin.Read(buf)
-			if n > 0 {
-				data := make([]byte, n)
-				copy(data, buf[:n])
-				stdinCh <- stdinResult{data: data}
-			}
-			if err != nil {
-				stdinCh <- stdinResult{err: err}
-				return
-			}
-		}
-	}()
-
 	// Poll interval for draining output buffer
 	ticker := time.NewTicker(5 * time.Millisecond)
 	defer ticker.Stop()
@@ -419,6 +450,13 @@ func (m *ManagedSession) attachLoop() error {
 			err := m.doneErr
 			m.mu.Unlock()
 			return err
+
+		case <-sigCh:
+			// SIGQUIT (Ctrl+\ in non-raw mode) — treat as detach
+			close(stopResize)
+			m.DetachedAt = time.Now()
+			m.setStatus(StatusDetached)
+			return ErrDetached
 
 		case res := <-stdinCh:
 			if res.err != nil {
