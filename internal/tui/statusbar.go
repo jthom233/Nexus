@@ -31,11 +31,12 @@ type statusBarModel struct {
 	sessionCount int
 	flash        *flash
 	view         string
+	mode         Mode
 	width        int
 }
 
 func newStatusBar() statusBarModel {
-	return statusBarModel{view: "list"}
+	return statusBarModel{view: "list", mode: ModeNormal}
 }
 
 func (s *statusBarModel) setFlash(text string, kind flashKind) {
@@ -92,7 +93,30 @@ func renderKeyHints(hints []keyHint, width int) string {
 	return KeyHintBarStyle.Width(width).Render(line)
 }
 
+func modeIndicatorStyle(m Mode) lipgloss.Style {
+	var bg lipgloss.Color
+	switch m {
+	case ModeNormal:
+		bg = lipgloss.Color("#7aa2f7")
+	case ModeInsert:
+		bg = lipgloss.Color("#9ece6a")
+	case ModeVisual:
+		bg = lipgloss.Color("#bb9af7")
+	case ModeCommand:
+		bg = lipgloss.Color("#e0af68")
+	default:
+		bg = lipgloss.Color("#7aa2f7")
+	}
+	return lipgloss.NewStyle().
+		Background(bg).
+		Foreground(lipgloss.Color("#ffffff")).
+		Bold(true).
+		Padding(0, 1)
+}
+
 func (s statusBarModel) View() string {
+	modeTag := modeIndicatorStyle(s.mode).Render(s.mode.String())
+
 	left := fmt.Sprintf(" %d connections", s.total)
 	if s.online > 0 || s.offline > 0 {
 		left += fmt.Sprintf(" | %s %d online", StatusOnlineStyle.Render(StatusOnline), s.online)
@@ -114,13 +138,14 @@ func (s statusBarModel) View() string {
 		}
 	}
 
-	gap := s.width - lipgloss.Width(left) - lipgloss.Width(right) - 2
+	leftFull := modeTag + left
+	gap := s.width - lipgloss.Width(leftFull) - lipgloss.Width(right) - 2
 	if gap < 0 {
 		gap = 0
 	}
 	padding := lipgloss.NewStyle().Width(gap).Render("")
 
-	row := lipgloss.JoinHorizontal(lipgloss.Center, left, padding, right)
+	row := lipgloss.JoinHorizontal(lipgloss.Center, leftFull, padding, right)
 	statusLine := StatusBarStyle.Width(s.width).Render(row)
 
 	hintLine := renderKeyHints(hintsForView(s.view), s.width)

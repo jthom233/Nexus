@@ -1,197 +1,108 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+	"github.com/dr4zz/nexus/internal/theme"
+)
 
-// Color palette (Dracula-inspired)
+// Color palette — derived from the active theme.
+// These variables are kept for backward compatibility; they delegate to
+// the current theme so that a theme switch is reflected everywhere.
 var (
-	ColorBg        = lipgloss.Color("#282a36")
-	ColorFg        = lipgloss.Color("#f8f8f2")
-	ColorSubtle    = lipgloss.Color("#6272a4")
-	ColorHighlight = lipgloss.Color("#44475a")
-	ColorGreen     = lipgloss.Color("#50fa7b")
-	ColorRed       = lipgloss.Color("#ff5555")
-	ColorYellow    = lipgloss.Color("#f1fa8c")
-	ColorCyan      = lipgloss.Color("#8be9fd")
-	ColorPurple    = lipgloss.Color("#bd93f9")
-	ColorOrange    = lipgloss.Color("#ffb86c")
-	ColorPink      = lipgloss.Color("#ff79c6")
-	ColorGrey      = lipgloss.Color("#6272a4")
+	ColorBg        = theme.Current().Bg
+	ColorFg        = theme.Current().Fg
+	ColorSubtle    = theme.Current().Subtle
+	ColorHighlight = theme.Current().Highlight
+	ColorGreen     = theme.Current().Success
+	ColorRed       = theme.Current().Error
+	ColorYellow    = theme.Current().Warning
+	ColorCyan      = theme.Current().Info
+	ColorPurple    = theme.Current().Accent
+	ColorOrange    = theme.Current().Warning
+	ColorPink      = theme.Current().Header
+	ColorGrey      = theme.Current().Muted
 )
 
 // Status indicators
 const (
-	StatusOnline  = "●"
-	StatusOffline = "○"
+	StatusOnline   = "●"
+	StatusOffline  = "○"
 	StatusDegraded = "◐"
-	StatusUnknown = "?"
+	StatusUnknown  = "?"
 )
 
 // Header styles
 var (
-	LogoStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorCyan).
-			Padding(0, 1)
-
-	BreadcrumbStyle = lipgloss.NewStyle().
-			Foreground(ColorSubtle).
-			Padding(0, 1)
-
-	HeaderStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderBottom(true).
-			BorderForeground(ColorHighlight)
-
-	HintStyle = lipgloss.NewStyle().
-			Foreground(ColorSubtle).
-			Padding(0, 1)
+	LogoStyle       = theme.LogoStyle()
+	BreadcrumbStyle = theme.BreadcrumbStyle()
+	HeaderStyle     = theme.HeaderStyle()
+	HintStyle       = theme.HintStyle()
 )
 
 // Table styles
 var (
-	TableHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(ColorPurple).
-				Padding(0, 1)
-
-	TableRowStyle = lipgloss.NewStyle().
-			Foreground(ColorFg).
-			Padding(0, 1)
-
-	TableSelectedStyle = lipgloss.NewStyle().
-				Foreground(ColorFg).
-				Background(ColorHighlight).
-				Bold(true).
-				Padding(0, 1)
+	TableHeaderStyle   = theme.TableHeaderStyle()
+	TableRowStyle      = theme.TableRowStyle()
+	TableSelectedStyle = theme.TableSelectedStyle()
 )
 
 // Status bar styles
 var (
-	StatusBarStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderTop(true).
-			BorderForeground(ColorHighlight).
-			Foreground(ColorSubtle).
-			Padding(0, 1)
-
-	FlashStyle = lipgloss.NewStyle().
-			Foreground(ColorGreen)
-
-	FlashErrorStyle = lipgloss.NewStyle().
-			Foreground(ColorRed)
-
-	KeyHintKeyStyle = lipgloss.NewStyle().
-				Foreground(ColorPink).
-				Bold(true)
-
-	KeyHintDescStyle = lipgloss.NewStyle().
-				Foreground(ColorSubtle)
-
-	KeyHintBarStyle = lipgloss.NewStyle().
-			Foreground(ColorSubtle).
-			Padding(0, 1)
+	StatusBarStyle   = theme.StatusBarStyle()
+	FlashStyle       = theme.FlashStyle()
+	FlashErrorStyle  = theme.FlashErrorStyle()
+	KeyHintKeyStyle  = theme.KeyHintKeyStyle()
+	KeyHintDescStyle = theme.KeyHintDescStyle()
+	KeyHintBarStyle  = theme.KeyHintBarStyle()
 )
 
 // Status indicator styles
 var (
-	StatusOnlineStyle  = lipgloss.NewStyle().Foreground(ColorGreen)
-	StatusOfflineStyle = lipgloss.NewStyle().Foreground(ColorRed)
-	StatusDegradedStyle = lipgloss.NewStyle().Foreground(ColorYellow)
-	StatusUnknownStyle = lipgloss.NewStyle().Foreground(ColorGrey)
+	StatusOnlineStyle   = theme.StatusOnlineStyle()
+	StatusOfflineStyle  = theme.StatusOfflineStyle()
+	StatusDegradedStyle = theme.StatusDegradedStyle()
+	StatusUnknownStyle  = theme.StatusUnknownStyle()
 )
 
 // Filter bar style
 var (
-	FilterPromptStyle = lipgloss.NewStyle().
-				Foreground(ColorCyan).
-				Bold(true)
-
-	FilterInputStyle = lipgloss.NewStyle().
-				Foreground(ColorFg)
+	FilterPromptStyle = theme.FilterPromptStyle()
+	FilterInputStyle  = theme.FilterInputStyle()
 )
 
 // Command bar style
 var (
-	CommandPromptStyle = lipgloss.NewStyle().
-				Foreground(ColorOrange).
-				Bold(true)
+	CommandPromptStyle = theme.CommandPromptStyle()
 )
 
 // Help overlay styles
 var (
-	HelpTitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(ColorCyan).
-			Padding(0, 1)
-
-	HelpKeyStyle = lipgloss.NewStyle().
-			Foreground(ColorPink).
-			Bold(true).
-			Width(12)
-
-	HelpDescStyle = lipgloss.NewStyle().
-			Foreground(ColorFg)
-
-	HelpOverlayStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(ColorPurple).
-				Padding(1, 2)
+	HelpTitleStyle   = theme.HelpTitleStyle()
+	HelpKeyStyle     = theme.HelpKeyStyle()
+	HelpDescStyle    = theme.HelpDescStyle()
+	HelpOverlayStyle = theme.HelpOverlayStyle()
 )
 
 // Detail view styles
 var (
-	DetailLabelStyle = lipgloss.NewStyle().
-				Foreground(ColorPurple).
-				Bold(true).
-				Width(18)
-
-	DetailValueStyle = lipgloss.NewStyle().
-				Foreground(ColorFg)
-
-	DetailTitleStyle = lipgloss.NewStyle().
-				Foreground(ColorCyan).
-				Bold(true).
-				Padding(0, 0, 1, 0)
+	DetailLabelStyle = theme.DetailLabelStyle()
+	DetailValueStyle = theme.DetailValueStyle()
+	DetailTitleStyle = theme.DetailTitleStyle()
 )
 
 // Confirm dialog styles
 var (
-	ConfirmBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ColorRed).
-			Padding(1, 3)
-
-	ConfirmPromptStyle = lipgloss.NewStyle().
-				Foreground(ColorFg).
-				Bold(true)
-
-	ConfirmHintStyle = lipgloss.NewStyle().
-				Foreground(ColorSubtle)
+	ConfirmBoxStyle    = theme.ConfirmBoxStyle()
+	ConfirmPromptStyle = theme.ConfirmPromptStyle()
+	ConfirmHintStyle   = theme.ConfirmHintStyle()
 )
 
-// Group tag style
+// GroupTagStyle returns a style for group tags with the given color.
 func GroupTagStyle(color string) lipgloss.Style {
-	c := lipgloss.Color(color)
-	if color == "" {
-		c = ColorSubtle
-	}
-	return lipgloss.NewStyle().
-		Foreground(c).
-		Bold(true)
+	return theme.GroupTagStyle(color)
 }
 
-// Protocol label style
+// ProtoStyle returns a style colored per protocol.
 func ProtoStyle(proto string) lipgloss.Style {
-	switch proto {
-	case "SSH":
-		return lipgloss.NewStyle().Foreground(ColorGreen)
-	case "RDP":
-		return lipgloss.NewStyle().Foreground(ColorCyan)
-	case "VNC":
-		return lipgloss.NewStyle().Foreground(ColorOrange)
-	case "TEL":
-		return lipgloss.NewStyle().Foreground(ColorYellow)
-	default:
-		return lipgloss.NewStyle().Foreground(ColorFg)
-	}
+	return theme.ProtoStyle(proto)
 }

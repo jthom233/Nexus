@@ -50,6 +50,7 @@ type App struct {
 	viewStack []viewKind
 
 	// State
+	mode  Mode
 	ready bool
 }
 
@@ -74,6 +75,7 @@ func NewApp(cfg *config.Config) App {
 		sessions:     NewSessionManager(),
 		sessionsView: newSessionsView(),
 		viewStack:    []viewKind{viewList},
+		mode:         ModeNormal,
 	}
 }
 
@@ -187,11 +189,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				a.filter.deactivate()
 				a.list.applyFilter("")
-				return a, nil
+				a.statusBar.mode = ModeNormal
+				return a, a.setMode(ModeNormal)
 			case "enter":
 				a.filter.active = false
 				a.filter.input.Blur()
-				return a, nil
+				a.statusBar.mode = ModeNormal
+				return a, a.setMode(ModeNormal)
 			default:
 				var cmd tea.Cmd
 				a.filter, cmd = a.filter.Update(msg)
@@ -203,6 +207,15 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.command.active {
 			var cmd tea.Cmd
 			a.command, cmd = a.command.Update(msg)
+			if !a.command.active {
+				// Command was deactivated (esc or enter)
+				a.statusBar.mode = ModeNormal
+				modeCmd := a.setMode(ModeNormal)
+				if cmd != nil {
+					return a, tea.Batch(cmd, modeCmd)
+				}
+				return a, modeCmd
+			}
 			return a, cmd
 		}
 
@@ -295,10 +308,15 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case FormCancelMsg:
 		a.popView()
-		return a, nil
+		a.statusBar.mode = ModeNormal
+		return a, a.setMode(ModeNormal)
 
 	case ConfirmResultMsg:
 		return a.handleConfirmResult(msg)
+
+	case ModeChangedMsg:
+		a.statusBar.mode = msg.To
+		return a, nil
 	}
 
 	// Pass through to active view
@@ -355,9 +373,13 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case "/":
 		a.filter.activate()
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
 		return a, a.filter.input.Focus()
 	case ":":
 		a.command.activate()
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
 		return a, a.command.input.Focus()
 	case "enter":
 		return a.connectSelected()
@@ -367,6 +389,8 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.form.height = a.contentHeight()
 		a.pushView(viewForm)
 		a.help.view = "form"
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
 		return a, a.form.form.Init()
 	case "e":
 		if c := a.list.selectedConnection(); c != nil {
@@ -375,6 +399,8 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.form.height = a.contentHeight()
 			a.pushView(viewForm)
 			a.help.view = "form"
+			a.mode = ModeInsert
+			a.statusBar.mode = ModeInsert
 			return a, a.form.form.Init()
 		}
 		return a, nil
@@ -455,6 +481,8 @@ func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.form.height = a.contentHeight()
 			a.pushView(viewForm)
 			a.help.view = "form"
+			a.mode = ModeInsert
+			a.statusBar.mode = ModeInsert
 			return a, a.form.form.Init()
 		}
 		return a, nil
@@ -660,6 +688,8 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		a.form.width = a.width
 		a.form.height = a.contentHeight()
 		a.pushView(viewForm)
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
 		return a, a.form.form.Init()
 	case "connect":
 		if c := a.cfg.FindConnection(msg.Args); c != nil {
@@ -684,6 +714,8 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 			a.form.width = a.width
 			a.form.height = a.contentHeight()
 			a.pushView(viewForm)
+			a.mode = ModeInsert
+			a.statusBar.mode = ModeInsert
 			return a, a.form.form.Init()
 		}
 		a.statusBar.setFlash("Connection not found: "+msg.Args, flashError)
@@ -775,6 +807,8 @@ func (a App) handleFormSubmit(msg FormSubmitMsg) (tea.Model, tea.Cmd) {
 	}
 
 	a.popView()
+	a.mode = ModeNormal
+	a.statusBar.mode = ModeNormal
 
 	if err != nil {
 		a.log.error("Save failed for %s: %v", msg.Conn.Name, err)
