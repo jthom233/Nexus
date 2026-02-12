@@ -59,6 +59,7 @@ func (h helpModel) entriesForView() []helpEntry {
 		return append([]helpEntry{
 			{"j/k ↑/↓", "Navigate list"},
 			{"enter", "Connect to selected"},
+			{"Space", "Leader key (command palette)"},
 			{"/", "Filter connections"},
 			{":", "Command mode"},
 			{"a", "Add new connection"},
@@ -74,6 +75,7 @@ func (h helpModel) entriesForView() []helpEntry {
 	case "detail":
 		return append([]helpEntry{
 			{"enter", "Connect"},
+			{"Space", "Leader key (command palette)"},
 			{"e", "Edit connection"},
 			{"p", "Toggle password visibility"},
 			{"j/k ↑/↓", "Scroll"},
@@ -87,6 +89,7 @@ func (h helpModel) entriesForView() []helpEntry {
 		return append([]helpEntry{
 			{"j/k ↑/↓", "Navigate sessions"},
 			{"enter", "Reattach to session"},
+			{"Space", "Leader key (command palette)"},
 			{"d", "Kill/disconnect session"},
 			{"L", "View event log"},
 		}, common...)

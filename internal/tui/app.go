@@ -42,6 +42,7 @@ type App struct {
 	form         *formModel
 	help         helpModel
 	confirm      confirmModel
+	leader       leaderModel
 	log          *logModel
 	sessions     *SessionManager
 	sessionsView sessionsViewModel
@@ -76,6 +77,7 @@ func NewApp(cfg *config.Config) App {
 		form:         newFormPtr(cfg.GroupNames()),
 		help:         newHelp(),
 		confirm:      newConfirm(),
+		leader:       newLeader(),
 		log:          l,
 		sessions:     NewSessionManager(),
 		sessionsView: newSessionsView(),
@@ -200,6 +202,23 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			a.confirm, cmd = a.confirm.Update(msg)
 			return a, cmd
+		}
+
+		// Handle leader key input
+		if a.leader.active {
+			k := msg.String()
+			if k == "esc" {
+				a.leader.dismiss()
+				return a, nil
+			}
+			action := a.leader.handleKey(k)
+			if action != nil {
+				a.leader.dismiss()
+				return a.executeLeaderAction(action)
+			}
+			// If handleKey returned nil but didn't dismiss, it navigated to sub-group
+			// If it did dismiss (unknown key), just return
+			return a, nil
 		}
 
 		if a.help.active {
@@ -331,6 +350,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, scheduleFlashClear())
 		return a, tea.Batch(cmds...)
 
+	case LeaderTimeoutMsg:
+		// Timeout expired — popup is already showing, nothing to do.
+		// The popup appears on activate; the timeout just keeps it visible.
+		return a, nil
+
 	case FlashExpireMsg:
 		a.statusBar.clearFlash()
 		return a, nil
@@ -422,6 +446,11 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// --- App-level key handlers (non-motion keys) ---
 	switch k {
+	case " ": // Space = leader key
+		if !a.leader.active {
+			cmd := a.leader.activate()
+			return a, cmd
+		}
 	case "q":
 		a.confirmQuit()
 		return a, nil
@@ -593,6 +622,11 @@ func (a App) handleOperatorRange(result *MotionResult) (tea.Model, tea.Cmd) {
 
 func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case " ": // Space = leader key
+		if !a.leader.active {
+			cmd := a.leader.activate()
+			return a, cmd
+		}
 	case "q":
 		a.confirmQuit()
 		return a, nil
@@ -641,6 +675,11 @@ func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (a App) handleSessionsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case " ": // Space = leader key
+		if !a.leader.active {
+			cmd := a.leader.activate()
+			return a, cmd
+		}
 	case "q":
 		a.confirmQuit()
 		return a, nil
@@ -728,6 +767,8 @@ func (a App) connectManaged(c config.Connection) (tea.Model, tea.Cmd) {
 		c.Username,
 		c.Password,
 		c.IdentityFile,
+		c.ProxyJump,
+		c.ProxyCommand,
 	)
 	a.sessions.Add(managed)
 	a.updateSessionCount()
@@ -1025,6 +1066,170 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
+// executeLeaderAction maps leader action command strings to existing app functionality.
+func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
+	switch action.Command {
+	// Connect
+	case "connect-selected":
+		return a.connectSelected()
+	case "quick-connect":
+		a.statusBar.setFlash("Quick connect not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+
+	// Find
+	case "fuzzy-find":
+		a.filter.activate()
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
+		return a, a.filter.input.Focus()
+	case "find-by-tag":
+		a.statusBar.setFlash("Find by tag not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+	case "find-by-group":
+		a.statusBar.setFlash("Find by group not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+
+	// Sessions
+	case "sessions":
+		a.sessionsView.setSessions(a.sessions.All())
+		a.sessionsView.setSize(a.width, a.contentHeight())
+		a.pushView(viewSessions)
+		a.help.view = "sessions"
+		return a, nil
+	case "kill-session-prompt":
+		a.statusBar.setFlash("Kill session: open sessions view first", flashInfo)
+		return a, scheduleFlashClear()
+	case "kill-all-sessions":
+		all := a.sessions.All()
+		count := len(all)
+		if count == 0 {
+			a.statusBar.setFlash("No active sessions", flashInfo)
+			return a, scheduleFlashClear()
+		}
+		for _, sess := range all {
+			sess.Kill()
+			a.sessions.Remove(sess.ID)
+		}
+		a.updateSessionCount()
+		a.statusBar.setFlash(fmt.Sprintf("Killed %d session(s)", count), flashInfo)
+		if a.currentView() == viewSessions {
+			a.sessionsView.setSessions(a.sessions.All())
+		}
+		return a, scheduleFlashClear()
+
+	// Groups
+	case "list-groups":
+		a.statusBar.setFlash("List groups not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+	case "filter-by-group":
+		a.statusBar.setFlash("Filter by group not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+
+	// Import
+	case "import-ssh":
+		return a.importSSH()
+	case "import-csv":
+		a.statusBar.setFlash("CSV import not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+	case "import-json":
+		a.statusBar.setFlash("JSON import not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+
+	// Export
+	case "export-all":
+		a.statusBar.setFlash("Export all not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+	case "export-selection":
+		a.statusBar.setFlash("Export selection not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+	case "export-group":
+		a.statusBar.setFlash("Export group not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+
+	// Tags
+	case "filter-by-tag":
+		a.statusBar.setFlash("Filter by tag not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+	case "add-tag":
+		a.statusBar.setFlash("Add tag not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+	case "remove-tag":
+		a.statusBar.setFlash("Remove tag not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+
+	// View
+	case "view-tree":
+		a.statusBar.setFlash("Tree view not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+	case "view-table":
+		// Already in table view if on list — just ensure we're there
+		if a.currentView() != viewList {
+			a.popView()
+		}
+		return a, nil
+	case "view-detail":
+		if c := a.list.selectedConnection(); c != nil {
+			st := a.list.statuses[c.ID]
+			latStr := ""
+			if st.status == health.Online || st.status == health.Degraded {
+				latStr = st.latency.String()
+			}
+			a.detail.setConnection(c, st.status, latStr)
+			a.detail.setSize(a.width, a.contentHeight())
+			a.pushView(viewDetail)
+			a.help.view = "detail"
+		}
+		return a, nil
+	case "view-wide":
+		a.list.toggleWideMode()
+		return a, nil
+
+	// Health
+	case "check-all":
+		a.log.info("Manual health check refresh via leader")
+		a.statusBar.setFlash("Refreshing health checks...", flashInfo)
+		return a, tea.Batch(
+			health.CheckAll(a.list.healthTargets()),
+			scheduleFlashClear(),
+		)
+	case "check-selected":
+		a.statusBar.setFlash("Check selected not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+
+	// Password
+	case "show-password":
+		if a.currentView() == viewDetail {
+			a.detail.showPassword = !a.detail.showPassword
+			a.detail.updateContent()
+		} else {
+			a.statusBar.setFlash("Open detail view first (D)", flashInfo)
+			return a, scheduleFlashClear()
+		}
+		return a, nil
+	case "copy-password":
+		a.statusBar.setFlash("Copy password not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+
+	// Options
+	case "theme":
+		a.statusBar.setFlash("Theme picker not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+	case "keybindings":
+		a.statusBar.setFlash("Keybinding editor not yet implemented", flashInfo)
+		return a, scheduleFlashClear()
+
+	// Help (direct action from "?")
+	case "?":
+		a.help.view = "list"
+		a.help.toggle()
+		return a, nil
+
+	default:
+		a.statusBar.setFlash(fmt.Sprintf("Action: %s", action.Command), flashInfo)
+		return a, scheduleFlashClear()
+	}
+}
+
 func (a App) View() string {
 	if !a.ready {
 		return "Loading..."
@@ -1071,7 +1276,14 @@ func (a App) View() string {
 	}
 	contentView = lipgloss.NewStyle().Height(contentH).Width(a.width).Render(contentView)
 
-	return lipgloss.JoinVertical(lipgloss.Left, headerView, contentView, statusView)
+	base := lipgloss.JoinVertical(lipgloss.Left, headerView, contentView, statusView)
+
+	// Overlay leader key popup on top of main content
+	if a.leader.active {
+		return a.leader.View()
+	}
+
+	return base
 }
 
 func (a *App) layout() {
@@ -1084,6 +1296,8 @@ func (a *App) layout() {
 	a.help.height = a.height
 	a.confirm.width = a.width
 	a.confirm.height = a.height
+	a.leader.width = a.width
+	a.leader.height = a.height
 
 	ch := a.contentHeight()
 	a.list.setSize(a.width, ch)
