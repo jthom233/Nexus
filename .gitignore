@@ -1,10 +1,47 @@
 # Binaries
 /nexus
 /nexus-gui
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build artifacts
+*.o
+*.a
+*.test
+*.out
+*.prof
+
+# Go workspace
+go.work
+go.work.sum
 
 # Config (contains credentials)
 config.yaml
 
+# Claude
+.claude/
+CLAUDE.md
+.claude*
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.nvim/
+.nvimrc
+.exrc
+
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
+._*
+
+# Env
+.env
+.env.*
