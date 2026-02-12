@@ -439,6 +439,11 @@ func (t *tableModel) cellStyle(colIdx int, value, rowStatus string, isCursor, is
 		}
 	}
 
+	// Favorite column: yellow star
+	if colIdx < len(t.columns) && t.columns[colIdx].SortKey == "fav" && value != "" {
+		return base.Foreground(th.Warning)
+	}
+
 	// Latency column detection: check if column title is "LATENCY"
 	if colIdx < len(t.columns) && t.columns[colIdx].Title == "LATENCY" {
 		return t.latencyStyle(value, th)

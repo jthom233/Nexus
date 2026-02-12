@@ -10,6 +10,16 @@ import (
 	"github.com/dr4zz/nexus/internal/health"
 )
 
+// listViewMode represents the current view/sort mode for the connection list.
+type listViewMode int
+
+const (
+	listViewDefault  listViewMode = iota // default: favorites pinned to top
+	listViewFavorites                     // filter: only favorites
+	listViewRecent                        // sort: by LastConnectedAt desc
+	listViewFrequent                      // sort: by ConnectCount desc
+)
+
 type connStatus struct {
 	status  health.Status
 	latency time.Duration
@@ -21,6 +31,7 @@ type listModel struct {
 	statuses    map[string]connStatus
 	filtered    []config.Connection
 	groupFilter string
+	viewMode    listViewMode
 	width       int
 	height      int
 	ready       bool
@@ -39,12 +50,13 @@ func newList(cfg *config.Config) listModel {
 // normalColumns returns the standard set of columns.
 func normalColumns() []Column {
 	return []Column{
-		{Title: "", MinWidth: 3, Flex: 0, SortKey: "status", Align: 2},       // status indicator
-		{Title: "NAME", MinWidth: 10, Flex: 35, SortKey: "name", Align: 0},   // name
-		{Title: "HOST", MinWidth: 10, Flex: 30, SortKey: "host", Align: 0},   // host
-		{Title: "PROTOCOL", MinWidth: 5, Flex: 0, SortKey: "protocol", Align: 0}, // protocol (fixed)
-		{Title: "GROUP", MinWidth: 8, Flex: 20, SortKey: "group", Align: 0},  // group
-		{Title: "LATENCY", MinWidth: 8, Flex: 0, SortKey: "latency", Align: 1}, // latency (right-aligned)
+		{Title: "", MinWidth: 3, Flex: 0, SortKey: "status", Align: 2},                 // status indicator
+		{Title: "\u2605", MinWidth: 1, MaxWidth: 1, Flex: 0, SortKey: "fav", Align: 2}, // favorite indicator
+		{Title: "NAME", MinWidth: 10, Flex: 35, SortKey: "name", Align: 0},             // name
+		{Title: "HOST", MinWidth: 10, Flex: 30, SortKey: "host", Align: 0},             // host
+		{Title: "PROTOCOL", MinWidth: 5, Flex: 0, SortKey: "protocol", Align: 0},       // protocol (fixed)
+		{Title: "GROUP", MinWidth: 8, Flex: 20, SortKey: "group", Align: 0},            // group
+		{Title: "LATENCY", MinWidth: 8, Flex: 0, SortKey: "latency", Align: 1},         // latency (right-aligned)
 	}
 }
 
@@ -52,6 +64,7 @@ func normalColumns() []Column {
 func wideColumns() []Column {
 	return []Column{
 		{Title: "", MinWidth: 3, Flex: 0, SortKey: "status", Align: 2},
+		{Title: "\u2605", MinWidth: 1, MaxWidth: 1, Flex: 0, SortKey: "fav", Align: 2},
 		{Title: "NAME", MinWidth: 8, Flex: 20, SortKey: "name", Align: 0},
 		{Title: "HOST", MinWidth: 8, Flex: 15, SortKey: "host", Align: 0},
 		{Title: "PROTOCOL", MinWidth: 5, Flex: 0, SortKey: "protocol", Align: 0},
@@ -101,6 +114,7 @@ func (l *listModel) applyFilter(query string) {
 
 func (l *listModel) applyGroupFilter() {
 	l.filtered = l.groupFilteredConns()
+	l.applyViewMode()
 	l.rebuildTable()
 }
 
@@ -115,6 +129,28 @@ func (l *listModel) groupFilteredConns() []config.Connection {
 		}
 	}
 	return result
+}
+
+// applyViewMode applies the current view mode filter/sort to l.filtered.
+func (l *listModel) applyViewMode() {
+	switch l.viewMode {
+	case listViewFavorites:
+		l.filtered = FilterFavorites(l.filtered)
+	case listViewRecent:
+		l.filtered = SortByRecent(l.filtered)
+	case listViewFrequent:
+		l.filtered = SortByFrequent(l.filtered)
+	case listViewDefault:
+		l.filtered = PinFavorites(l.filtered)
+	}
+}
+
+// setViewMode sets the view mode and refreshes the list.
+func (l *listModel) setViewMode(mode listViewMode) {
+	l.viewMode = mode
+	l.filtered = l.groupFilteredConns()
+	l.applyViewMode()
+	l.rebuildTable()
 }
 
 func (l *listModel) cycleGroup() {
@@ -211,6 +247,12 @@ func (l *listModel) buildRows() []Row {
 
 		statusStr := st.status.String()
 
+		// Favorite indicator
+		favStr := ""
+		if c.Favorite {
+			favStr = "\u2605" // filled star
+		}
+
 		// Add jump host indicator to host display
 		hostDisplay := c.HostPort()
 		if c.ProxyJump != "" || c.ProxyCommand != "" {
@@ -221,6 +263,7 @@ func (l *listModel) buildRows() []Row {
 			rows[i] = Row{
 				Cells: []string{
 					indicator,
+					favStr,
 					c.Name,
 					hostDisplay,
 					c.Protocol.Label(),
@@ -238,6 +281,7 @@ func (l *listModel) buildRows() []Row {
 			rows[i] = Row{
 				Cells: []string{
 					indicator,
+					favStr,
 					c.Name,
 					hostDisplay,
 					c.Protocol.Label(),

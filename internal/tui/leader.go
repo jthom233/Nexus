@@ -164,9 +164,10 @@ func leaderGroups() []LeaderGroup {
 		},
 		{
 			Key:   "f",
-			Label: "Find",
+			Label: "Find / Favorites",
 			Items: []LeaderItem{
-				{Key: "f", Label: "Fuzzy find", Action: "fuzzy-find"},
+				{Key: "f", Label: "Toggle favorite", Action: "toggle-favorite"},
+				{Key: "s", Label: "Fuzzy find", Action: "fuzzy-find"},
 				{Key: "t", Label: "By tag", Action: "find-by-tag"},
 				{Key: "g", Label: "By group", Action: "find-by-group"},
 			},
