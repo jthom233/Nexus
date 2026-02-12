@@ -51,9 +51,14 @@ type App struct {
 	// View stack
 	viewStack []viewKind
 
+	// Marks + Jump list
+	marks       *MarkManager
+	markPending rune // 0=none, 'm'=set-mark, 0x27=jump-to-mark, 0x60=backtick
+
 	// State
-	mode  Mode
-	ready bool
+	mode        Mode
+	visualState VisualState
+	ready       bool
 }
 
 // NewApp creates the root application model.
@@ -84,7 +89,9 @@ func NewApp(cfg *config.Config) App {
 		sessions:     NewSessionManager(),
 		sessionsView: newSessionsView(),
 		viewStack:    []viewKind{viewList},
+		marks:        NewMarkManager(),
 		mode:         ModeNormal,
+		visualState:  NewVisualState(),
 	}
 }
 
@@ -429,6 +436,85 @@ func (a *App) confirmQuit() {
 
 func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
+
+	// --- Mark pending state handling (two-key sequences: m+letter, \x27+letter, `+`) ---
+	if a.markPending != 0 {
+		defer func() { a.markPending = 0 }()
+		switch a.markPending {
+		case 'm':
+			// m + a-z: set mark at current position
+			if len(k) == 1 && k[0] >= 'a' && k[0] <= 'z' {
+				a.marks.SetMark(rune(k[0]), a.viewName(), a.currentCursor())
+				a.statusBar.setFlash(fmt.Sprintf("Mark '%s' set", k), flashInfo)
+				return a, scheduleFlashClear()
+			}
+			// Invalid follow-up key — cancel silently
+			return a, nil
+		case 0x27: // apostrophe (')
+			// ' + a-z: jump to mark
+			if len(k) == 1 && k[0] >= 'a' && k[0] <= 'z' {
+				mk, ok := a.marks.GetMark(rune(k[0]))
+				if !ok {
+					a.statusBar.setFlash(fmt.Sprintf("Mark '%s' not set", k), flashError)
+					return a, scheduleFlashClear()
+				}
+				// Push current position before jumping
+				a.marks.PushJump(a.viewName(), a.currentCursor())
+				a.navigateToMark(mk)
+				a.statusBar.setFlash(fmt.Sprintf("Jumped to mark '%s'", k), flashInfo)
+				return a, scheduleFlashClear()
+			}
+			return a, nil
+		case 0x60: // backtick (`)
+			// ` + `: jump to last position
+			if k == "`" {
+				mk, ok := a.marks.LastJump()
+				if !ok {
+					a.statusBar.setFlash("No previous jump", flashError)
+					return a, scheduleFlashClear()
+				}
+				a.marks.PushJump(a.viewName(), a.currentCursor())
+				a.navigateToMark(mk)
+				return a, nil
+			}
+			return a, nil
+		}
+		return a, nil
+	}
+
+	// --- Marks: initiate two-key sequences ---
+	switch k {
+	case "m":
+		a.markPending = 'm'
+		return a, nil
+	case "'":
+		a.markPending = 0x27 // apostrophe
+		return a, nil
+	case "`":
+		a.markPending = 0x60 // backtick
+		return a, nil
+	case "ctrl+o":
+		mk, ok := a.marks.JumpBack()
+		if !ok {
+			return a, nil
+		}
+		a.navigateToMark(mk)
+		return a, nil
+	case "ctrl+i":
+		mk, ok := a.marks.JumpForward()
+		if !ok {
+			return a, nil
+		}
+		a.navigateToMark(mk)
+		return a, nil
+	}
+
+
+	// Handle Visual mode keys first if visual mode is active.
+	if a.visualState.Active() {
+		return a.handleVisualKey(msg)
+	}
+
 	motion := a.list.table.motion
 
 	// Capture the pending operator before the engine processes this key,
@@ -510,6 +596,8 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case "D":
 		if c := a.list.selectedConnection(); c != nil {
+			// Record position before view change
+			a.marks.PushJump(a.viewName(), a.currentCursor())
 			st := a.list.statuses[c.ID]
 			latStr := ""
 			if st.status == health.Online || st.status == health.Degraded {
@@ -529,11 +617,16 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			scheduleFlashClear(),
 		)
 	case "s":
+		// Record position before view change
+		a.marks.PushJump(a.viewName(), a.currentCursor())
 		a.sessionsView.setSessions(a.sessions.All())
 		a.sessionsView.setSize(a.width, a.contentHeight())
 		a.pushView(viewSessions)
 		a.help.view = "sessions"
 		return a, nil
+
+	case "V": // Enter line-visual mode
+		return a.enterVisualMode()
 
 	case "N": // Jump to previous search match (opposite direction of n)
 		return a.searchNextMatch(false)
@@ -631,6 +724,144 @@ func (a App) handleOperatorRange(result *MotionResult) (tea.Model, tea.Cmd) {
 		return a.yankCommand()
 	}
 	return a, nil
+}
+
+// enterVisualMode switches to Visual mode with the current cursor as anchor.
+func (a App) enterVisualMode() (tea.Model, tea.Cmd) {
+	cursor := a.list.table.Cursor()
+	a.visualState.Enter(cursor)
+	a.list.table.visualState = &a.visualState
+	a.mode = ModeVisual
+	a.statusBar.mode = ModeVisual
+	a.statusBar.visualCount = a.visualState.Count()
+	return a, a.setMode(ModeVisual)
+}
+
+// exitVisualMode returns to Normal mode and clears all visual selection.
+func (a *App) exitVisualMode() tea.Cmd {
+	a.visualState.Exit()
+	a.list.table.visualState = nil
+	a.mode = ModeNormal
+	a.statusBar.mode = ModeNormal
+	a.statusBar.visualCount = 0
+	return a.setMode(ModeNormal)
+}
+
+// syncVisualStatus updates the statusbar with the current visual selection count.
+func (a *App) syncVisualStatus() {
+	a.statusBar.visualCount = a.visualState.Count()
+}
+
+// handleVisualKey processes key events while in Visual mode.
+func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	k := msg.String()
+	cursor := a.list.table.Cursor()
+	total := len(a.list.table.rows)
+
+	switch k {
+	case "esc":
+		cmd := a.exitVisualMode()
+		return a, cmd
+
+	case "j", "down":
+		// Move cursor down and extend selection range
+		newCursor := min(cursor+1, total-1)
+		a.list.table.MoveCursor(newCursor)
+		a.visualState.UpdateRange(newCursor)
+		a.list.table.visualState = &a.visualState
+		a.syncVisualStatus()
+		a.syncCursorPosition()
+		return a, nil
+
+	case "k", "up":
+		// Move cursor up and extend/contract selection range
+		newCursor := max(cursor-1, 0)
+		a.list.table.MoveCursor(newCursor)
+		a.visualState.UpdateRange(newCursor)
+		a.list.table.visualState = &a.visualState
+		a.syncVisualStatus()
+		a.syncCursorPosition()
+		return a, nil
+
+	case "G":
+		// Jump to last row, extend selection
+		a.list.table.MoveCursor(total - 1)
+		a.visualState.UpdateRange(total - 1)
+		a.list.table.visualState = &a.visualState
+		a.syncVisualStatus()
+		a.syncCursorPosition()
+		return a, nil
+
+	case "v":
+		// Toggle current item in/out of selection (non-contiguous)
+		a.visualState.ToggleItem(cursor)
+		a.list.table.visualState = &a.visualState
+		a.syncVisualStatus()
+		return a, nil
+
+	case "d":
+		// Delete all selected connections (with confirmation)
+		count := a.visualState.Count()
+		if count == 0 {
+			return a, nil
+		}
+		ids := a.visualState.SelectedIDs(a.list.table.rows)
+		if len(ids) == 0 {
+			return a, nil
+		}
+		// Store selected IDs for the confirm handler
+		prompt := fmt.Sprintf("Delete %d selected connections?", count)
+		// Join IDs with comma for the confirm action
+		idStr := strings.Join(ids, ",")
+		a.confirm.show(prompt, "delete-visual", idStr)
+		a.confirm.width = a.width
+		a.confirm.height = a.height
+		return a, nil
+
+	case "y":
+		// Yank all selected connection details to clipboard
+		return a.yankVisualSelection()
+	}
+
+	return a, nil
+}
+
+// yankVisualSelection copies the details of all visually selected connections to the clipboard.
+func (a App) yankVisualSelection() (tea.Model, tea.Cmd) {
+	ids := a.visualState.SelectedIDs(a.list.table.rows)
+	if len(ids) == 0 {
+		return a, nil
+	}
+
+	var lines []string
+	for _, id := range ids {
+		c := a.cfg.FindConnection(id)
+		if c == nil {
+			continue
+		}
+		l, err := launcher.ForProtocol(c.Protocol)
+		if err != nil {
+			continue
+		}
+		lines = append(lines, l.Command(*c))
+	}
+
+	if len(lines) == 0 {
+		return a, nil
+	}
+
+	text := strings.Join(lines, "\n")
+	if err := clipboard.WriteAll(text); err != nil {
+		a.log.error("Clipboard error: %v", err)
+		a.statusBar.setFlash("Clipboard error: "+err.Error(), flashError)
+	} else {
+		a.log.info("Copied %d connection commands to clipboard", len(lines))
+		a.statusBar.setFlash(fmt.Sprintf("Copied %d commands", len(lines)), flashInfo)
+	}
+
+	// Exit visual mode after yanking
+	a.exitVisualMode()
+	return a, scheduleFlashClear()
 }
 
 func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -783,6 +1014,7 @@ func (a App) connectManaged(c config.Connection) (tea.Model, tea.Cmd) {
 		c.ProxyJump,
 		c.ProxyCommand,
 	)
+	managed.PortForwards = c.PortForwards
 	a.sessions.Add(managed)
 	a.updateSessionCount()
 
@@ -1050,6 +1282,40 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 			a.log.info("Deleted connection: %s", name)
 			a.statusBar.setFlash("Deleted "+name, flashInfo)
 		}
+		a.list.filtered = a.list.groupFilteredConns()
+		a.list.rebuildTable()
+		total, online, offline := a.list.countsByStatus()
+		a.statusBar.total = total
+		a.statusBar.online = online
+		a.statusBar.offline = offline
+		a.syncHeaderView()
+		a.syncCursorPosition()
+		return a, scheduleFlashClear()
+
+	case "delete-visual":
+		// Delete multiple connections from visual selection
+		idStr := msg.ID
+		ids := strings.Split(idStr, ",")
+		deleted := 0
+		for _, id := range ids {
+			conn := a.cfg.FindConnection(id)
+			name := id
+			if conn != nil {
+				name = conn.Name
+			}
+			if err := a.cfg.DeleteConnection(id); err != nil {
+				a.log.error("Delete failed for %s: %v", name, err)
+			} else {
+				a.log.info("Deleted connection: %s", name)
+				deleted++
+			}
+		}
+		a.statusBar.setFlash(fmt.Sprintf("Deleted %d connections", deleted), flashInfo)
+
+		// Exit visual mode
+		a.exitVisualMode()
+
+		// Rebuild the list
 		a.list.filtered = a.list.groupFilteredConns()
 		a.list.rebuildTable()
 		total, online, offline := a.list.countsByStatus()
@@ -1469,6 +1735,8 @@ func (a App) searchNextMatch(sameDirection bool) (tea.Model, tea.Cmd) {
 
 	target := a.search.nextMatch(cursor, forward)
 	if target >= 0 {
+		// Record position before search jump
+		a.marks.PushJump(a.viewName(), cursor)
 		a.list.table.MoveCursor(target)
 		a.search.matchIdx = target
 		a.syncCursorPosition()
@@ -1494,6 +1762,8 @@ func (a App) searchUnderCursor(mode SearchMode) (tea.Model, tea.Cmd) {
 	forward := mode == SearchForward
 	target := a.search.nextMatch(cursor, forward)
 	if target >= 0 && target != cursor {
+		// Record position before search-under-cursor jump
+		a.marks.PushJump(a.viewName(), cursor)
 		a.list.table.MoveCursor(target)
 		a.search.matchIdx = target
 	}
@@ -1597,6 +1867,75 @@ func (a App) contentHeight() int {
 		h = 5
 	}
 	return h
+}
+
+// viewName returns a string name for the current view (used by the mark system).
+func (a App) viewName() string {
+	switch a.currentView() {
+	case viewList:
+		return "list"
+	case viewDetail:
+		return "detail"
+	case viewForm:
+		return "form"
+	case viewLog:
+		return "log"
+	case viewSessions:
+		return "sessions"
+	default:
+		return "list"
+	}
+}
+
+// currentCursor returns the cursor position for the current view.
+func (a App) currentCursor() int {
+	switch a.currentView() {
+	case viewList:
+		return a.list.table.Cursor()
+	case viewSessions:
+		return a.sessionsView.table.Cursor()
+	default:
+		return 0
+	}
+}
+
+// navigateToMark jumps to the view and cursor recorded in a Mark.
+func (a *App) navigateToMark(mk Mark) {
+	// Switch view if needed
+	target := viewList
+	switch mk.View {
+	case "list":
+		target = viewList
+	case "detail":
+		target = viewDetail
+	case "sessions":
+		target = viewSessions
+	case "log":
+		target = viewLog
+	default:
+		target = viewList
+	}
+
+	if a.currentView() != target {
+		// Pop back to list first, then push target if not list
+		for len(a.viewStack) > 1 {
+			a.viewStack = a.viewStack[:len(a.viewStack)-1]
+		}
+		if target != viewList {
+			a.pushView(target)
+		}
+		a.syncHeaderView()
+		a.syncStatusBarView()
+	}
+
+	// Set cursor
+	switch target {
+	case viewList:
+		a.list.table.SetCursor(mk.Cursor)
+	case viewSessions:
+		a.sessionsView.table.SetCursor(mk.Cursor)
+	}
+	a.syncCursorPosition()
 }
 
 func scheduleFlashClear() tea.Cmd {
