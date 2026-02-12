@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dr4zz/nexus/internal/config"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
@@ -23,10 +24,12 @@ type SSHSession struct {
 	IdentityFile string
 	ProxyJump    string
 	ProxyCommand string
+	PortForwards []config.PortForward
 
 	client      *ssh.Client
 	jumpClients []*ssh.Client // intermediate jump host clients for cleanup
 	session     *ssh.Session
+	pfManager   *PortForwardManager
 	stdin       io.Reader
 	stdout      io.Writer
 	stderr      io.Writer
@@ -48,7 +51,34 @@ func (s *SSHSession) Run() error {
 		return err
 	}
 	defer s.close()
+
+	// Start port forwards
+	if len(s.PortForwards) > 0 {
+		s.pfManager = NewPortForwardManager()
+		for _, pf := range s.PortForwards {
+			if err := s.startPortForward(pf); err != nil {
+				// Log but don't fail the session for a port forward error
+				if s.stderr != nil {
+					fmt.Fprintf(s.stderr, "port forward %s: %v\n", pf.String(), err)
+				}
+			}
+		}
+	}
+
 	return s.shell()
+}
+
+func (s *SSHSession) startPortForward(pf config.PortForward) error {
+	switch pf.Type {
+	case config.PortForwardLocal:
+		return s.pfManager.StartLocal(s.client, pf.LocalAddr, pf.RemoteAddr)
+	case config.PortForwardRemote:
+		return s.pfManager.StartRemote(s.client, pf.LocalAddr, pf.RemoteAddr)
+	case config.PortForwardDynamic:
+		return s.pfManager.StartDynamic(s.client, pf.LocalAddr)
+	default:
+		return fmt.Errorf("unknown forward type: %s", pf.Type)
+	}
 }
 
 func (s *SSHSession) connect() error {
@@ -234,6 +264,11 @@ func (s *SSHSession) shell() error {
 }
 
 func (s *SSHSession) close() {
+	// Stop all port forwards first
+	if s.pfManager != nil {
+		s.pfManager.StopAll()
+	}
+
 	if s.session != nil {
 		s.session.Close()
 	}

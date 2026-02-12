@@ -37,6 +37,7 @@ type formModel struct {
 	identityFile string
 	proxyJump    string
 	proxyCommand string
+	portForwards string
 	group        string
 	tags         string
 	resolution   string
@@ -69,6 +70,7 @@ func (f *formModel) startAdd(groups []string) {
 	f.identityFile = ""
 	f.proxyJump = ""
 	f.proxyCommand = ""
+	f.portForwards = ""
 	f.group = ""
 	f.tags = ""
 	f.resolution = "1920x1080"
@@ -97,6 +99,7 @@ func (f *formModel) startEdit(conn config.Connection, groups []string) {
 	f.identityFile = conn.IdentityFile
 	f.proxyJump = conn.ProxyJump
 	f.proxyCommand = conn.ProxyCommand
+	f.portForwards = config.FormatPortForwards(conn.PortForwards)
 	f.group = conn.Group
 	f.tags = strings.Join(conn.Tags, ", ")
 	f.resolution = conn.RDPOptions.Resolution
@@ -189,6 +192,16 @@ func (f *formModel) buildForm() {
 			huh.NewInput().
 				Title("ProxyCommand (e.g. ssh -W %h:%p bastion)").
 				Value(&f.proxyCommand),
+			huh.NewInput().
+				Title("Port Forwards (e.g. L:8080:remote:80,R:9090:local:9090,D:1080)").
+				Value(&f.portForwards).
+				Validate(func(s string) error {
+					if strings.TrimSpace(s) == "" {
+						return nil
+					}
+					_, err := config.ParsePortForwards(s)
+					return err
+				}),
 		).WithHideFunc(func() bool { return f.protocol != "ssh" }),
 		// RDP-specific
 		huh.NewGroup(
@@ -238,6 +251,12 @@ func (f *formModel) toConnection() config.Connection {
 		}
 	}
 
+	var portForwards []config.PortForward
+	if f.portForwards != "" {
+		// Validation already passed in the form
+		portForwards, _ = config.ParsePortForwards(f.portForwards)
+	}
+
 	conn := config.Connection{
 		ID:           id,
 		Name:         strings.TrimSpace(f.name),
@@ -249,6 +268,7 @@ func (f *formModel) toConnection() config.Connection {
 		IdentityFile: strings.TrimSpace(f.identityFile),
 		ProxyJump:    strings.TrimSpace(f.proxyJump),
 		ProxyCommand: strings.TrimSpace(f.proxyCommand),
+		PortForwards: portForwards,
 		Group:        f.group,
 		Tags:         tags,
 	}

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dr4zz/nexus/internal/config"
+	"github.com/dr4zz/nexus/internal/hooks"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
@@ -128,6 +131,12 @@ type ManagedSession struct {
 	IdentityFile string
 	ProxyJump    string
 	ProxyCommand string
+	PortForwards []config.PortForward
+
+	// Lifecycle hooks
+	ConnHooks  hooks.Hooks
+	hookRunner *hooks.HookRunner
+	hookEnv    map[string]string
 
 	// SSH state (persists across detach/reattach cycles)
 	client      *ssh.Client
@@ -136,6 +145,7 @@ type ManagedSession struct {
 	sshStdin    io.WriteCloser
 	sshStdout   io.Reader
 	sshStderr   io.Reader
+	pfManager   *PortForwardManager
 
 	// Buffers for background output capture
 	outputBuf *ringBuffer
@@ -181,6 +191,37 @@ func NewManagedSession(id, name, connID, protocol, host string, port int, userna
 	}
 }
 
+// SetHooks configures lifecycle hooks for this session.
+func (m *ManagedSession) SetHooks(h hooks.Hooks) {
+	m.ConnHooks = h
+	m.hookRunner = hooks.NewHookRunner()
+	m.hookEnv = hooks.ConnectionEnv(m.ConnID, m.Host, m.Port, m.Username, m.Protocol)
+}
+
+// runHooksForEvent executes hooks for the given event, logging warnings
+// for FailWarn results. Returns error only if a FailAbort hook fails.
+func (m *ManagedSession) runHooksForEvent(event hooks.HookEvent) error {
+	if m.hookRunner == nil {
+		return nil
+	}
+	hks := m.ConnHooks.ForEvent(event)
+	if len(hks) == 0 {
+		return nil
+	}
+
+	results, err := m.hookRunner.RunHooks(context.Background(), event, hks, m.hookEnv)
+
+	// Log warnings for failed hooks that didn't abort
+	for _, r := range results {
+		if r.Error != nil && r.Hook.OnFailure == hooks.FailWarn {
+			msg := fmt.Sprintf("hook warning [%s] %q: %v\n", event, r.Hook.Command, r.Error)
+			m.stderrBuf.Write([]byte(msg))
+		}
+	}
+
+	return err
+}
+
 // SetStdin sets the stdin reader (called by bubbletea before Run).
 func (m *ManagedSession) SetStdin(r io.Reader) { m.stdin = r }
 
@@ -194,6 +235,12 @@ func (m *ManagedSession) SetStderr(w io.Writer) { m.stderr = w }
 // Returns ErrDetached on Ctrl+\, or the session error when SSH exits.
 func (m *ManagedSession) Run() error {
 	if !m.connected {
+		// Run pre-connect hooks
+		if err := m.runHooksForEvent(hooks.PreConnect); err != nil {
+			m.setStatus(StatusClosed)
+			return fmt.Errorf("pre-connect hook: %w", err)
+		}
+
 		if err := m.connect(); err != nil {
 			m.setStatus(StatusClosed)
 			return err
@@ -207,6 +254,21 @@ func (m *ManagedSession) Run() error {
 		m.ConnectedAt = time.Now()
 		m.setStatus(StatusConnected)
 
+		// Run post-connect hooks (best-effort)
+		m.runHooksForEvent(hooks.PostConnect)
+
+		// Start port forwards
+		if len(m.PortForwards) > 0 {
+			m.pfManager = NewPortForwardManager()
+			for _, pf := range m.PortForwards {
+				if err := m.startPortForward(pf); err != nil {
+					// Log to stderr buffer but don't fail the session
+					msg := fmt.Sprintf("port forward %s: %v\n", pf.String(), err)
+					m.stderrBuf.Write([]byte(msg))
+				}
+			}
+		}
+
 		// Clear terminal for new session
 		m.stdout.Write([]byte("\033[2J\033[H"))
 
@@ -217,6 +279,19 @@ func (m *ManagedSession) Run() error {
 	}
 
 	return m.attachLoop()
+}
+
+func (m *ManagedSession) startPortForward(pf config.PortForward) error {
+	switch pf.Type {
+	case config.PortForwardLocal:
+		return m.pfManager.StartLocal(m.client, pf.LocalAddr, pf.RemoteAddr)
+	case config.PortForwardRemote:
+		return m.pfManager.StartRemote(m.client, pf.LocalAddr, pf.RemoteAddr)
+	case config.PortForwardDynamic:
+		return m.pfManager.StartDynamic(m.client, pf.LocalAddr)
+	default:
+		return fmt.Errorf("unknown forward type: %s", pf.Type)
+	}
 }
 
 func (m *ManagedSession) connect() error {
@@ -431,7 +506,16 @@ func (m *ManagedSession) waitDone() {
 	m.doneErr = err
 	m.status = StatusClosed
 	m.mu.Unlock()
+
+	// Run post-disconnect hooks (best-effort, before cleanup)
+	m.runHooksForEvent(hooks.PostDisconnect)
+
 	close(m.doneCh)
+
+	// Stop port forwards
+	if m.pfManager != nil {
+		m.pfManager.StopAll()
+	}
 
 	// Clean up
 	m.session.Close()
@@ -614,6 +698,19 @@ func (m *ManagedSession) Kill() {
 		return
 	}
 	m.status = StatusClosed
+
+	// Run pre-disconnect hooks (best-effort)
+	// Note: we run these without holding the lock since they may take time.
+	// We already set status to Closed above to prevent re-entry.
+	m.mu.Unlock()
+	m.runHooksForEvent(hooks.PreDisconnect)
+	m.mu.Lock()
+
+	// Stop port forwards
+	if m.pfManager != nil {
+		m.pfManager.StopAll()
+	}
+
 	if m.session != nil {
 		m.session.Close()
 	}
@@ -656,4 +753,12 @@ func (m *ManagedSession) Uptime() time.Duration {
 		return 0
 	}
 	return time.Since(m.ConnectedAt)
+}
+
+// PortForwardList returns the list of active port forwards for this session.
+func (m *ManagedSession) PortForwardList() []ActiveForward {
+	if m.pfManager == nil {
+		return nil
+	}
+	return m.pfManager.List()
 }
