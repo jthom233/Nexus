@@ -55,6 +55,9 @@ type App struct {
 	marks       *MarkManager
 	markPending rune // 0=none, 'm'=set-mark, 0x27=jump-to-mark, 0x60=backtick
 
+	// Undo/Redo
+	undoStack *UndoStack
+
 	// State
 	mode        Mode
 	visualState VisualState
@@ -90,6 +93,7 @@ func NewApp(cfg *config.Config) App {
 		sessionsView: newSessionsView(),
 		viewStack:    []viewKind{viewList},
 		marks:        NewMarkManager(),
+		undoStack:    NewUndoStack(),
 		mode:         ModeNormal,
 		visualState:  NewVisualState(),
 	}
@@ -642,6 +646,11 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	// Wide mode toggle
+
+	case "u": // Undo
+		return a.performUndo()
+	case "ctrl+r": // Redo
+		return a.performRedo()
 	case "ctrl+w":
 		a.list.toggleWideMode()
 		return a, nil
@@ -1015,6 +1024,9 @@ func (a App) connectManaged(c config.Connection) (tea.Model, tea.Cmd) {
 		c.ProxyCommand,
 	)
 	managed.PortForwards = c.PortForwards
+	if !c.Hooks.IsEmpty() {
+		managed.SetHooks(c.Hooks)
+	}
 	a.sessions.Add(managed)
 	a.updateSessionCount()
 
@@ -1222,7 +1234,12 @@ func (a App) importSSH() (tea.Model, tea.Cmd) {
 
 func (a App) handleFormSubmit(msg FormSubmitMsg) (tea.Model, tea.Cmd) {
 	var err error
+	var beforeSnapshot config.Connection
 	if msg.IsEdit {
+		// Capture the before-snapshot for undo.
+		if existing := a.cfg.FindConnection(msg.Conn.ID); existing != nil {
+			beforeSnapshot = *existing
+		}
 		err = a.cfg.UpdateConnection(msg.Conn)
 	} else {
 		err = a.cfg.AddConnection(msg.Conn)
@@ -1236,6 +1253,22 @@ func (a App) handleFormSubmit(msg FormSubmitMsg) (tea.Model, tea.Cmd) {
 		a.log.error("Save failed for %s: %v", msg.Conn.Name, err)
 		a.statusBar.setFlash("Save error: "+err.Error(), flashError)
 	} else {
+		// Record undo operation on success.
+		if msg.IsEdit {
+			a.undoStack.Push(Operation{
+				Type:   UndoOpEdit,
+				ConnID: msg.Conn.ID,
+				Name:   beforeSnapshot.Name,
+				Before: beforeSnapshot,
+				After:  msg.Conn,
+			})
+		} else {
+			a.undoStack.Push(Operation{
+				Type:  UndoOpAdd,
+				Name:  msg.Conn.Name,
+				After: msg.Conn,
+			})
+		}
 		action := "Added"
 		if msg.IsEdit {
 			action = "Updated"
@@ -1272,13 +1305,33 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 	case "delete":
 		conn := a.cfg.FindConnection(msg.ID)
 		name := msg.ID
+		var deletedConn config.Connection
+		deleteIndex := -1
 		if conn != nil {
 			name = conn.Name
+			deletedConn = *conn
+			// Find the index in cfg.Connections for undo reinsertion.
+			for i, c := range a.cfg.Connections {
+				if c.ID == msg.ID {
+					deleteIndex = i
+					break
+				}
+			}
 		}
 		if err := a.cfg.DeleteConnection(msg.ID); err != nil {
 			a.log.error("Delete failed for %s: %v", name, err)
 			a.statusBar.setFlash("Delete error: "+err.Error(), flashError)
 		} else {
+			// Record undo operation on success.
+			if deleteIndex >= 0 {
+				a.undoStack.Push(Operation{
+					Type:   UndoOpDelete,
+					ConnID: msg.ID,
+					Name:   name,
+					Index:  deleteIndex,
+					Before: deletedConn,
+				})
+			}
 			a.log.info("Deleted connection: %s", name)
 			a.statusBar.setFlash("Deleted "+name, flashInfo)
 		}
@@ -1302,12 +1355,37 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 			name := id
 			if conn != nil {
 				name = conn.Name
-			}
-			if err := a.cfg.DeleteConnection(id); err != nil {
-				a.log.error("Delete failed for %s: %v", name, err)
+				// Capture snapshot and index for undo before deleting.
+				snapshot := *conn
+				idx := -1
+				for i, c := range a.cfg.Connections {
+					if c.ID == id {
+						idx = i
+						break
+					}
+				}
+				if err := a.cfg.DeleteConnection(id); err != nil {
+					a.log.error("Delete failed for %s: %v", name, err)
+				} else {
+					if idx >= 0 {
+						a.undoStack.Push(Operation{
+							Type:   UndoOpDelete,
+							ConnID: id,
+							Name:   name,
+							Index:  idx,
+							Before: snapshot,
+						})
+					}
+					a.log.info("Deleted connection: %s", name)
+					deleted++
+				}
 			} else {
-				a.log.info("Deleted connection: %s", name)
-				deleted++
+				if err := a.cfg.DeleteConnection(id); err != nil {
+					a.log.error("Delete failed for %s: %v", name, err)
+				} else {
+					a.log.info("Deleted connection: %s", name)
+					deleted++
+				}
 			}
 		}
 		a.statusBar.setFlash(fmt.Sprintf("Deleted %d connections", deleted), flashInfo)
@@ -1936,6 +2014,135 @@ func (a *App) navigateToMark(mk Mark) {
 		a.sessionsView.table.SetCursor(mk.Cursor)
 	}
 	a.syncCursorPosition()
+}
+
+
+// performUndo undoes the most recent destructive operation.
+func (a App) performUndo() (tea.Model, tea.Cmd) {
+	op, ok := a.undoStack.Undo()
+	if !ok {
+		a.statusBar.setFlash("Nothing to undo", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	var flashMsg string
+	switch op.Type {
+	case UndoOpAdd:
+		// Undo add = delete the connection that was added.
+		if err := a.cfg.DeleteConnection(op.After.ID); err != nil {
+			a.log.error("Undo add failed: %v", err)
+			a.statusBar.setFlash("Undo failed: "+err.Error(), flashError)
+			return a, scheduleFlashClear()
+		}
+		flashMsg = fmt.Sprintf("Undo: removed '%s'", op.Name)
+
+	case UndoOpDelete:
+		// Undo delete = re-insert the connection at its original index.
+		if err := a.cfg.InsertConnectionAt(op.Before, op.Index); err != nil {
+			a.log.error("Undo delete failed: %v", err)
+			a.statusBar.setFlash("Undo failed: "+err.Error(), flashError)
+			return a, scheduleFlashClear()
+		}
+		flashMsg = fmt.Sprintf("Undo: restored '%s'", op.Name)
+
+	case UndoOpEdit:
+		// Undo edit = restore the before snapshot.
+		if err := a.cfg.UpdateConnection(op.Before); err != nil {
+			a.log.error("Undo edit failed: %v", err)
+			a.statusBar.setFlash("Undo failed: "+err.Error(), flashError)
+			return a, scheduleFlashClear()
+		}
+		flashMsg = fmt.Sprintf("Undo: reverted '%s'", op.Name)
+
+	case UndoOpTagChange:
+		// Undo tag change = restore the before snapshot.
+		if err := a.cfg.UpdateConnection(op.Before); err != nil {
+			a.log.error("Undo tag change failed: %v", err)
+			a.statusBar.setFlash("Undo failed: "+err.Error(), flashError)
+			return a, scheduleFlashClear()
+		}
+		flashMsg = fmt.Sprintf("Undo: restored tags on '%s'", op.Name)
+	}
+
+	a.log.info("%s", flashMsg)
+	a.statusBar.setFlash(flashMsg, flashInfo)
+	a.list.filtered = a.list.groupFilteredConns()
+	a.list.rebuildTable()
+	total, online, offline := a.list.countsByStatus()
+	a.statusBar.total = total
+	a.statusBar.online = online
+	a.statusBar.offline = offline
+	a.syncHeaderView()
+	a.syncCursorPosition()
+
+	return a, tea.Batch(
+		health.CheckAll(a.list.healthTargets()),
+		scheduleFlashClear(),
+	)
+}
+
+// performRedo re-applies the most recently undone operation.
+func (a App) performRedo() (tea.Model, tea.Cmd) {
+	op, ok := a.undoStack.Redo()
+	if !ok {
+		a.statusBar.setFlash("Nothing to redo", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	var flashMsg string
+	switch op.Type {
+	case UndoOpAdd:
+		// Redo add = re-add the connection.
+		if err := a.cfg.AddConnection(op.After); err != nil {
+			a.log.error("Redo add failed: %v", err)
+			a.statusBar.setFlash("Redo failed: "+err.Error(), flashError)
+			return a, scheduleFlashClear()
+		}
+		flashMsg = fmt.Sprintf("Redo: added '%s'", op.Name)
+
+	case UndoOpDelete:
+		// Redo delete = delete the connection again.
+		if err := a.cfg.DeleteConnection(op.Before.ID); err != nil {
+			a.log.error("Redo delete failed: %v", err)
+			a.statusBar.setFlash("Redo failed: "+err.Error(), flashError)
+			return a, scheduleFlashClear()
+		}
+		flashMsg = fmt.Sprintf("Redo: deleted '%s'", op.Name)
+
+	case UndoOpEdit:
+		// Redo edit = re-apply the after snapshot.
+		if err := a.cfg.UpdateConnection(op.After); err != nil {
+			a.log.error("Redo edit failed: %v", err)
+			a.statusBar.setFlash("Redo failed: "+err.Error(), flashError)
+			return a, scheduleFlashClear()
+		}
+		flashMsg = fmt.Sprintf("Redo: re-applied edit on '%s'", op.Name)
+
+	case UndoOpTagChange:
+		// Redo tag change = re-apply the after snapshot.
+		if err := a.cfg.UpdateConnection(op.After); err != nil {
+			a.log.error("Redo tag change failed: %v", err)
+			a.statusBar.setFlash("Redo failed: "+err.Error(), flashError)
+			return a, scheduleFlashClear()
+		}
+		flashMsg = fmt.Sprintf("Redo: re-applied tags on '%s'", op.Name)
+	}
+
+	a.log.info("%s", flashMsg)
+	a.statusBar.setFlash(flashMsg, flashInfo)
+	a.list.filtered = a.list.groupFilteredConns()
+	a.list.rebuildTable()
+	total, online, offline := a.list.countsByStatus()
+	a.statusBar.total = total
+	a.statusBar.online = online
+	a.statusBar.offline = offline
+	a.syncHeaderView()
+	a.syncCursorPosition()
+
+	return a, tea.Batch(
+		health.CheckAll(a.list.healthTargets()),
+		scheduleFlashClear(),
+	)
 }
 
 func scheduleFlashClear() tea.Cmd {

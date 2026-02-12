@@ -175,6 +175,18 @@ func (cfg *Config) AddConnection(conn Connection) error {
 	return Save(cfg)
 }
 
+// InsertConnectionAt inserts a connection at the given index and saves.
+// If the index is out of range, the connection is appended.
+func (cfg *Config) InsertConnectionAt(conn Connection, index int) error {
+	if index < 0 || index >= len(cfg.Connections) {
+		cfg.Connections = append(cfg.Connections, conn)
+	} else {
+		cfg.Connections = append(cfg.Connections[:index+1], cfg.Connections[index:]...)
+		cfg.Connections[index] = conn
+	}
+	return Save(cfg)
+}
+
 // UpdateConnection replaces a connection by ID and saves.
 func (cfg *Config) UpdateConnection(conn Connection) error {
 	for i, c := range cfg.Connections {
