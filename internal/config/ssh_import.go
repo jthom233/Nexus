@@ -71,6 +71,14 @@ func ImportSSHConfig() ([]Connection, error) {
 			if current != nil {
 				current.IdentityFile = expandTilde(val)
 			}
+		case "proxyjump":
+			if current != nil {
+				current.ProxyJump = val
+			}
+		case "proxycommand":
+			if current != nil {
+				current.ProxyCommand = val
+			}
 		}
 	}
 

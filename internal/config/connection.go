@@ -58,6 +58,8 @@ type Connection struct {
 	Username     string     `yaml:"username,omitempty"`
 	Password     string     `yaml:"password,omitempty"`
 	IdentityFile string     `yaml:"identity_file,omitempty"`
+	ProxyJump    string     `yaml:"proxy_jump,omitempty"`    // comma-separated list of jump hosts (user@host:port)
+	ProxyCommand string     `yaml:"proxy_command,omitempty"` // custom proxy command
 	Domain       string     `yaml:"domain,omitempty"`
 	Group        string     `yaml:"group,omitempty"`
 	Tags         []string   `yaml:"tags,omitempty"`

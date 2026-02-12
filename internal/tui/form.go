@@ -35,6 +35,8 @@ type formModel struct {
 	password     string
 	domain       string
 	identityFile string
+	proxyJump    string
+	proxyCommand string
 	group        string
 	tags         string
 	resolution   string
@@ -65,6 +67,8 @@ func (f *formModel) startAdd(groups []string) {
 	f.password = ""
 	f.domain = ""
 	f.identityFile = ""
+	f.proxyJump = ""
+	f.proxyCommand = ""
 	f.group = ""
 	f.tags = ""
 	f.resolution = "1920x1080"
@@ -91,6 +95,8 @@ func (f *formModel) startEdit(conn config.Connection, groups []string) {
 	f.password = conn.Password
 	f.domain = conn.Domain
 	f.identityFile = conn.IdentityFile
+	f.proxyJump = conn.ProxyJump
+	f.proxyCommand = conn.ProxyCommand
 	f.group = conn.Group
 	f.tags = strings.Join(conn.Tags, ", ")
 	f.resolution = conn.RDPOptions.Resolution
@@ -177,6 +183,12 @@ func (f *formModel) buildForm() {
 			huh.NewInput().
 				Title("Identity File").
 				Value(&f.identityFile),
+			huh.NewInput().
+				Title("ProxyJump (e.g. user@bastion:22,user@bastion2:22)").
+				Value(&f.proxyJump),
+			huh.NewInput().
+				Title("ProxyCommand (e.g. ssh -W %h:%p bastion)").
+				Value(&f.proxyCommand),
 		).WithHideFunc(func() bool { return f.protocol != "ssh" }),
 		// RDP-specific
 		huh.NewGroup(
@@ -235,6 +247,8 @@ func (f *formModel) toConnection() config.Connection {
 		Username:     strings.TrimSpace(f.username),
 		Password:     f.password,
 		IdentityFile: strings.TrimSpace(f.identityFile),
+		ProxyJump:    strings.TrimSpace(f.proxyJump),
+		ProxyCommand: strings.TrimSpace(f.proxyCommand),
 		Group:        f.group,
 		Tags:         tags,
 	}

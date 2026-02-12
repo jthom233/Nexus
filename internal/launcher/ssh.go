@@ -20,6 +20,8 @@ func (l *SSHLauncher) Launch(conn config.Connection) tea.Cmd {
 		Username:     conn.Username,
 		Password:     conn.Password,
 		IdentityFile: conn.IdentityFile,
+		ProxyJump:    conn.ProxyJump,
+		ProxyCommand: conn.ProxyCommand,
 	}
 
 	// tea.Exec suspends the TUI and gives us raw terminal access.
@@ -41,6 +43,9 @@ func (l *SSHLauncher) buildDisplayArgs(conn config.Connection) []string {
 	var args []string
 	if conn.IdentityFile != "" {
 		args = append(args, "-i", conn.IdentityFile)
+	}
+	if conn.ProxyJump != "" {
+		args = append(args, "-J", conn.ProxyJump)
 	}
 	port := conn.EffectivePort()
 	if port != 22 {

@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -20,12 +21,15 @@ type SSHSession struct {
 	Username     string
 	Password     string
 	IdentityFile string
+	ProxyJump    string
+	ProxyCommand string
 
-	client  *ssh.Client
-	session *ssh.Session
-	stdin   io.Reader
-	stdout  io.Writer
-	stderr  io.Writer
+	client      *ssh.Client
+	jumpClients []*ssh.Client // intermediate jump host clients for cleanup
+	session     *ssh.Session
+	stdin       io.Reader
+	stdout      io.Writer
+	stderr      io.Writer
 }
 
 // SetStdin sets the stdin reader (called by bubbletea before Run).
@@ -48,6 +52,10 @@ func (s *SSHSession) Run() error {
 }
 
 func (s *SSHSession) connect() error {
+	if s.ProxyJump != "" {
+		return s.connectViaJumpHosts()
+	}
+
 	addr := net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
 
 	authMethods := buildSSHAuth(s.Username, s.Password, s.IdentityFile)
@@ -67,6 +75,86 @@ func (s *SSHSession) connect() error {
 		return fmt.Errorf("ssh dial: %w", err)
 	}
 	s.client = client
+	return nil
+}
+
+func (s *SSHSession) connectViaJumpHosts() error {
+	hops := strings.Split(s.ProxyJump, ",")
+
+	var currentClient *ssh.Client
+	var jumpClients []*ssh.Client
+
+	for _, hop := range hops {
+		hop = strings.TrimSpace(hop)
+		hopUser, hopHost, hopPort := parseJumpHost(hop)
+
+		var conn net.Conn
+		var err error
+		if currentClient == nil {
+			conn, err = net.DialTimeout("tcp", net.JoinHostPort(hopHost, hopPort), 10*time.Second)
+		} else {
+			conn, err = currentClient.Dial("tcp", net.JoinHostPort(hopHost, hopPort))
+		}
+		if err != nil {
+			for i := len(jumpClients) - 1; i >= 0; i-- {
+				jumpClients[i].Close()
+			}
+			return fmt.Errorf("jump host %s: %w", hop, err)
+		}
+
+		authMethods := buildSSHAuth(hopUser, "", "")
+		if len(authMethods) == 0 {
+			authMethods = defaultSSHAuth()
+		}
+
+		ncc, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(hopHost, hopPort), &ssh.ClientConfig{
+			User:            hopUser,
+			Auth:            authMethods,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Timeout:         10 * time.Second,
+		})
+		if err != nil {
+			conn.Close()
+			for i := len(jumpClients) - 1; i >= 0; i-- {
+				jumpClients[i].Close()
+			}
+			return fmt.Errorf("jump host SSH %s: %w", hop, err)
+		}
+		currentClient = ssh.NewClient(ncc, chans, reqs)
+		jumpClients = append(jumpClients, currentClient)
+	}
+
+	// Final hop: connect to target through the last jump host
+	targetAddr := net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
+	conn, err := currentClient.Dial("tcp", targetAddr)
+	if err != nil {
+		for i := len(jumpClients) - 1; i >= 0; i-- {
+			jumpClients[i].Close()
+		}
+		return fmt.Errorf("target dial via jump: %w", err)
+	}
+
+	authMethods := buildSSHAuth(s.Username, s.Password, s.IdentityFile)
+	if len(authMethods) == 0 {
+		authMethods = defaultSSHAuth()
+	}
+
+	ncc, chans, reqs, err := ssh.NewClientConn(conn, targetAddr, &ssh.ClientConfig{
+		User:            s.Username,
+		Auth:            authMethods,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	})
+	if err != nil {
+		conn.Close()
+		for i := len(jumpClients) - 1; i >= 0; i-- {
+			jumpClients[i].Close()
+		}
+		return fmt.Errorf("target SSH via jump: %w", err)
+	}
+
+	s.client = ssh.NewClient(ncc, chans, reqs)
+	s.jumpClients = jumpClients
 	return nil
 }
 
@@ -152,6 +240,11 @@ func (s *SSHSession) close() {
 	if s.client != nil {
 		s.client.Close()
 	}
+	// Close jump host clients in reverse order
+	for i := len(s.jumpClients) - 1; i >= 0; i-- {
+		s.jumpClients[i].Close()
+	}
+	s.jumpClients = nil
 }
 
 func (s *SSHSession) watchResize(fd int, session *ssh.Session) {

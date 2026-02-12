@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -125,13 +126,16 @@ type ManagedSession struct {
 	Username     string
 	Password     string
 	IdentityFile string
+	ProxyJump    string
+	ProxyCommand string
 
 	// SSH state (persists across detach/reattach cycles)
-	client    *ssh.Client
-	session   *ssh.Session
-	sshStdin  io.WriteCloser
-	sshStdout io.Reader
-	sshStderr io.Reader
+	client      *ssh.Client
+	jumpClients []*ssh.Client // intermediate jump host clients for cleanup
+	session     *ssh.Session
+	sshStdin    io.WriteCloser
+	sshStdout   io.Reader
+	sshStderr   io.Reader
 
 	// Buffers for background output capture
 	outputBuf *ringBuffer
@@ -157,7 +161,7 @@ type ManagedSession struct {
 }
 
 // NewManagedSession creates a new managed session ready to connect.
-func NewManagedSession(id, name, connID, protocol, host string, port int, username, password, identityFile string) *ManagedSession {
+func NewManagedSession(id, name, connID, protocol, host string, port int, username, password, identityFile, proxyJump, proxyCommand string) *ManagedSession {
 	return &ManagedSession{
 		ID:           id,
 		Name:         name,
@@ -168,6 +172,8 @@ func NewManagedSession(id, name, connID, protocol, host string, port int, userna
 		Username:     username,
 		Password:     password,
 		IdentityFile: identityFile,
+		ProxyJump:    proxyJump,
+		ProxyCommand: proxyCommand,
 		outputBuf:    newRingBuffer(1000),
 		stderrBuf:    newRingBuffer(100),
 		doneCh:       make(chan struct{}),
@@ -214,6 +220,10 @@ func (m *ManagedSession) Run() error {
 }
 
 func (m *ManagedSession) connect() error {
+	if m.ProxyJump != "" {
+		return m.connectViaJumpHosts()
+	}
+
 	addr := net.JoinHostPort(m.Host, strconv.Itoa(m.Port))
 
 	authMethods := buildSSHAuth(m.Username, m.Password, m.IdentityFile)
@@ -234,6 +244,109 @@ func (m *ManagedSession) connect() error {
 	}
 	m.client = client
 	return nil
+}
+
+func (m *ManagedSession) connectViaJumpHosts() error {
+	hops := strings.Split(m.ProxyJump, ",")
+
+	var currentClient *ssh.Client
+	var jumpClients []*ssh.Client
+
+	for _, hop := range hops {
+		hop = strings.TrimSpace(hop)
+		hopUser, hopHost, hopPort := parseJumpHost(hop)
+
+		var conn net.Conn
+		var err error
+		if currentClient == nil {
+			// First hop: direct TCP connection
+			conn, err = net.DialTimeout("tcp", net.JoinHostPort(hopHost, hopPort), 10*time.Second)
+		} else {
+			// Subsequent hops: dial through existing SSH client
+			conn, err = currentClient.Dial("tcp", net.JoinHostPort(hopHost, hopPort))
+		}
+		if err != nil {
+			// Clean up any already-established jump clients
+			for i := len(jumpClients) - 1; i >= 0; i-- {
+				jumpClients[i].Close()
+			}
+			return fmt.Errorf("jump host %s: %w", hop, err)
+		}
+
+		// SSH handshake through the connection
+		authMethods := buildSSHAuth(hopUser, "", "")
+		if len(authMethods) == 0 {
+			authMethods = defaultSSHAuth()
+		}
+
+		ncc, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(hopHost, hopPort), &ssh.ClientConfig{
+			User:            hopUser,
+			Auth:            authMethods,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Timeout:         10 * time.Second,
+		})
+		if err != nil {
+			conn.Close()
+			for i := len(jumpClients) - 1; i >= 0; i-- {
+				jumpClients[i].Close()
+			}
+			return fmt.Errorf("jump host SSH %s: %w", hop, err)
+		}
+		currentClient = ssh.NewClient(ncc, chans, reqs)
+		jumpClients = append(jumpClients, currentClient)
+	}
+
+	// Final hop: connect to target through the last jump host
+	targetAddr := net.JoinHostPort(m.Host, strconv.Itoa(m.Port))
+	conn, err := currentClient.Dial("tcp", targetAddr)
+	if err != nil {
+		for i := len(jumpClients) - 1; i >= 0; i-- {
+			jumpClients[i].Close()
+		}
+		return fmt.Errorf("target dial via jump: %w", err)
+	}
+
+	authMethods := buildSSHAuth(m.Username, m.Password, m.IdentityFile)
+	if len(authMethods) == 0 {
+		authMethods = defaultSSHAuth()
+	}
+
+	ncc, chans, reqs, err := ssh.NewClientConn(conn, targetAddr, &ssh.ClientConfig{
+		User:            m.Username,
+		Auth:            authMethods,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	})
+	if err != nil {
+		conn.Close()
+		for i := len(jumpClients) - 1; i >= 0; i-- {
+			jumpClients[i].Close()
+		}
+		return fmt.Errorf("target SSH via jump: %w", err)
+	}
+
+	m.client = ssh.NewClient(ncc, chans, reqs)
+	m.jumpClients = jumpClients
+	return nil
+}
+
+// parseJumpHost parses a jump host string in the format user@host:port.
+// Port defaults to "22" if not specified. User defaults to $USER if not specified.
+func parseJumpHost(hop string) (user, host, port string) {
+	port = "22"
+	if at := strings.LastIndex(hop, "@"); at >= 0 {
+		user = hop[:at]
+		hop = hop[at+1:]
+	}
+	if h, p, err := net.SplitHostPort(hop); err == nil {
+		host, port = h, p
+	} else {
+		host = hop
+	}
+	if user == "" {
+		user = os.Getenv("USER")
+	}
+	return
 }
 
 func (m *ManagedSession) startShell() error {
@@ -323,6 +436,11 @@ func (m *ManagedSession) waitDone() {
 	// Clean up
 	m.session.Close()
 	m.client.Close()
+	// Close jump host clients in reverse order
+	for i := len(m.jumpClients) - 1; i >= 0; i-- {
+		m.jumpClients[i].Close()
+	}
+	m.jumpClients = nil
 }
 
 // attachLoop enters raw mode and runs the interactive I/O loop.
@@ -502,6 +620,11 @@ func (m *ManagedSession) Kill() {
 	if m.client != nil {
 		m.client.Close()
 	}
+	// Close jump host clients in reverse order
+	for i := len(m.jumpClients) - 1; i >= 0; i-- {
+		m.jumpClients[i].Close()
+	}
+	m.jumpClients = nil
 }
 
 // Status returns the current session status.
