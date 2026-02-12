@@ -67,6 +67,9 @@ func defaultCommands() []CommandDef {
 		{Name: "note", Aliases: nil, Description: "Set note on current connection", ArgSpec: "<text>"},
 		{Name: "field", Aliases: nil, Description: "Manage custom fields", ArgSpec: "set <key> <value> | remove <key>"},
 		{Name: "all", Aliases: nil, Description: "Show all connections", ArgSpec: ""},
+		{Name: "health", Aliases: nil, Description: "Health check connections", ArgSpec: ""},
+		{Name: "move", Aliases: nil, Description: "Move to group", ArgSpec: "<group>"},
+		{Name: "vault", Aliases: nil, Description: "List vault credentials", ArgSpec: ""},
 	}
 }
 

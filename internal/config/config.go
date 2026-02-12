@@ -13,6 +13,7 @@ import (
 type Settings struct {
 	HealthCheckInterval string `yaml:"health_check_interval,omitempty"`
 	Theme               string `yaml:"theme,omitempty"`
+	Vault               string `yaml:"vault,omitempty"` // "internal" (default), "pass", or "keyring"
 }
 
 // HealthInterval returns the parsed health check interval, defaulting to 30s.
