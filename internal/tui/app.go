@@ -13,6 +13,7 @@ import (
 	"github.com/dr4zz/nexus/internal/health"
 	"github.com/dr4zz/nexus/internal/launcher"
 	"github.com/dr4zz/nexus/internal/session"
+	"github.com/dr4zz/nexus/internal/audit"
 	"github.com/dr4zz/nexus/internal/template"
 )
 
@@ -24,6 +25,8 @@ const (
 	viewForm
 	viewLog
 	viewSessions
+	viewPulse
+	viewAuditLog
 )
 
 // App is the root bubbletea model.
@@ -51,6 +54,10 @@ type App struct {
 	tree         *TreeModel
 	tplStore     *template.TemplateStore
 	quickConnect *QuickConnect
+	pulse        *PulseModel
+	auditLog     *audit.AuditLog
+	auditLogView *LogViewModel
+	finder       *FinderModel
 
 	// View stack
 	viewStack []viewKind
@@ -86,6 +93,16 @@ func NewApp(cfg *config.Config) App {
 	tplStore := template.NewTemplateStore()
 	tplStore.LoadUserTemplates(cfg.Templates)
 
+	finder := NewFinder()
+
+	var al *audit.AuditLog
+	if a, err := audit.Open(""); err == nil {
+		al = a
+		l.info("Audit log opened: %s", audit.DefaultPath())
+	} else {
+		l.warn("Could not open audit log: %v", err)
+	}
+
 	return App{
 		cfg:          cfg,
 		keys:         DefaultKeyMap(),
@@ -106,6 +123,10 @@ func NewApp(cfg *config.Config) App {
 		sessionsView: newSessionsView(),
 		tree:         NewTreeModel(cfg.Connections),
 		quickConnect: NewQuickConnect(),
+		pulse:        NewPulseModel(),
+		auditLogView: NewLogViewModel(),
+		auditLog:     al,
+		finder:       finder,
 		viewStack:    []viewKind{viewList},
 		viewMode:     "table",
 		marks:        NewMarkManager(),
@@ -150,6 +171,10 @@ func (a *App) syncStatusBarView() {
 		a.statusBar.view = "log"
 	case viewSessions:
 		a.statusBar.view = "sessions"
+	case viewPulse:
+		a.statusBar.view = "pulse"
+	case viewAuditLog:
+		a.statusBar.view = "audit"
 	}
 }
 
@@ -183,6 +208,12 @@ func (a *App) syncHeaderView() {
 	case viewSessions:
 		a.header.setView("Sessions", 2)
 		a.header.setItemCount(a.sessions.Count())
+	case viewPulse:
+		a.header.setView("Pulse", 4)
+		a.header.setItemCount(0)
+	case viewAuditLog:
+		a.header.setView("Audit Log", 5)
+		a.header.setItemCount(0)
 	}
 }
 
@@ -316,6 +347,30 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, cmd
 		}
+		if a.finder.active {
+			switch msg.String() {
+			case "esc":
+				a.finder.Deactivate()
+				a.mode = ModeNormal
+				a.statusBar.mode = ModeNormal
+				return a, a.setMode(ModeNormal)
+			case "enter":
+				if c := a.finder.SelectedConnection(); c != nil {
+					a.finder.Deactivate()
+					a.mode = ModeNormal
+					a.statusBar.mode = ModeNormal
+					if c.Protocol == config.ProtoSSH {
+						return a.connectManaged(*c)
+					}
+					return a.connectByID(c.ID)
+				}
+				return a, nil
+			default:
+				cmd := a.finder.Update(msg)
+				return a, cmd
+			}
+		}
+
 		if a.command.active {
 			var cmd tea.Cmd
 			a.command, cmd = a.command.Update(msg)
@@ -349,6 +404,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusBar.online = online
 		a.statusBar.offline = offline
 		a.syncCursorPosition()
+		if a.currentView() == viewPulse {
+			a.pulse.Refresh(a.list.filtered, a.list.statuses, a.sessions.Count())
+		}
 		return a, nil
 
 	case health.TickMsg:
@@ -366,6 +424,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			fullErr := msg.Err.Error()
 			// Log the full error
 			a.log.error("Session failed for %s:\n%s", msg.ID, fullErr)
+			a.logAuditEvent(audit.AuditEvent{
+				ConnectionID:   msg.ID,
+				ConnectionName: msg.ID,
+				EventType:      audit.EventError,
+				Details:        fullErr,
+			})
 			// Truncate for status bar
 			errStr := fullErr
 			if idx := strings.IndexByte(errStr, '\n'); idx > 0 {
@@ -377,6 +441,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.statusBar.setFlash("Error: "+errStr+" (L:logs)", flashError)
 		} else {
 			a.log.info("Session ended for %s", msg.ID)
+			a.logAuditEvent(audit.AuditEvent{
+				ConnectionID:   msg.ID,
+				ConnectionName: msg.ID,
+				EventType:      audit.EventDisconnect,
+			})
 			a.statusBar.setFlash("Session ended", flashInfo)
 		}
 		cmds = append(cmds, scheduleFlashClear())
@@ -459,6 +528,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case viewSessions:
 		var cmd tea.Cmd
 		a.sessionsView, cmd = a.sessionsView.Update(msg)
+		cmds = append(cmds, cmd)
+	case viewPulse:
+		// Pulse has no model update needed
+	case viewAuditLog:
+		cmd := a.auditLogView.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 
@@ -798,6 +872,12 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+w":
 		a.list.toggleWideMode()
 		return a, nil
+	case "ctrl+p":
+		a.finder.SetSize(a.width, a.height)
+		a.finder.Activate(PickerConnections, a.cfg.Connections)
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
+		return a, a.finder.prompt.Focus()
 	}
 
 	return a, nil
@@ -1128,6 +1208,63 @@ func (a App) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+func (a App) handlePulseKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q":
+		a.confirmQuit()
+		return a, nil
+	case "esc":
+		a.popView()
+		return a, nil
+	case "r":
+		a.log.info("Manual health check refresh from pulse view")
+		a.statusBar.setFlash("Refreshing...", flashInfo)
+		return a, tea.Batch(
+			health.CheckAll(a.list.healthTargets()),
+			scheduleFlashClear(),
+		)
+	}
+	return a, nil
+}
+
+func (a App) handleAuditLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q":
+		a.confirmQuit()
+		return a, nil
+	case "esc":
+		a.popView()
+		return a, nil
+	}
+
+	// Pass scroll keys to viewport
+	cmd := a.auditLogView.Update(msg)
+	return a, cmd
+}
+
+func (a App) openAuditLogView() (tea.Model, tea.Cmd) {
+	if a.auditLog != nil {
+		events, err := a.auditLog.Query(audit.AuditFilter{Limit: 200})
+		if err != nil {
+			a.log.error("Failed to query audit log: %v", err)
+		} else {
+			a.auditLogView.SetEvents(events)
+		}
+	}
+	a.auditLogView.SetSize(a.width, a.contentHeight())
+	a.pushView(viewAuditLog)
+	return a, nil
+}
+
+func (a *App) logAuditEvent(ev audit.AuditEvent) {
+	if a.auditLog == nil {
+		return
+	}
+	if err := a.auditLog.Log(ev); err != nil {
+		a.log.warn("Audit log write error: %v", err)
+	}
+}
+
 // trackConnectionUsage updates LastConnectedAt and increments ConnectCount
 // for the connection with the given ID, then saves the config.
 func (a *App) trackConnectionUsage(connID string) {
@@ -1258,6 +1395,12 @@ func (a App) connectManaged(c config.Connection) (tea.Model, tea.Cmd) {
 	a.updateSessionCount()
 
 	a.log.info("Connecting to %s (%s) via managed %s [%s]", c.Name, c.HostPort(), c.Protocol.Label(), managed.ID)
+	a.logAuditEvent(audit.AuditEvent{
+		ConnectionID:   c.ID,
+		ConnectionName: c.Name,
+		EventType:      audit.EventConnect,
+		Details:        fmt.Sprintf("%s %s via %s", c.Protocol.Label(), c.HostPort(), managed.ID),
+	})
 	a.statusBar.setFlash("Connecting to "+c.Name+"...", flashInfo)
 
 	sessID := managed.ID
@@ -1463,6 +1606,11 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		a.pushView(viewSessions)
 		a.help.view = "sessions"
 		return a, nil
+	case "pulse":
+		a.pulse.SetSize(a.width, a.contentHeight())
+		a.pulse.Refresh(a.list.filtered, a.list.statuses, a.sessions.Count())
+		a.pushView(viewPulse)
+		return a, nil
 	case "logs":
 		a.log.setSize(a.width, a.contentHeight())
 		a.pushView(viewLog)
@@ -1478,6 +1626,10 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		return a.handleFilterCommand(msg.Args)
 	case "sort":
 		return a.handleSortCommand(msg.Args)
+	case "note":
+		return a.handleNoteCommand(msg.Args)
+	case "field":
+		return a.handleFieldCommand(msg.Args)
 	default:
 		a.log.warn("Unknown command: %s", msg.Name)
 		a.statusBar.setFlash("Unknown command: "+msg.Name, flashError)
@@ -1723,6 +1875,7 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		return a.connectSelected()
 	case "quick-connect":
 		a.quickConnect.width = a.width
+	a.finder.SetSize(a.width, a.height)
 		a.quickConnect.Activate()
 		a.mode = ModeInsert
 		a.statusBar.mode = ModeInsert
@@ -1730,26 +1883,38 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 
 	// Find
 	case "fuzzy-find":
-		a.search.activate(SearchForward)
-		a.search.width = a.width
-		a.list.table.highlightText = ""
+		a.finder.SetSize(a.width, a.height)
+		a.finder.Activate(PickerConnections, a.cfg.Connections)
 		a.mode = ModeInsert
 		a.statusBar.mode = ModeInsert
-		return a, a.setMode(ModeInsert)
+		return a, a.finder.prompt.Focus()
 	case "find-by-tag":
-
-		// Activate search bar with tag prefix
-		a.search.activate(SearchForward)
-		a.search.query = "-t "
-		a.search.width = a.width
-		a.list.table.highlightText = ""
+		// Filter connections by tags
+		a.finder.SetSize(a.width, a.height)
+		a.finder.Activate(PickerTags, a.cfg.Connections)
 		a.mode = ModeInsert
 		a.statusBar.mode = ModeInsert
-		return a, a.setMode(ModeInsert)
+		return a, a.finder.prompt.Focus()
 
 	case "find-by-group":
-		a.statusBar.setFlash("Find by group not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+		a.finder.SetSize(a.width, a.height)
+		a.finder.Activate(PickerGroups, a.cfg.Connections)
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
+		return a, a.finder.prompt.Focus()
+	case "find-sessions":
+		a.finder.SetSize(a.width, a.height)
+		a.finder.Activate(PickerSessions, a.cfg.Connections)
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
+		return a, a.finder.prompt.Focus()
+	case "find-recent":
+		recent := SortByRecent(a.cfg.Connections)
+		a.finder.SetSize(a.width, a.height)
+		a.finder.Activate(PickerRecent, recent)
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
+		return a, a.finder.prompt.Focus()
 
 	// Sessions
 	case "sessions":
@@ -1869,6 +2034,12 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 	case "check-selected":
 		a.statusBar.setFlash("Check selected not yet implemented", flashInfo)
 		return a, scheduleFlashClear()
+
+	case "pulse-view":
+		a.pulse.SetSize(a.width, a.contentHeight())
+		a.pulse.Refresh(a.list.filtered, a.list.statuses, a.sessions.Count())
+		a.pushView(viewPulse)
+		return a, nil
 
 	// Password
 	case "show-password":
@@ -2207,6 +2378,10 @@ func (a App) View() string {
 		contentView = a.log.View()
 	case viewSessions:
 		contentView = a.sessionsView.View()
+	case viewPulse:
+		contentView = a.pulse.View()
+	case viewAuditLog:
+		contentView = a.auditLogView.View()
 	}
 
 	// Calculate available height for content and pad/truncate to fill
@@ -2221,6 +2396,11 @@ func (a App) View() string {
 	// Overlay leader key popup on top of main content
 	if a.leader.active {
 		return a.leader.View()
+	}
+
+	// Overlay finder on top of main content
+	if a.finder.active {
+		return a.finder.View()
 	}
 
 	return base
@@ -2246,6 +2426,8 @@ func (a *App) layout() {
 	a.detail.setSize(a.width, ch)
 	a.log.setSize(a.width, ch)
 	a.sessionsView.setSize(a.width, ch)
+	a.pulse.SetSize(a.width, ch)
+	a.auditLogView.SetSize(a.width, ch)
 
 	total, online, offline := a.list.countsByStatus()
 	a.statusBar.total = total
@@ -2307,6 +2489,10 @@ func (a *App) navigateToMark(mk Mark) {
 		target = viewDetail
 	case "sessions":
 		target = viewSessions
+	case "pulse":
+		target = viewPulse
+	case "audit":
+		target = viewAuditLog
 	case "log":
 		target = viewLog
 	default:
@@ -2781,4 +2967,100 @@ func scheduleFlashClear() tea.Cmd {
 
 func itoa(n int) string {
 	return fmt.Sprintf("%d", n)
+}
+
+// handleNoteCommand handles the :note command to set notes on the current connection.
+func (a App) handleNoteCommand(args string) (tea.Model, tea.Cmd) {
+	c := a.list.selectedConnection()
+	if c == nil {
+		a.statusBar.setFlash("No connection selected", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	text := strings.TrimSpace(args)
+	if text == "" {
+		// Clear the note
+		c.Notes = ""
+		a.log.info("Cleared note for %s", c.Name)
+		a.statusBar.setFlash("Note cleared for "+c.Name, flashInfo)
+	} else {
+		c.Notes = text
+		a.log.info("Set note for %s: %s", c.Name, text)
+		a.statusBar.setFlash("Note saved for "+c.Name, flashInfo)
+	}
+
+	if err := a.cfg.UpdateConnection(*c); err != nil {
+		a.log.error("Failed to save note: %v", err)
+		a.statusBar.setFlash("Failed to save: "+err.Error(), flashError)
+	}
+
+	// Refresh detail view if visible
+	if a.currentView() == viewDetail {
+		a.detail.setConnection(c, a.detail.status, a.detail.latency)
+	}
+
+	return a, scheduleFlashClear()
+}
+
+// handleFieldCommand handles :field set <key> <value> and :field remove <key>.
+func (a App) handleFieldCommand(args string) (tea.Model, tea.Cmd) {
+	c := a.list.selectedConnection()
+	if c == nil {
+		a.statusBar.setFlash("No connection selected", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	parts := strings.Fields(args)
+	if len(parts) < 2 {
+		a.statusBar.setFlash("Usage: :field set <key> <value> | :field remove <key>", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	switch parts[0] {
+	case "set":
+		if len(parts) < 3 {
+			a.statusBar.setFlash("Usage: :field set <key> <value>", flashError)
+			return a, scheduleFlashClear()
+		}
+		key := parts[1]
+		// Value is everything after the key, preserving spaces
+		valStart := strings.Index(args, parts[1]) + len(parts[1])
+		value := strings.TrimSpace(args[valStart:])
+		if c.CustomFields == nil {
+			c.CustomFields = make(map[string]string)
+		}
+		c.CustomFields[key] = value
+		a.log.info("Set field %s=%s for %s", key, value, c.Name)
+		a.statusBar.setFlash(fmt.Sprintf("Field '%s' set on %s", key, c.Name), flashInfo)
+
+	case "remove", "rm", "del":
+		key := parts[1]
+		if c.CustomFields == nil || c.CustomFields[key] == "" {
+			a.statusBar.setFlash(fmt.Sprintf("Field '%s' not found", key), flashError)
+			return a, scheduleFlashClear()
+		}
+		delete(c.CustomFields, key)
+		// Clean up empty map
+		if len(c.CustomFields) == 0 {
+			c.CustomFields = nil
+		}
+		a.log.info("Removed field %s from %s", key, c.Name)
+		a.statusBar.setFlash(fmt.Sprintf("Field '%s' removed from %s", key, c.Name), flashInfo)
+
+	default:
+		a.statusBar.setFlash("Usage: :field set <key> <value> | :field remove <key>", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	if err := a.cfg.UpdateConnection(*c); err != nil {
+		a.log.error("Failed to save field: %v", err)
+		a.statusBar.setFlash("Failed to save: "+err.Error(), flashError)
+	}
+
+	// Refresh detail view if visible
+	if a.currentView() == viewDetail {
+		a.detail.setConnection(c, a.detail.status, a.detail.latency)
+	}
+
+	return a, scheduleFlashClear()
 }

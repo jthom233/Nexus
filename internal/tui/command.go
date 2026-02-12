@@ -64,7 +64,8 @@ func defaultCommands() []CommandDef {
 		{Name: "mkdir", Aliases: nil, Description: "Create group", ArgSpec: "<name>"},
 		{Name: "rmdir", Aliases: nil, Description: "Remove group", ArgSpec: "<name>"},
 		{Name: "mv", Aliases: nil, Description: "Move connection to group", ArgSpec: "<conn> <group>"},
-		{Name: "note", Aliases: nil, Description: "Add note to connection", ArgSpec: "<conn> <text>"},
+		{Name: "note", Aliases: nil, Description: "Set note on current connection", ArgSpec: "<text>"},
+		{Name: "field", Aliases: nil, Description: "Manage custom fields", ArgSpec: "set <key> <value> | remove <key>"},
 		{Name: "all", Aliases: nil, Description: "Show all connections", ArgSpec: ""},
 	}
 }

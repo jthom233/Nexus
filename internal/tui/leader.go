@@ -166,10 +166,12 @@ func leaderGroups() []LeaderGroup {
 			Key:   "f",
 			Label: "Find / Favorites",
 			Items: []LeaderItem{
-				{Key: "f", Label: "Toggle favorite", Action: "toggle-favorite"},
-				{Key: "s", Label: "Fuzzy find", Action: "fuzzy-find"},
+				{Key: "f", Label: "Fuzzy find", Action: "fuzzy-find"},
+				{Key: "s", Label: "Sessions", Action: "find-sessions"},
 				{Key: "t", Label: "By tag", Action: "find-by-tag"},
 				{Key: "g", Label: "By group", Action: "find-by-group"},
+				{Key: "r", Label: "Recent", Action: "find-recent"},
+				{Key: "v", Label: "Toggle favorite", Action: "toggle-favorite"},
 			},
 		},
 		{
@@ -232,6 +234,7 @@ func leaderGroups() []LeaderGroup {
 			Items: []LeaderItem{
 				{Key: "a", Label: "Check all", Action: "check-all"},
 				{Key: "s", Label: "Check selected", Action: "check-selected"},
+				{Key: "p", Label: "Pulse dashboard", Action: "pulse-view"},
 			},
 		},
 		{

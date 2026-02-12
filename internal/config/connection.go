@@ -201,6 +201,10 @@ type Connection struct {
 	Favorite        bool       `yaml:"favorite,omitempty"`
 	LastConnectedAt *time.Time `yaml:"last_connected_at,omitempty"`
 	ConnectCount    int        `yaml:"connect_count,omitempty"`
+
+	// Notes and custom metadata
+	Notes        string            `yaml:"notes,omitempty"`
+	CustomFields map[string]string `yaml:"custom_fields,omitempty"`
 }
 
 // EffectivePort returns the configured port or the protocol default.
