@@ -47,6 +47,7 @@ type App struct {
 	log          *logModel
 	sessions     *SessionManager
 	sessionsView sessionsViewModel
+	tree         *TreeModel
 
 	// View stack
 	viewStack []viewKind
@@ -61,7 +62,9 @@ type App struct {
 	// State
 	mode        Mode
 	visualState VisualState
-	ready       bool
+	ready          bool
+	viewMode       string // "table" or "tree"
+	treeFoldPending bool  // true when "z" was pressed in tree mode
 }
 
 // NewApp creates the root application model.
@@ -91,7 +94,9 @@ func NewApp(cfg *config.Config) App {
 		log:          l,
 		sessions:     NewSessionManager(),
 		sessionsView: newSessionsView(),
+		tree:         NewTreeModel(cfg.Connections),
 		viewStack:    []viewKind{viewList},
+		viewMode:     "table",
 		marks:        NewMarkManager(),
 		undoStack:    NewUndoStack(),
 		mode:         ModeNormal,
@@ -438,8 +443,90 @@ func (a *App) confirmQuit() {
 	a.confirm.height = a.height
 }
 
+// handleTreeKey handles key input when the tree view is active.
+func (a App) handleTreeKey(msg tea.KeyMsg, k string) (tea.Model, tea.Cmd) {
+	// Handle fold pending state (z prefix).
+	if a.treeFoldPending {
+		a.treeFoldPending = false
+		switch k {
+		case "a":
+			a.tree.Toggle(a.tree.Cursor())
+		case "o":
+			a.tree.Expand(a.tree.Cursor())
+		case "c":
+			a.tree.Collapse(a.tree.Cursor())
+		case "R":
+			a.tree.ExpandAll()
+		case "M":
+			a.tree.CollapseAll()
+		}
+		return a, nil
+	}
+
+	switch k {
+	case "j", "down":
+		a.tree.CursorDown()
+		a.syncCursorPosition()
+		return a, nil
+	case "k", "up":
+		a.tree.CursorUp()
+		a.syncCursorPosition()
+		return a, nil
+	case "G":
+		a.tree.MoveCursor(a.tree.RowCount() - 1)
+		a.syncCursorPosition()
+		return a, nil
+	case "g":
+		a.tree.MoveCursor(0)
+		a.syncCursorPosition()
+		return a, nil
+	case "z":
+		a.treeFoldPending = true
+		return a, nil
+	case "enter":
+		if connID, ok := a.tree.SelectedConnection(); ok {
+			return a.connectByID(connID)
+		} else if _, ok := a.tree.SelectedFolder(); ok {
+			a.tree.Toggle(a.tree.Cursor())
+		}
+		return a, nil
+	case " ": // Space = leader key
+		if !a.leader.active {
+			cmd := a.leader.activate()
+			return a, cmd
+		}
+	case "q":
+		a.confirmQuit()
+		return a, nil
+	case "D":
+		if connID, ok := a.tree.SelectedConnection(); ok {
+			c := a.cfg.FindConnection(connID)
+			if c != nil {
+				st := a.list.statuses[c.ID]
+				latStr := ""
+				if st.status == health.Online || st.status == health.Degraded {
+					latStr = st.latency.String()
+				}
+				a.detail.setConnection(c, st.status, latStr)
+				a.detail.setSize(a.width, a.contentHeight())
+				a.pushView(viewDetail)
+				a.help.view = "detail"
+				return a, nil
+			}
+		}
+		return a, nil
+	}
+
+	return a, nil
+}
+
 func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
+
+	// Tree mode key handling — delegate to tree-specific handler.
+	if a.viewMode == "tree" {
+		return a.handleTreeKey(msg, k)
+	}
 
 	// --- Mark pending state handling (two-key sequences: m+letter, \x27+letter, `+`) ---
 	if a.markPending != 0 {
@@ -984,11 +1071,94 @@ func (a App) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+// trackConnectionUsage updates LastConnectedAt and increments ConnectCount
+// for the connection with the given ID, then saves the config.
+func (a *App) trackConnectionUsage(connID string) {
+	for i := range a.cfg.Connections {
+		if a.cfg.Connections[i].ID == connID {
+			now := time.Now()
+			a.cfg.Connections[i].LastConnectedAt = &now
+			a.cfg.Connections[i].ConnectCount++
+			if err := config.Save(a.cfg); err != nil {
+				a.log.error("Failed to save connection usage: %v", err)
+			}
+			return
+		}
+	}
+}
+
+// toggleFavorite toggles the Favorite flag on the currently selected connection.
+func (a App) toggleFavorite() (tea.Model, tea.Cmd) {
+	c := a.list.selectedConnection()
+	if c == nil {
+		return a, nil
+	}
+
+	// Toggle on the canonical config.Connections slice
+	for i := range a.cfg.Connections {
+		if a.cfg.Connections[i].ID == c.ID {
+			a.cfg.Connections[i].Favorite = !a.cfg.Connections[i].Favorite
+			newState := a.cfg.Connections[i].Favorite
+			if err := config.Save(a.cfg); err != nil {
+				a.log.error("Failed to save favorite toggle: %v", err)
+				a.statusBar.setFlash("Error saving config", flashError)
+				return a, scheduleFlashClear()
+			}
+			label := "unfavorited"
+			if newState {
+				label = "favorited"
+			}
+			a.log.info("Connection %s %s", c.Name, label)
+			a.statusBar.setFlash(c.Name+" "+label, flashInfo)
+			break
+		}
+	}
+
+	// Refresh the list to reflect the change
+	a.list.filtered = a.list.groupFilteredConns()
+	a.list.applyViewMode()
+	a.list.rebuildTable()
+	a.syncHeaderView()
+	a.syncCursorPosition()
+
+	return a, scheduleFlashClear()
+}
+
+// connectByID launches a connection by its ID.
+func (a App) connectByID(id string) (tea.Model, tea.Cmd) {
+	c := a.cfg.FindConnection(id)
+	if c == nil {
+		return a, nil
+	}
+
+	a.trackConnectionUsage(c.ID)
+
+	if c.Protocol == config.ProtoSSH {
+		return a.connectManaged(*c)
+	}
+
+	l, err := launcher.ForProtocol(c.Protocol)
+	if err != nil {
+		a.log.error("Unsupported protocol %s for %s: %v", c.Protocol, c.Name, err)
+		a.statusBar.setFlash(err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+
+	cmdStr := l.Command(*c)
+	a.log.info("Connecting to %s (%s) via %s", c.Name, c.HostPort(), c.Protocol.Label())
+	a.log.info("Command: %s", cmdStr)
+	a.statusBar.setFlash("Connecting to "+c.Name+"...", flashInfo)
+	return a, l.Launch(*c)
+}
+
 func (a App) connectSelected() (tea.Model, tea.Cmd) {
 	c := a.list.selectedConnection()
 	if c == nil {
 		return a, nil
 	}
+
+	// Track connection usage (LastConnectedAt, ConnectCount)
+	a.trackConnectionUsage(c.ID)
 
 	// For SSH and Telnet, use managed sessions with detach support
 	if c.Protocol == config.ProtoSSH {
@@ -1169,9 +1339,30 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		a.syncHeaderView()
 		a.syncCursorPosition()
 		return a, nil
+	case "favorites":
+		a.list.setViewMode(listViewFavorites)
+		a.syncHeaderView()
+		a.syncCursorPosition()
+		a.log.info("View: favorites")
+		a.statusBar.setFlash("Showing favorites", flashInfo)
+		return a, scheduleFlashClear()
+	case "recent":
+		a.list.setViewMode(listViewRecent)
+		a.syncHeaderView()
+		a.syncCursorPosition()
+		a.log.info("View: recent")
+		a.statusBar.setFlash("Sorted by recent", flashInfo)
+		return a, scheduleFlashClear()
+	case "frequent":
+		a.list.setViewMode(listViewFrequent)
+		a.syncHeaderView()
+		a.syncCursorPosition()
+		a.log.info("View: frequent")
+		a.statusBar.setFlash("Sorted by frequency", flashInfo)
+		return a, scheduleFlashClear()
 	case "all":
 		a.list.groupFilter = ""
-		a.list.applyGroupFilter()
+		a.list.setViewMode(listViewDefault)
 		a.syncHeaderView()
 		a.syncCursorPosition()
 		return a, nil
@@ -1426,6 +1617,10 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 // executeLeaderAction maps leader action command strings to existing app functionality.
 func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 	switch action.Command {
+	// Favorites
+	case "toggle-favorite":
+		return a.toggleFavorite()
+
 	// Connect
 	case "connect-selected":
 		return a.connectSelected()
