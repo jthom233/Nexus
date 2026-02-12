@@ -1,0 +1,49 @@
+version: 1
+settings:
+  health_check_interval: 30s
+  theme: default
+
+groups:
+  - name: Production
+    color: "#ff5555"
+  - name: Home Lab
+    color: "#8be9fd"
+
+connections:
+  - id: web-server
+    name: Web Server
+    protocol: ssh
+    host: 10.0.0.10
+    port: 22
+    username: admin
+    identity_file: ~/.ssh/id_ed25519
+    group: Production
+    tags: [web, linux]
+  - id: win-desktop
+    name: Windows Desktop
+    protocol: rdp
+    host: 192.168.1.50
+    port: 3389
+    username: user
+    password: ""
+    domain: WORKGROUP
+    group: Home Lab
+    rdp_options:
+      resolution: 1920x1080
+      fullscreen: false
+      dynamic_resolution: true
+  - id: proxmox-console
+    name: Proxmox Console
+    protocol: vnc
+    host: 192.168.1.100
+    port: 5900
+    group: Home Lab
+    tags: [proxmox, hypervisor]
+  - id: legacy-switch
+    name: Legacy Switch
+    protocol: telnet
+    host: 192.168.1.1
+    port: 23
+    username: admin
+    group: Production
+    tags: [network, switch]
