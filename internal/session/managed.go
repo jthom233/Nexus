@@ -163,9 +163,8 @@ type ManagedSession struct {
 	outputBuf *ringBuffer
 	stderrBuf *ringBuffer
 
-	// Reader goroutine lifecycle
-	stopReaders chan struct{} // closed to signal reader goroutines to stop
-	readerWg    sync.WaitGroup // tracks active reader goroutines
+	// Reader goroutines run from first connect until SSH session closes.
+	// No stop/restart mechanism needed — they buffer continuously.
 
 	// Lifecycle
 	doneCh  chan struct{} // closed when SSH session ends
@@ -288,69 +287,21 @@ func (m *ManagedSession) Run() error {
 		// Clear terminal for new session
 		m.stdout.Write([]byte("\033[2J\033[H"))
 
-		// Launch background goroutines for the lifetime of the SSH connection
-		m.startReaders()
+		// Launch background goroutines for the LIFETIME of the SSH connection.
+		// These run continuously from first connect until the SSH pipe closes.
+		// They are NOT stopped on detach — they keep buffering output in the
+		// ring buffer so it can be replayed on reattach. This avoids the race
+		// condition of multiple goroutines reading from the same SSH pipe.
+		go m.readOutput()
+		go m.readStderr()
 		go m.waitDone()
 	} else {
-		// Reattach: stop old reader goroutines and start fresh ones.
-		// Do NOT clear ring buffers — we want accumulated output from
-		// while the session was detached to be shown on reattach.
-		m.stopOldReaders()
-		m.startReaders()
-
-		// Clear terminal so stale content from other sessions doesn't show
+		// Reattach: reader goroutines are still running and buffering.
+		// Just clear the terminal — attachLoop will drain the buffer.
 		m.stdout.Write([]byte("\033[2J\033[H"))
 	}
 
-	err := m.attachLoop()
-
-	// On detach, stop reader goroutines so they don't orphan and so
-	// stale buffer data doesn't bleed into a future reattach.
-	if errors.Is(err, ErrDetached) {
-		m.signalStopReaders()
-	}
-
-	return err
-}
-
-// startReaders initializes the stop channel and launches readOutput/readStderr goroutines.
-func (m *ManagedSession) startReaders() {
-	m.stopReaders = make(chan struct{})
-	m.readerWg.Add(2)
-	go m.readOutput()
-	go m.readStderr()
-}
-
-// signalStopReaders closes the stopReaders channel to tell reader goroutines to exit.
-// It does not wait for them to finish (they may be blocked in Read()).
-func (m *ManagedSession) signalStopReaders() {
-	if m.stopReaders != nil {
-		select {
-		case <-m.stopReaders:
-			// already closed
-		default:
-			close(m.stopReaders)
-		}
-	}
-}
-
-// stopOldReaders signals reader goroutines to stop and waits briefly for them to exit.
-// Does NOT clear ring buffers — accumulated output is preserved for reattach.
-func (m *ManagedSession) stopOldReaders() {
-	m.signalStopReaders()
-	// Give readers a moment to notice the stop signal and exit.
-	done := make(chan struct{})
-	go func() {
-		m.readerWg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(100 * time.Millisecond):
-		// Readers may still be blocked in Read(); proceed anyway.
-		// They will see stopReaders is closed on their next iteration
-		// and will not write to the buffers.
-	}
+	return m.attachLoop()
 }
 
 func (m *ManagedSession) startPortForward(pf config.PortForward) error {
@@ -544,53 +495,31 @@ func (m *ManagedSession) startShell() error {
 }
 
 // readOutput continuously reads SSH stdout into the ring buffer.
-// It exits when stopReaders is closed or the SSH pipe returns an error.
+// Runs for the lifetime of the SSH connection — never stopped on detach.
 func (m *ManagedSession) readOutput() {
-	defer m.readerWg.Done()
 	buf := make([]byte, 32*1024)
 	for {
 		n, err := m.sshStdout.Read(buf)
 		if n > 0 {
-			select {
-			case <-m.stopReaders:
-				return
-			default:
-				m.outputBuf.Write(buf[:n])
-			}
+			m.outputBuf.Write(buf[:n])
 		}
 		if err != nil {
 			return
-		}
-		select {
-		case <-m.stopReaders:
-			return
-		default:
 		}
 	}
 }
 
 // readStderr continuously reads SSH stderr into the ring buffer.
-// It exits when stopReaders is closed or the SSH pipe returns an error.
+// Runs for the lifetime of the SSH connection — never stopped on detach.
 func (m *ManagedSession) readStderr() {
-	defer m.readerWg.Done()
 	buf := make([]byte, 4*1024)
 	for {
 		n, err := m.sshStderr.Read(buf)
 		if n > 0 {
-			select {
-			case <-m.stopReaders:
-				return
-			default:
-				m.stderrBuf.Write(buf[:n])
-			}
+			m.stderrBuf.Write(buf[:n])
 		}
 		if err != nil {
 			return
-		}
-		select {
-		case <-m.stopReaders:
-			return
-		default:
 		}
 	}
 }
