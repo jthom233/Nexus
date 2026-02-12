@@ -110,6 +110,18 @@ func (r *ringBuffer) Drain() []byte {
 	return result
 }
 
+// Clear discards all buffered data without returning it.
+func (r *ringBuffer) Clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := 0; i < r.count; i++ {
+		idx := (r.start + i) % r.cap
+		r.buf[idx] = nil
+	}
+	r.start = 0
+	r.count = 0
+}
+
 // stdinResult carries data or an error from the stdin reader goroutine.
 type stdinResult struct {
 	data []byte
@@ -150,6 +162,10 @@ type ManagedSession struct {
 	// Buffers for background output capture
 	outputBuf *ringBuffer
 	stderrBuf *ringBuffer
+
+	// Reader goroutine lifecycle
+	stopReaders chan struct{} // closed to signal reader goroutines to stop
+	readerWg    sync.WaitGroup // tracks active reader goroutines
 
 	// Lifecycle
 	doneCh  chan struct{} // closed when SSH session ends
@@ -273,12 +289,68 @@ func (m *ManagedSession) Run() error {
 		m.stdout.Write([]byte("\033[2J\033[H"))
 
 		// Launch background goroutines for the lifetime of the SSH connection
-		go m.readOutput()
-		go m.readStderr()
+		m.startReaders()
 		go m.waitDone()
+	} else {
+		// Reattach: stop old reader goroutines, clear stale buffer data,
+		// and start fresh readers so this session has independent I/O.
+		m.stopAndClearReaders()
+		m.startReaders()
 	}
 
-	return m.attachLoop()
+	err := m.attachLoop()
+
+	// On detach, stop reader goroutines so they don't orphan and so
+	// stale buffer data doesn't bleed into a future reattach.
+	if errors.Is(err, ErrDetached) {
+		m.signalStopReaders()
+	}
+
+	return err
+}
+
+// startReaders initializes the stop channel and launches readOutput/readStderr goroutines.
+func (m *ManagedSession) startReaders() {
+	m.stopReaders = make(chan struct{})
+	m.readerWg.Add(2)
+	go m.readOutput()
+	go m.readStderr()
+}
+
+// signalStopReaders closes the stopReaders channel to tell reader goroutines to exit.
+// It does not wait for them to finish (they may be blocked in Read()).
+func (m *ManagedSession) signalStopReaders() {
+	if m.stopReaders != nil {
+		select {
+		case <-m.stopReaders:
+			// already closed
+		default:
+			close(m.stopReaders)
+		}
+	}
+}
+
+// stopAndClearReaders signals reader goroutines to stop, waits briefly for them
+// to exit, then clears the ring buffers so stale data doesn't bleed through.
+func (m *ManagedSession) stopAndClearReaders() {
+	m.signalStopReaders()
+	// Give readers a moment to notice the stop signal and exit.
+	// They will exit after their next Read() returns or immediately if
+	// they check the stop channel between reads.
+	done := make(chan struct{})
+	go func() {
+		m.readerWg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		// Readers may still be blocked in Read(); proceed anyway.
+		// They will see stopReaders is closed on their next iteration
+		// and will not write to the buffers.
+	}
+	m.outputBuf.Clear()
+	m.stderrBuf.Clear()
 }
 
 func (m *ManagedSession) startPortForward(pf config.PortForward) error {
@@ -472,29 +544,53 @@ func (m *ManagedSession) startShell() error {
 }
 
 // readOutput continuously reads SSH stdout into the ring buffer.
+// It exits when stopReaders is closed or the SSH pipe returns an error.
 func (m *ManagedSession) readOutput() {
+	defer m.readerWg.Done()
 	buf := make([]byte, 32*1024)
 	for {
 		n, err := m.sshStdout.Read(buf)
 		if n > 0 {
-			m.outputBuf.Write(buf[:n])
+			select {
+			case <-m.stopReaders:
+				return
+			default:
+				m.outputBuf.Write(buf[:n])
+			}
 		}
 		if err != nil {
 			return
+		}
+		select {
+		case <-m.stopReaders:
+			return
+		default:
 		}
 	}
 }
 
 // readStderr continuously reads SSH stderr into the ring buffer.
+// It exits when stopReaders is closed or the SSH pipe returns an error.
 func (m *ManagedSession) readStderr() {
+	defer m.readerWg.Done()
 	buf := make([]byte, 4*1024)
 	for {
 		n, err := m.sshStderr.Read(buf)
 		if n > 0 {
-			m.stderrBuf.Write(buf[:n])
+			select {
+			case <-m.stopReaders:
+				return
+			default:
+				m.stderrBuf.Write(buf[:n])
+			}
 		}
 		if err != nil {
 			return
+		}
+		select {
+		case <-m.stopReaders:
+			return
+		default:
 		}
 	}
 }
