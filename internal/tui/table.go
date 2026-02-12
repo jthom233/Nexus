@@ -52,6 +52,7 @@ type tableModel struct {
 	highlightText string        // search pattern to highlight in cells
 	motion        *MotionEngine // vim motion engine integration
 	lastOperator  Operator      // tracks the operator that produced the last OpLine/OpRange result
+	visualState   *VisualState   // visual mode selection state (nil when not in visual mode)
 }
 
 // newTableModel creates a tableModel with the given columns and an integrated motion engine.
@@ -339,8 +340,9 @@ func (t *tableModel) View() string {
 		row := t.rows[i]
 		isCursor := i == t.cursor
 		isOddRow := (i-t.offset)%2 == 1
+		isSelected := t.visualState != nil && t.visualState.IsSelected(i)
 
-		line := t.renderRow(row, colWidths, isCursor, isOddRow, th)
+		line := t.renderRow(row, colWidths, isCursor, isOddRow, isSelected, th)
 		sb.WriteString(line)
 		if i < endIdx-1 {
 			sb.WriteString("\n")
@@ -359,7 +361,7 @@ func (t *tableModel) View() string {
 	return sb.String()
 }
 
-func (t *tableModel) renderRow(row Row, colWidths []int, isCursor, isOddRow bool, th *theme.Theme) string {
+func (t *tableModel) renderRow(row Row, colWidths []int, isCursor, isOddRow, isSelected bool, th *theme.Theme) string {
 	var cellStrs []string
 	for i, col := range t.columns {
 		cellValue := ""
@@ -387,6 +389,16 @@ func (t *tableModel) renderRow(row Row, colWidths []int, isCursor, isOddRow bool
 			Background(th.Selection).
 			Bold(true)
 		// Pad to full width
+		lineW := lipgloss.Width(line)
+		if lineW < t.width {
+			line += strings.Repeat(" ", t.width-lineW)
+		}
+		return rowStyle.Render(line)
+	}
+	if isSelected {
+		rowStyle := lipgloss.NewStyle().
+			Background(th.Selection).
+			Foreground(th.Fg)
 		lineW := lipgloss.Width(line)
 		if lineW < t.width {
 			line += strings.Repeat(" ", t.width-lineW)

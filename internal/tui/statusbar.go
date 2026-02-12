@@ -35,6 +35,7 @@ type statusBarModel struct {
 	flash        *flash
 	view         string
 	mode         Mode
+	visualCount  int // number of selected items in visual mode
 	width        int
 }
 
@@ -133,7 +134,11 @@ func (s statusBarModel) View() string {
 	t := theme.Current()
 
 	// --- Line 1: Status line ---
-	modeTag := modeIndicatorStyle(s.mode).Render(s.mode.String())
+	modeLabel := s.mode.String()
+	if s.mode == ModeVisual && s.visualCount > 0 {
+		modeLabel = fmt.Sprintf("VISUAL (%d selected)", s.visualCount)
+	}
+	modeTag := modeIndicatorStyle(s.mode).Render(modeLabel)
 
 	statsStyle := lipgloss.NewStyle().
 		Foreground(t.Subtle).
