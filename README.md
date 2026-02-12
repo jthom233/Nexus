@@ -12,6 +12,7 @@ A terminal UI for managing and connecting to remote servers. Supports SSH, RDP, 
 - **Filter & search** — Fuzzy search across names, hosts, protocols, tags
 - **Command mode** — Vim-style `:command` interface
 - **Clipboard** — Copy connection commands to clipboard
+- **Encrypted credentials** — Passwords encrypted at rest with AES-256-GCM, unlocked by master password on startup
 - **GUI companion** — Optional Ebiten-based GUI (`nexus-gui`) with IPC bridge
 
 ## Install
@@ -61,6 +62,16 @@ go build ./cmd/nexus
 | `L` | Event log |
 | `?` | Help |
 | `q` | Quit |
+
+### Detail View
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Connect |
+| `e` | Edit connection |
+| `p` | Toggle password visibility |
+| `j/k` `↑/↓` | Scroll |
+| `Esc` | Back to list |
 
 ### SSH Sessions
 
@@ -138,7 +149,10 @@ See [configs/example.yaml](configs/example.yaml) for a full example.
 
 **No credentials or session data are stored in this repository.**
 
-- All connection config (including passwords, identity file paths) lives in `~/.config/nexus/config.yaml` on your local machine
+- **Passwords are encrypted at rest** using AES-256-GCM with scrypt key derivation from a master password
+- On first run with passwords, Nexus prompts to set a master password and encrypts all credentials
+- On subsequent runs, the master password is required to decrypt credentials in memory
+- Config file is written with `0600` permissions (owner read/write only)
 - SSH sessions are in-memory only — they are never written to disk
 - The ring buffers used for background session output exist only in process memory
 - The example config in `configs/` uses placeholder data with no real credentials

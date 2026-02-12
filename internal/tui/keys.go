@@ -16,10 +16,11 @@ type KeyMap struct {
 	Group   key.Binding
 	Refresh key.Binding
 	Help    key.Binding
-	Yank     key.Binding
-	Sessions key.Binding
-	Escape   key.Binding
-	Quit     key.Binding
+	Yank         key.Binding
+	Sessions     key.Binding
+	ShowPassword key.Binding
+	Escape       key.Binding
+	Quit         key.Binding
 }
 
 // DefaultKeyMap returns the default set of keybindings.
@@ -80,6 +81,10 @@ func DefaultKeyMap() KeyMap {
 		Sessions: key.NewBinding(
 			key.WithKeys("s"),
 			key.WithHelp("s", "sessions"),
+		),
+		ShowPassword: key.NewBinding(
+			key.WithKeys("p"),
+			key.WithHelp("p", "show password"),
 		),
 		Escape: key.NewBinding(
 			key.WithKeys("esc"),

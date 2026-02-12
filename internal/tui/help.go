@@ -75,6 +75,7 @@ func (h helpModel) entriesForView() []helpEntry {
 		return append([]helpEntry{
 			{"enter", "Connect"},
 			{"e", "Edit connection"},
+			{"p", "Toggle password visibility"},
 			{"j/k ↑/↓", "Scroll"},
 			{"L", "View event log"},
 		}, common...)

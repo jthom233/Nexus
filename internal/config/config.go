@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/dr4zz/nexus/internal/crypto"
 	"gopkg.in/yaml.v3"
 )
 
@@ -32,6 +33,68 @@ type Config struct {
 	Settings    Settings     `yaml:"settings"`
 	Groups      []Group      `yaml:"groups,omitempty"`
 	Connections []Connection `yaml:"connections,omitempty"`
+
+	EncryptionKey []byte `yaml:"-"`
+}
+
+// SetKey stores the derived encryption key.
+func (cfg *Config) SetKey(key []byte) {
+	cfg.EncryptionKey = key
+}
+
+// HasEncryptedPasswords returns true if any connection has an ENC:-prefixed password.
+func (cfg *Config) HasEncryptedPasswords() bool {
+	for _, c := range cfg.Connections {
+		if crypto.IsEncrypted(c.Password) || crypto.IsEncrypted(c.VNCPassword) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasPlaintextPasswords returns true if any connection has a non-empty, non-encrypted password.
+func (cfg *Config) HasPlaintextPasswords() bool {
+	for _, c := range cfg.Connections {
+		if c.Password != "" && !crypto.IsEncrypted(c.Password) {
+			return true
+		}
+		if c.VNCPassword != "" && !crypto.IsEncrypted(c.VNCPassword) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAnyPasswords returns true if any connection has a password set.
+func (cfg *Config) HasAnyPasswords() bool {
+	for _, c := range cfg.Connections {
+		if c.Password != "" || c.VNCPassword != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// DecryptPasswords decrypts all passwords in place using the stored encryption key.
+// Non-encrypted strings pass through unchanged (supports mixed state during migration).
+func (cfg *Config) DecryptPasswords() error {
+	for i := range cfg.Connections {
+		if cfg.Connections[i].Password != "" {
+			dec, err := crypto.Decrypt(cfg.Connections[i].Password, cfg.EncryptionKey)
+			if err != nil {
+				return err
+			}
+			cfg.Connections[i].Password = dec
+		}
+		if cfg.Connections[i].VNCPassword != "" {
+			dec, err := crypto.Decrypt(cfg.Connections[i].VNCPassword, cfg.EncryptionKey)
+			if err != nil {
+				return err
+			}
+			cfg.Connections[i].VNCPassword = dec
+		}
+	}
+	return nil
 }
 
 // ConfigPath returns the path to the config file, respecting XDG_CONFIG_HOME.
@@ -65,6 +128,8 @@ func Load() (*Config, error) {
 }
 
 // Save writes the config to disk, creating directories as needed.
+// If an encryption key is set, passwords are encrypted on the written copy
+// while the in-memory config remains plaintext.
 func Save(cfg *Config) error {
 	path := ConfigPath()
 
@@ -72,12 +137,36 @@ func Save(cfg *Config) error {
 		return err
 	}
 
-	data, err := yaml.Marshal(cfg)
+	// Deep copy connections so we can encrypt without mutating in-memory state.
+	saveCfg := *cfg
+	saveCfg.Connections = make([]Connection, len(cfg.Connections))
+	copy(saveCfg.Connections, cfg.Connections)
+
+	if len(cfg.EncryptionKey) > 0 {
+		for i := range saveCfg.Connections {
+			if saveCfg.Connections[i].Password != "" {
+				enc, err := crypto.Encrypt(saveCfg.Connections[i].Password, cfg.EncryptionKey)
+				if err != nil {
+					return err
+				}
+				saveCfg.Connections[i].Password = enc
+			}
+			if saveCfg.Connections[i].VNCPassword != "" {
+				enc, err := crypto.Encrypt(saveCfg.Connections[i].VNCPassword, cfg.EncryptionKey)
+				if err != nil {
+					return err
+				}
+				saveCfg.Connections[i].VNCPassword = enc
+			}
+		}
+	}
+
+	data, err := yaml.Marshal(&saveCfg)
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }
 
 // AddConnection adds a connection and saves.

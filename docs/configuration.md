@@ -97,9 +97,45 @@ This parses Host entries and creates connections with:
 
 Wildcard hosts (`Host *`) are skipped. Existing connections with the same ID are not duplicated.
 
+## Password Encryption
+
+Nexus encrypts passwords at rest using AES-256-GCM with scrypt key derivation from a master password.
+
+### How It Works
+
+1. **First run with passwords** — Nexus prompts you to set a master password. All plaintext passwords are encrypted and saved immediately.
+2. **Subsequent runs** — Nexus prompts for your master password to decrypt credentials in memory.
+3. **No passwords** — If no connections have passwords, no prompt is shown.
+
+Encrypted passwords are stored in the config file as `ENC:<base64-encoded data>`:
+
+```yaml
+connections:
+  - id: my-server
+    name: My Server
+    protocol: ssh
+    host: 10.0.0.1
+    password: "ENC:dGhpcyBpcyBhbiBleGFtcGxl..."
+```
+
+Each password uses its own random salt and nonce, so identical passwords produce different ciphertexts.
+
+### Viewing Passwords
+
+In the detail view (`D`), passwords are masked as `****` by default. Press `p` to toggle password visibility.
+
+### Migration
+
+Existing configs with plaintext passwords are automatically migrated to encrypted on the first run after setting a master password. The migration is transparent — Nexus detects plaintext passwords and encrypts them in place.
+
+### Wrong Password
+
+If the wrong master password is entered, decryption fails and Nexus exits with an error. No data is modified.
+
 ## Security Considerations
 
-- **Passwords are stored in plaintext** in the config file. Secure the file with appropriate permissions (`chmod 600 ~/.config/nexus/config.yaml`).
+- **Passwords are encrypted at rest** using AES-256-GCM with per-password salts and scrypt key derivation.
+- The config file is written with `0600` permissions (owner read/write only).
 - **Identity files** are referenced by path, never copied or embedded.
 - The config file is **local only** — it is not part of the Nexus repository and should never be committed to version control.
 - Consider using SSH keys instead of passwords where possible.

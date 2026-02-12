@@ -425,6 +425,10 @@ func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return a, a.form.form.Init()
 		}
 		return a, nil
+	case "p":
+		a.detail.showPassword = !a.detail.showPassword
+		a.detail.updateContent()
+		return a, nil
 	case "s":
 		a.sessionsView.setSessions(a.sessions.All())
 		a.sessionsView.setSize(a.width, a.contentHeight())

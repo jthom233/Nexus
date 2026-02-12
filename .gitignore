@@ -1,6 +1,6 @@
 # Binaries
-nexus
-nexus-gui
+/nexus
+/nexus-gui
 
 # Config (contains credentials)
 config.yaml

@@ -12,13 +12,14 @@ import (
 )
 
 type detailModel struct {
-	conn     *config.Connection
-	status   health.Status
-	latency  string
-	viewport viewport.Model
-	ready    bool
-	width    int
-	height   int
+	conn         *config.Connection
+	status       health.Status
+	latency      string
+	showPassword bool
+	viewport     viewport.Model
+	ready        bool
+	width        int
+	height       int
 }
 
 func newDetail() detailModel {
@@ -29,6 +30,7 @@ func (d *detailModel) setConnection(conn *config.Connection, status health.Statu
 	d.conn = conn
 	d.status = status
 	d.latency = latency
+	d.showPassword = false
 	d.updateContent()
 }
 
@@ -71,7 +73,11 @@ func (d *detailModel) updateContent() {
 		row("Username:", c.Username)
 	}
 	if c.Password != "" {
-		row("Password:", "****")
+		if d.showPassword {
+			row("Password:", c.Password)
+		} else {
+			row("Password:", "****")
+		}
 	}
 	if c.Domain != "" {
 		row("Domain:", c.Domain)
@@ -108,7 +114,11 @@ func (d *detailModel) updateContent() {
 	if c.Protocol == config.ProtoVNC && c.VNCPassword != "" {
 		b.WriteString("\n")
 		b.WriteString(DetailTitleStyle.Render("  VNC Options") + "\n\n")
-		row("VNC Password:", "****")
+		if d.showPassword {
+			row("VNC Password:", c.VNCPassword)
+		} else {
+			row("VNC Password:", "****")
+		}
 	}
 
 	d.viewport.SetContent(b.String())
