@@ -38,19 +38,20 @@ const (
 // tableModel is a custom k9s-style table with sort indicators, row striping,
 // cursor highlight, semantic column coloring, wide mode, and vim motion integration.
 type tableModel struct {
-	columns      []Column
-	rows         []Row
-	allRows      []Row         // unfiltered rows (for search/filter restore)
-	cursor       int           // current row index in rows
-	offset       int           // first visible row index
-	width        int           // available width
-	height       int           // available rows for content (excluding header)
-	sortCol      int           // index of currently sorted column (-1 = none)
-	sortDir      SortDir       // sort direction
-	wideMode     bool          // show extra columns
-	filterText   string        // active filter text
-	motion       *MotionEngine // vim motion engine integration
-	lastOperator Operator      // tracks the operator that produced the last OpLine/OpRange result
+	columns       []Column
+	rows          []Row
+	allRows       []Row         // unfiltered rows (for search/filter restore)
+	cursor        int           // current row index in rows
+	offset        int           // first visible row index
+	width         int           // available width
+	height        int           // available rows for content (excluding header)
+	sortCol       int           // index of currently sorted column (-1 = none)
+	sortDir       SortDir       // sort direction
+	wideMode      bool          // show extra columns
+	filterText    string        // active filter text
+	highlightText string        // search pattern to highlight in cells
+	motion        *MotionEngine // vim motion engine integration
+	lastOperator  Operator      // tracks the operator that produced the last OpLine/OpRange result
 }
 
 // newTableModel creates a tableModel with the given columns and an integrated motion engine.
@@ -368,7 +369,13 @@ func (t *tableModel) renderRow(row Row, colWidths []int, isCursor, isOddRow bool
 
 		// Determine style for this cell
 		cellStyle := t.cellStyle(i, cellValue, row.Status, isCursor, isOddRow, th)
-		cellStrs = append(cellStrs, t.renderCell(cellValue, colWidths[i], col.Align, cellStyle))
+
+		// Apply search highlight if there's an active highlight pattern
+		if t.highlightText != "" && !isCursor {
+			cellStrs = append(cellStrs, t.renderCellHighlighted(cellValue, colWidths[i], col.Align, cellStyle, th))
+		} else {
+			cellStrs = append(cellStrs, t.renderCell(cellValue, colWidths[i], col.Align, cellStyle))
+		}
 	}
 
 	line := " " + strings.Join(cellStrs, " ")
@@ -483,6 +490,66 @@ func (t *tableModel) renderCell(text string, width, align int, style lipgloss.St
 	default: // left
 		return style.Render(text + strings.Repeat(" ", padding))
 	}
+}
+
+// renderCellHighlighted renders a cell with search term highlighting.
+func (t *tableModel) renderCellHighlighted(text string, width, align int, baseStyle lipgloss.Style, th *theme.Theme) string {
+	if width <= 0 {
+		return ""
+	}
+	// Truncate if needed
+	textW := lipgloss.Width(text)
+	if textW > width {
+		if width <= 2 {
+			text = text[:width]
+		} else {
+			text = truncateToWidth(text, width-2) + ".."
+		}
+		textW = lipgloss.Width(text)
+	}
+
+	// Pad
+	padding := width - textW
+	if padding < 0 {
+		padding = 0
+	}
+
+	highlighted := highlightMatch(text, t.highlightText, th)
+
+	switch align {
+	case 1: // right
+		return baseStyle.Render(strings.Repeat(" ", padding)) + highlighted
+	case 2: // center
+		left := padding / 2
+		right := padding - left
+		return baseStyle.Render(strings.Repeat(" ", left)) + highlighted + baseStyle.Render(strings.Repeat(" ", right))
+	default: // left
+		return highlighted + baseStyle.Render(strings.Repeat(" ", padding))
+	}
+}
+
+// highlightMatch applies a highlight style to the first occurrence of pattern in cell text.
+func highlightMatch(cell string, pattern string, th *theme.Theme) string {
+	if pattern == "" {
+		return cell
+	}
+	idx := strings.Index(strings.ToLower(cell), strings.ToLower(pattern))
+	if idx < 0 {
+		return cell
+	}
+
+	highlightStyle := lipgloss.NewStyle().
+		Background(th.Warning).
+		Foreground(th.Bg).
+		Bold(true)
+
+	before := cell[:idx]
+	match := cell[idx : idx+len(pattern)]
+	after := cell[idx+len(pattern):]
+
+	normalStyle := lipgloss.NewStyle().Foreground(th.Fg)
+
+	return normalStyle.Render(before) + highlightStyle.Render(match) + normalStyle.Render(after)
 }
 
 func (t *tableModel) computeColumnWidths() []int {

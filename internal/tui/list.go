@@ -211,12 +211,18 @@ func (l *listModel) buildRows() []Row {
 
 		statusStr := st.status.String()
 
+		// Add jump host indicator to host display
+		hostDisplay := c.HostPort()
+		if c.ProxyJump != "" || c.ProxyCommand != "" {
+			hostDisplay = "\u21e2 " + hostDisplay
+		}
+
 		if l.table.wideMode {
 			rows[i] = Row{
 				Cells: []string{
 					indicator,
 					c.Name,
-					c.HostPort(),
+					hostDisplay,
 					c.Protocol.Label(),
 					c.Group,
 					latStr,
@@ -233,7 +239,7 @@ func (l *listModel) buildRows() []Row {
 				Cells: []string{
 					indicator,
 					c.Name,
-					c.HostPort(),
+					hostDisplay,
 					c.Protocol.Label(),
 					c.Group,
 					latStr,

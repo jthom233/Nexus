@@ -60,7 +60,7 @@ func hintsForView(view string) []keyHint {
 	case "list":
 		return []keyHint{
 			{"a", "Add"}, {"e", "Edit"}, {"d", "Delete"}, {"D", "Detail"},
-			{"/", "Filter"}, {":", "Cmd"}, {"?", "Help"}, {"q", "Quit"},
+			{"/", "Search"}, {"?", "Reverse"}, {":", "Cmd"}, {"q", "Quit"},
 		}
 	case "detail":
 		return []keyHint{
