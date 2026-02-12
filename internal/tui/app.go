@@ -13,6 +13,7 @@ import (
 	"github.com/dr4zz/nexus/internal/health"
 	"github.com/dr4zz/nexus/internal/launcher"
 	"github.com/dr4zz/nexus/internal/session"
+	"github.com/dr4zz/nexus/internal/template"
 )
 
 type viewKind int
@@ -48,6 +49,8 @@ type App struct {
 	sessions     *SessionManager
 	sessionsView sessionsViewModel
 	tree         *TreeModel
+	tplStore     *template.TemplateStore
+	quickConnect *QuickConnect
 
 	// View stack
 	viewStack []viewKind
@@ -65,6 +68,9 @@ type App struct {
 	ready          bool
 	viewMode       string // "table" or "tree"
 	treeFoldPending bool  // true when "z" was pressed in tree mode
+	bracketPending rune     // 0=none, ']'=next, '['=prev
+	bracketNav     *BracketNav
+	tagManager     *TagManager
 }
 
 // NewApp creates the root application model.
@@ -77,6 +83,9 @@ func NewApp(cfg *config.Config) App {
 	h.setConfigPath(config.ConfigPath())
 	h.setItemCount(len(cfg.Connections))
 
+	tplStore := template.NewTemplateStore()
+	tplStore.LoadUserTemplates(cfg.Templates)
+
 	return App{
 		cfg:          cfg,
 		keys:         DefaultKeyMap(),
@@ -87,7 +96,8 @@ func NewApp(cfg *config.Config) App {
 		search:       newSearch(),
 		command:      newCommand(),
 		detail:       newDetail(),
-		form:         newFormPtr(cfg.GroupNames()),
+		form:         newFormPtr(cfg.GroupNames(), tplStore),
+		tplStore:     tplStore,
 		help:         newHelp(),
 		confirm:      newConfirm(),
 		leader:       newLeader(),
@@ -95,10 +105,13 @@ func NewApp(cfg *config.Config) App {
 		sessions:     NewSessionManager(),
 		sessionsView: newSessionsView(),
 		tree:         NewTreeModel(cfg.Connections),
+		quickConnect: NewQuickConnect(),
 		viewStack:    []viewKind{viewList},
 		viewMode:     "table",
 		marks:        NewMarkManager(),
 		undoStack:    NewUndoStack(),
+		bracketNav:   NewBracketNav(),
+		tagManager:   NewTagManager(),
 		mode:         ModeNormal,
 		visualState:  NewVisualState(),
 	}
@@ -279,6 +292,30 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+
+		if a.quickConnect.active {
+			// Handle Enter specially to check for parse errors
+			if msg.String() == "enter" {
+				target := strings.TrimSpace(a.quickConnect.input.Value())
+				if target != "" {
+					_, err := ParseTarget(target)
+					if err != nil {
+						a.statusBar.setFlash("Invalid target: "+err.Error(), flashError)
+						return a, scheduleFlashClear()
+					}
+				}
+			}
+			cmd := a.quickConnect.Update(msg)
+			if !a.quickConnect.active {
+				a.statusBar.mode = ModeNormal
+				modeCmd := a.setMode(ModeNormal)
+				if cmd != nil {
+					return a, tea.Batch(cmd, modeCmd)
+				}
+				return a, modeCmd
+			}
+			return a, cmd
+		}
 		if a.command.active {
 			var cmd tea.Cmd
 			a.command, cmd = a.command.Update(msg)
@@ -383,6 +420,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case CommandMsg:
 		return a.handleCommand(msg)
+
+	case QuickConnectMsg:
+		return a.handleQuickConnect(msg)
 
 	case FormSubmitMsg:
 		return a.handleFormSubmit(msg)
@@ -597,6 +637,23 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.navigateToMark(mk)
+		return a, nil
+	}
+
+	// --- Bracket-pending state handling (two-key sequences: ]x / [x) ---
+	if a.bracketPending != 0 {
+		pending := a.bracketPending
+		a.bracketPending = 0
+		return a.handleBracketMotion(pending, k)
+	}
+
+	// --- Bracket: initiate two-key sequences ---
+	switch k {
+	case "]":
+		a.bracketPending = ']'
+		return a, nil
+	case "[":
+		a.bracketPending = '['
 		return a, nil
 	}
 
@@ -1255,6 +1312,30 @@ func (a App) reattachSession(sess *session.ManagedSession) (tea.Model, tea.Cmd) 
 	})
 }
 
+// handleQuickConnect processes a QuickConnectMsg from the quick connect prompt.
+func (a App) handleQuickConnect(msg QuickConnectMsg) (tea.Model, tea.Cmd) {
+	return a.launchQuickConnect(msg.Conn)
+}
+
+// launchQuickConnect launches a connection from a quick connect target.
+func (a App) launchQuickConnect(conn config.Connection) (tea.Model, tea.Cmd) {
+	a.log.info("Quick connect: %s (%s://%s:%d)", conn.Name, conn.Protocol, conn.Host, conn.Port)
+
+	if conn.Protocol == config.ProtoSSH {
+		return a.connectManaged(conn)
+	}
+
+	l, err := launcher.ForProtocol(conn.Protocol)
+	if err != nil {
+		a.log.error("Unsupported protocol %s: %v", conn.Protocol, err)
+		a.statusBar.setFlash(err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+
+	a.statusBar.setFlash("Connecting to "+conn.Name+"...", flashInfo)
+	return a, l.Launch(conn)
+}
+
 func (a App) yankCommand() (tea.Model, tea.Cmd) {
 	c := a.list.selectedConnection()
 	if c == nil {
@@ -1304,6 +1385,14 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 			}
 			a.log.info("Connecting to %s via command", c.Name)
 			return a, l.Launch(*c)
+		}
+		// Not found by name — try quick connect parsing
+		if msg.Args != "" {
+			conn, err := ParseTarget(msg.Args)
+			if err == nil {
+				a.log.info("Quick connecting to %s via command", msg.Args)
+				return a.launchQuickConnect(conn)
+			}
 		}
 		a.log.warn("Connection not found: %s", msg.Args)
 		a.statusBar.setFlash("Connection not found: "+msg.Args, flashError)
@@ -1381,6 +1470,14 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 	case "help":
 		a.help.toggle()
 		return a, nil
+	case "tag":
+		return a.handleTagCommand(msg.Args)
+	case "tags":
+		return a.handleTagsListCommand()
+	case "filter":
+		return a.handleFilterCommand(msg.Args)
+	case "sort":
+		return a.handleSortCommand(msg.Args)
 	default:
 		a.log.warn("Unknown command: %s", msg.Name)
 		a.statusBar.setFlash("Unknown command: "+msg.Name, flashError)
@@ -1625,8 +1722,11 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 	case "connect-selected":
 		return a.connectSelected()
 	case "quick-connect":
-		a.statusBar.setFlash("Quick connect not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+		a.quickConnect.width = a.width
+		a.quickConnect.Activate()
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
+		return a, a.quickConnect.input.Focus()
 
 	// Find
 	case "fuzzy-find":
@@ -1637,8 +1737,16 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		a.statusBar.mode = ModeInsert
 		return a, a.setMode(ModeInsert)
 	case "find-by-tag":
-		a.statusBar.setFlash("Find by tag not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+
+		// Activate search bar with tag prefix
+		a.search.activate(SearchForward)
+		a.search.query = "-t "
+		a.search.width = a.width
+		a.list.table.highlightText = ""
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
+		return a, a.setMode(ModeInsert)
+
 	case "find-by-group":
 		a.statusBar.setFlash("Find by group not yet implemented", flashInfo)
 		return a, scheduleFlashClear()
@@ -1702,14 +1810,26 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 
 	// Tags
 	case "filter-by-tag":
-		a.statusBar.setFlash("Filter by tag not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+		a.command.activate()
+		a.command.input.SetValue("filter -t ")
+		a.command.input.SetCursor(10)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
 	case "add-tag":
-		a.statusBar.setFlash("Add tag not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+		a.command.activate()
+		a.command.input.SetValue("tag add ")
+		a.command.input.SetCursor(8)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
 	case "remove-tag":
-		a.statusBar.setFlash("Remove tag not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+		a.command.activate()
+		a.command.input.SetValue("tag remove ")
+		a.command.input.SetCursor(11)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
 
 	// View
 	case "view-tree":
@@ -2071,6 +2191,9 @@ func (a App) View() string {
 		if a.command.active {
 			parts = append(parts, a.command.View())
 		}
+		if a.quickConnect.active {
+			parts = append(parts, a.quickConnect.View())
+		}
 		parts = append(parts, a.list.View())
 		if a.search.active {
 			parts = append(parts, a.search.View())
@@ -2115,6 +2238,7 @@ func (a *App) layout() {
 	a.confirm.width = a.width
 	a.confirm.height = a.height
 	a.leader.width = a.width
+	a.quickConnect.width = a.width
 	a.leader.height = a.height
 
 	ch := a.contentHeight()
@@ -2338,6 +2462,315 @@ func (a App) performRedo() (tea.Model, tea.Cmd) {
 		health.CheckAll(a.list.healthTargets()),
 		scheduleFlashClear(),
 	)
+}
+
+
+// handleBracketMotion processes the second key in a bracket motion sequence.
+// pending is ']' or '[', key is the follow-up character (c/g/e/s/f).
+func (a App) handleBracketMotion(pending rune, key string) (tea.Model, tea.Cmd) {
+	if len(key) != 1 {
+		return a, nil // invalid follow-up, cancel silently
+	}
+
+	conns := a.list.filtered
+	cursor := a.list.table.Cursor()
+	var target int
+
+	// Build a health status map for error navigation.
+	healthStatuses := make(map[string]health.Status, len(a.list.statuses))
+	for id, cs := range a.list.statuses {
+		healthStatuses[id] = cs.status
+	}
+
+	switch key {
+	case "c":
+		if pending == ']' {
+			target = a.bracketNav.NextConnection(cursor, conns)
+		} else {
+			target = a.bracketNav.PrevConnection(cursor, conns)
+		}
+	case "g":
+		if pending == ']' {
+			target = a.bracketNav.NextGroup(cursor, conns)
+		} else {
+			target = a.bracketNav.PrevGroup(cursor, conns)
+		}
+	case "e":
+		if pending == ']' {
+			target = a.bracketNav.NextError(cursor, conns, healthStatuses)
+		} else {
+			target = a.bracketNav.PrevError(cursor, conns, healthStatuses)
+		}
+	case "s":
+		sessions := a.sessions.All()
+		if pending == ']' {
+			target = a.bracketNav.NextSession(cursor, conns, sessions)
+		} else {
+			target = a.bracketNav.PrevSession(cursor, conns, sessions)
+		}
+	case "f":
+		if pending == ']' {
+			target = a.bracketNav.NextFavorite(cursor, conns)
+		} else {
+			target = a.bracketNav.PrevFavorite(cursor, conns)
+		}
+	default:
+		return a, nil // unknown follow-up, cancel silently
+	}
+
+	if target != cursor {
+		a.list.table.MoveCursor(target)
+		a.syncCursorPosition()
+	}
+	return a, nil
+}
+
+// handleTagCommand processes :tag add/remove commands.
+func (a App) handleTagCommand(args string) (tea.Model, tea.Cmd) {
+	parts := strings.SplitN(args, " ", 2)
+	if len(parts) < 2 {
+		a.statusBar.setFlash("Usage: :tag <add|remove|list> <tag>", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	subcmd := strings.ToLower(parts[0])
+	tagArg := strings.TrimSpace(parts[1])
+
+	switch subcmd {
+	case "add":
+		if tagArg == "" {
+			a.statusBar.setFlash("Usage: :tag add <tag>", flashError)
+			return a, scheduleFlashClear()
+		}
+		// Apply to visual selection if active, otherwise to current connection.
+		if a.visualState.Active() {
+			return a.tagAddVisual(tagArg)
+		}
+		c := a.list.selectedConnection()
+		if c == nil {
+			a.statusBar.setFlash("No connection selected", flashError)
+			return a, scheduleFlashClear()
+		}
+		before := *c
+		if a.tagManager.AddTag(c, tagArg) {
+			// Persist the change.
+			if err := a.cfg.UpdateConnection(*c); err != nil {
+				a.log.error("Failed to save tag: %v", err)
+				a.statusBar.setFlash("Error saving tag", flashError)
+			} else {
+				a.undoStack.Push(Operation{
+					Type:   UndoOpTagChange,
+					ConnID: c.ID,
+					Name:   c.Name,
+					Before: before,
+					After:  *c,
+				})
+				a.log.info("Added tag '%s' to %s", tagArg, c.Name)
+				a.statusBar.setFlash(fmt.Sprintf("Added tag '%s' to %s", tagArg, c.Name), flashInfo)
+			}
+			a.list.rebuildTable()
+		} else {
+			a.statusBar.setFlash(fmt.Sprintf("Tag '%s' already exists on %s", tagArg, c.Name), flashInfo)
+		}
+		return a, scheduleFlashClear()
+
+	case "remove":
+		if tagArg == "" {
+			a.statusBar.setFlash("Usage: :tag remove <tag>", flashError)
+			return a, scheduleFlashClear()
+		}
+		if a.visualState.Active() {
+			return a.tagRemoveVisual(tagArg)
+		}
+		c := a.list.selectedConnection()
+		if c == nil {
+			a.statusBar.setFlash("No connection selected", flashError)
+			return a, scheduleFlashClear()
+		}
+		before := *c
+		if a.tagManager.RemoveTag(c, tagArg) {
+			if err := a.cfg.UpdateConnection(*c); err != nil {
+				a.log.error("Failed to save tag removal: %v", err)
+				a.statusBar.setFlash("Error saving tag removal", flashError)
+			} else {
+				a.undoStack.Push(Operation{
+					Type:   UndoOpTagChange,
+					ConnID: c.ID,
+					Name:   c.Name,
+					Before: before,
+					After:  *c,
+				})
+				a.log.info("Removed tag '%s' from %s", tagArg, c.Name)
+				a.statusBar.setFlash(fmt.Sprintf("Removed tag '%s' from %s", tagArg, c.Name), flashInfo)
+			}
+			a.list.rebuildTable()
+		} else {
+			a.statusBar.setFlash(fmt.Sprintf("Tag '%s' not found on %s", tagArg, c.Name), flashInfo)
+		}
+		return a, scheduleFlashClear()
+
+	case "list":
+		return a.handleTagsListCommand()
+
+	default:
+		a.statusBar.setFlash("Usage: :tag <add|remove|list> <tag>", flashError)
+		return a, scheduleFlashClear()
+	}
+}
+
+// tagAddVisual adds a tag to all visually selected connections.
+func (a App) tagAddVisual(tag string) (tea.Model, tea.Cmd) {
+	indices := a.visualState.SelectedIndices()
+	added := 0
+	for _, idx := range indices {
+		if idx >= 0 && idx < len(a.list.filtered) {
+			c := &a.list.filtered[idx]
+			before := *c
+			if a.tagManager.AddTag(c, tag) {
+				_ = a.cfg.UpdateConnection(*c)
+				a.undoStack.Push(Operation{
+					Type:   UndoOpTagChange,
+					ConnID: c.ID,
+					Name:   c.Name,
+					Before: before,
+					After:  *c,
+				})
+				added++
+			}
+		}
+	}
+	a.list.rebuildTable()
+	a.statusBar.setFlash(fmt.Sprintf("Added tag '%s' to %d connection(s)", tag, added), flashInfo)
+	return a, scheduleFlashClear()
+}
+
+// tagRemoveVisual removes a tag from all visually selected connections.
+func (a App) tagRemoveVisual(tag string) (tea.Model, tea.Cmd) {
+	indices := a.visualState.SelectedIndices()
+	removed := 0
+	for _, idx := range indices {
+		if idx >= 0 && idx < len(a.list.filtered) {
+			c := &a.list.filtered[idx]
+			before := *c
+			if a.tagManager.RemoveTag(c, tag) {
+				_ = a.cfg.UpdateConnection(*c)
+				a.undoStack.Push(Operation{
+					Type:   UndoOpTagChange,
+					ConnID: c.ID,
+					Name:   c.Name,
+					Before: before,
+					After:  *c,
+				})
+				removed++
+			}
+		}
+	}
+	a.list.rebuildTable()
+	a.statusBar.setFlash(fmt.Sprintf("Removed tag '%s' from %d connection(s)", tag, removed), flashInfo)
+	return a, scheduleFlashClear()
+}
+
+// handleTagsListCommand shows all unique tags with counts.
+func (a App) handleTagsListCommand() (tea.Model, tea.Cmd) {
+	tags := a.tagManager.AllTags(a.cfg.Connections)
+	if len(tags) == 0 {
+		a.statusBar.setFlash("No tags found", flashInfo)
+		return a, scheduleFlashClear()
+	}
+	// Format a compact summary for the status bar.
+	var parts []string
+	for _, t := range tags {
+		parts = append(parts, fmt.Sprintf("%s(%d)", t.Name, t.Count))
+	}
+	summary := "Tags: " + strings.Join(parts, ", ")
+	if len(summary) > 120 {
+		summary = summary[:117] + "..."
+	}
+	a.log.info("%s", a.tagManager.FormatTagList(tags))
+	a.statusBar.setFlash(summary, flashInfo)
+	return a, scheduleFlashClear()
+}
+
+// handleFilterCommand processes :filter commands with tag boolean logic.
+func (a App) handleFilterCommand(args string) (tea.Model, tea.Cmd) {
+	args = strings.TrimSpace(args)
+	if args == "" {
+		// Clear all filters.
+		a.list.filtered = a.list.groupFilteredConns()
+		a.list.applyViewMode()
+		a.list.rebuildTable()
+		a.header.setFilter("")
+		a.header.setItemCount(len(a.list.filtered))
+		a.syncCursorPosition()
+		a.statusBar.setFlash("Filters cleared", flashInfo)
+		return a, scheduleFlashClear()
+	}
+
+	// Check for -t flag (tag filter with boolean logic).
+	if strings.HasPrefix(args, "-t ") {
+		expr := strings.TrimPrefix(args, "-t ")
+		expr = strings.TrimSpace(expr)
+		if expr == "" {
+			a.statusBar.setFlash("Usage: :filter -t <tag> [AND|OR <tag>...]", flashError)
+			return a, scheduleFlashClear()
+		}
+		filter := ParseTagFilter(expr)
+		base := a.list.groupFilteredConns()
+		a.list.filtered = FilterByTags(base, filter)
+		a.list.rebuildTable()
+		a.header.setFilter("-t " + expr)
+		a.header.setItemCount(len(a.list.filtered))
+		a.syncCursorPosition()
+		opStr := "AND"
+		if filter.Op == TagFilterOr {
+			opStr = "OR"
+		}
+		if len(filter.Tags) == 1 {
+			a.statusBar.setFlash(fmt.Sprintf("Filtered by tag: %s (%d results)", filter.Tags[0], len(a.list.filtered)), flashInfo)
+		} else {
+			a.statusBar.setFlash(fmt.Sprintf("Filtered by tags (%s): %s (%d results)", opStr, strings.Join(filter.Tags, ", "), len(a.list.filtered)), flashInfo)
+		}
+		a.log.info("Tag filter: %s %s -> %d results", opStr, strings.Join(filter.Tags, ", "), len(a.list.filtered))
+		return a, scheduleFlashClear()
+	}
+
+	// Check for -g flag (group filter).
+	if strings.HasPrefix(args, "-g ") {
+		group := strings.TrimPrefix(args, "-g ")
+		group = strings.TrimSpace(group)
+		a.list.groupFilter = group
+		a.list.applyGroupFilter()
+		a.header.setFilter("-g " + group)
+		a.header.setItemCount(len(a.list.filtered))
+		a.syncHeaderView()
+		a.syncCursorPosition()
+		a.statusBar.setFlash(fmt.Sprintf("Filtered by group: %s (%d results)", group, len(a.list.filtered)), flashInfo)
+		return a, scheduleFlashClear()
+	}
+
+	// Default: fuzzy filter on the pattern.
+	a.list.applyFilter(args)
+	a.header.setFilter(args)
+	a.header.setItemCount(len(a.list.filtered))
+	a.syncCursorPosition()
+	a.statusBar.setFlash(fmt.Sprintf("Filtered: %s (%d results)", args, len(a.list.filtered)), flashInfo)
+	return a, scheduleFlashClear()
+}
+
+// handleSortCommand processes :sort commands.
+func (a App) handleSortCommand(args string) (tea.Model, tea.Cmd) {
+	field := strings.TrimSpace(strings.ToLower(args))
+	if field == "" {
+		a.statusBar.setFlash("Usage: :sort <field>", flashError)
+		return a, scheduleFlashClear()
+	}
+	if idx := a.list.sortKeyToColumnIndex(field); idx >= 0 {
+		a.list.table.CycleSort(idx)
+		a.statusBar.setFlash(fmt.Sprintf("Sorted by %s", field), flashInfo)
+		return a, scheduleFlashClear()
+	}
+	a.statusBar.setFlash("Sort command not yet implemented", flashInfo)
+	return a, scheduleFlashClear()
 }
 
 func scheduleFlashClear() tea.Cmd {

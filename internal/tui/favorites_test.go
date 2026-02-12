@@ -7,7 +7,7 @@ import (
 	"github.com/dr4zz/nexus/internal/config"
 )
 
-func testConnections() []config.Connection {
+func favTestConnections() []config.Connection {
 	t1 := time.Date(2025, 1, 10, 12, 0, 0, 0, time.UTC)
 	t2 := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
 	t3 := time.Date(2025, 1, 5, 12, 0, 0, 0, time.UTC)
@@ -20,7 +20,7 @@ func testConnections() []config.Connection {
 }
 
 func TestFilterFavorites(t *testing.T) {
-	conns := testConnections()
+	conns := favTestConnections()
 	result := FilterFavorites(conns)
 
 	if len(result) != 2 {
@@ -46,7 +46,7 @@ func TestFilterFavoritesEmpty(t *testing.T) {
 }
 
 func TestSortByRecent(t *testing.T) {
-	conns := testConnections()
+	conns := favTestConnections()
 	result := SortByRecent(conns)
 
 	if len(result) != 4 {
@@ -75,7 +75,7 @@ func TestSortByRecentAllNil(t *testing.T) {
 }
 
 func TestSortByFrequent(t *testing.T) {
-	conns := testConnections()
+	conns := favTestConnections()
 	result := SortByFrequent(conns)
 
 	if len(result) != 4 {
@@ -104,7 +104,7 @@ func TestSortByFrequentAllZero(t *testing.T) {
 }
 
 func TestPinFavorites(t *testing.T) {
-	conns := testConnections()
+	conns := favTestConnections()
 	result := PinFavorites(conns)
 
 	if len(result) != 4 {
@@ -133,7 +133,7 @@ func TestPinFavoritesNoFavorites(t *testing.T) {
 }
 
 func TestSortByRecentDoesNotMutateInput(t *testing.T) {
-	conns := testConnections()
+	conns := favTestConnections()
 	origFirst := conns[0].ID
 	_ = SortByRecent(conns)
 	if conns[0].ID != origFirst {
@@ -142,7 +142,7 @@ func TestSortByRecentDoesNotMutateInput(t *testing.T) {
 }
 
 func TestSortByFrequentDoesNotMutateInput(t *testing.T) {
-	conns := testConnections()
+	conns := favTestConnections()
 	origFirst := conns[0].ID
 	_ = SortByFrequent(conns)
 	if conns[0].ID != origFirst {
@@ -151,7 +151,7 @@ func TestSortByFrequentDoesNotMutateInput(t *testing.T) {
 }
 
 func TestFavoriteToggle(t *testing.T) {
-	conns := testConnections()
+	conns := favTestConnections()
 	// Toggle alpha (currently favorite) to non-favorite
 	conns[0].Favorite = !conns[0].Favorite
 	if conns[0].Favorite {
