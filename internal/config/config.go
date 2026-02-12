@@ -27,12 +27,26 @@ func (s Settings) HealthInterval() time.Duration {
 	return d
 }
 
+// ConfigTemplate stores a user-defined connection template in the config file.
+type ConfigTemplate struct {
+	Name          string   `yaml:"name"`
+	Description   string   `yaml:"description,omitempty"`
+	Protocol      string   `yaml:"protocol,omitempty"`
+	Port          int      `yaml:"port,omitempty"`
+	Username      string   `yaml:"username,omitempty"`
+	Group         string   `yaml:"group,omitempty"`
+	Tags          []string `yaml:"tags,omitempty"`
+	ProxyJump     string   `yaml:"proxy_jump,omitempty"`
+	RecordSession bool     `yaml:"record_session,omitempty"`
+}
+
 // Config is the root configuration structure.
 type Config struct {
 	Version     int          `yaml:"version"`
 	Settings    Settings     `yaml:"settings"`
 	Groups      []Group      `yaml:"groups,omitempty"`
-	Connections []Connection `yaml:"connections,omitempty"`
+	Connections []Connection     `yaml:"connections,omitempty"`
+	Templates   []ConfigTemplate `yaml:"templates,omitempty"`
 
 	EncryptionKey []byte `yaml:"-"`
 }

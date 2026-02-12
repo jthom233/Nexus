@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dr4zz/nexus/internal/config"
 	"github.com/dr4zz/nexus/internal/hooks"
+	"github.com/dr4zz/nexus/internal/template"
 )
 
 // FormSubmitMsg is sent when the form is submitted with a connection.
@@ -56,14 +57,18 @@ type formModel struct {
 
 	editID string
 	groups []string
+
+	// Template support
+	templateStore  *template.TemplateStore
+	templateChoice string
 }
 
-func newForm(groups []string) formModel {
-	return formModel{groups: groups}
+func newForm(groups []string, tplStore *template.TemplateStore) formModel {
+	return formModel{groups: groups, templateStore: tplStore}
 }
 
-func newFormPtr(groups []string) *formModel {
-	return &formModel{groups: groups}
+func newFormPtr(groups []string, tplStore *template.TemplateStore) *formModel {
+	return &formModel{groups: groups, templateStore: tplStore}
 }
 
 func (f *formModel) startAdd(groups []string) {
@@ -92,6 +97,7 @@ func (f *formModel) startAdd(groups []string) {
 	f.hookPostDisconnect = ""
 	f.hookOnFailure = "warn"
 	f.groups = groups
+	f.templateChoice = ""
 	f.buildForm()
 	f.active = true
 }
@@ -161,7 +167,27 @@ func (f *formModel) buildForm() {
 		groupOptions = append(groupOptions, huh.NewOption(g, g))
 	}
 
+	// Build template options for the dropdown
+	templateOptions := []huh.Option[string]{huh.NewOption("None", "")}
+	if f.templateStore != nil {
+		for _, tpl := range f.templateStore.List() {
+			label := tpl.Name
+			if tpl.Description != "" {
+				label = tpl.Name + " — " + tpl.Description
+			}
+			templateOptions = append(templateOptions, huh.NewOption(label, tpl.Name))
+		}
+	}
+
 	f.form = huh.NewForm(
+		// Template selection (only visible when adding)
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Template").
+				Description("Select a template to pre-fill fields").
+				Options(templateOptions...).
+				Value(&f.templateChoice),
+		).WithHideFunc(func() bool { return f.isEdit }),
 		// Common fields
 		huh.NewGroup(
 			huh.NewInput().
@@ -297,7 +323,40 @@ func (f *formModel) buildForm() {
 		WithHeight(f.height)
 }
 
+func (f *formModel) applyTemplateToFields() {
+	if f.templateChoice == "" || f.templateStore == nil {
+		return
+	}
+	tpl, ok := f.templateStore.Get(f.templateChoice)
+	if !ok {
+		return
+	}
+	if f.protocol == "" || f.protocol == "ssh" {
+		if tpl.Protocol != "" {
+			f.protocol = tpl.Protocol
+		}
+	}
+	if f.port == "" && tpl.Port != 0 {
+		f.port = strconv.Itoa(tpl.Port)
+	}
+	if f.username == "" && tpl.Username != "" {
+		f.username = tpl.Username
+	}
+	if f.group == "" && tpl.Group != "" {
+		f.group = tpl.Group
+	}
+	if f.tags == "" && len(tpl.Tags) > 0 {
+		f.tags = strings.Join(tpl.Tags, ", ")
+	}
+	if f.proxyJump == "" && tpl.ProxyJump != "" {
+		f.proxyJump = tpl.ProxyJump
+	}
+}
+
 func (f *formModel) toConnection() config.Connection {
+	// Apply template defaults to any fields the user left empty.
+	f.applyTemplateToFields()
+
 	id := f.editID
 	if id == "" {
 		id = sanitizeForID(f.name)
