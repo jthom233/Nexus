@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/huh"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dr4zz/nexus/internal/config"
+	"github.com/dr4zz/nexus/internal/hooks"
 )
 
 // FormSubmitMsg is sent when the form is submitted with a connection.
@@ -45,6 +47,13 @@ type formModel struct {
 	dynamicRes   bool
 	vncPassword  string
 
+	// Hook fields
+	hookPreConnect     string
+	hookPostConnect    string
+	hookPreDisconnect  string
+	hookPostDisconnect string
+	hookOnFailure      string
+
 	editID string
 	groups []string
 }
@@ -77,6 +86,11 @@ func (f *formModel) startAdd(groups []string) {
 	f.fullscreen = false
 	f.dynamicRes = true
 	f.vncPassword = ""
+	f.hookPreConnect = ""
+	f.hookPostConnect = ""
+	f.hookPreDisconnect = ""
+	f.hookPostDisconnect = ""
+	f.hookOnFailure = "warn"
 	f.groups = groups
 	f.buildForm()
 	f.active = true
@@ -107,8 +121,38 @@ func (f *formModel) startEdit(conn config.Connection, groups []string) {
 	f.vncPassword = conn.VNCPassword
 	f.dynamicRes = conn.RDPOptions.DynamicResolution
 	f.groups = groups
+
+	// Load hooks from connection
+	f.hookPreConnect = hookCommandsToString(conn.Hooks.PreConnect)
+	f.hookPostConnect = hookCommandsToString(conn.Hooks.PostConnect)
+	f.hookPreDisconnect = hookCommandsToString(conn.Hooks.PreDisconnect)
+	f.hookPostDisconnect = hookCommandsToString(conn.Hooks.PostDisconnect)
+	f.hookOnFailure = hookOnFailureToString(conn.Hooks)
+
 	f.buildForm()
 	f.active = true
+}
+
+// hookCommandsToString returns a semicolon-separated string of hook commands.
+func hookCommandsToString(hks []hooks.Hook) string {
+	if len(hks) == 0 {
+		return ""
+	}
+	cmds := make([]string, 0, len(hks))
+	for _, h := range hks {
+		cmds = append(cmds, h.Command)
+	}
+	return strings.Join(cmds, "; ")
+}
+
+// hookOnFailureToString returns the on-failure policy from the first non-empty hook list.
+func hookOnFailureToString(h hooks.Hooks) string {
+	for _, hks := range [][]hooks.Hook{h.PreConnect, h.PostConnect, h.PreDisconnect, h.PostDisconnect} {
+		if len(hks) > 0 {
+			return string(hks[0].OnFailure)
+		}
+	}
+	return "warn"
 }
 
 func (f *formModel) buildForm() {
@@ -225,6 +269,29 @@ func (f *formModel) buildForm() {
 				Value(&f.vncPassword).
 				EchoMode(huh.EchoModePassword),
 		).WithHideFunc(func() bool { return f.protocol != "vnc" }),
+		// Lifecycle hooks
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Pre-Connect Command (shell command to run before connecting)").
+				Value(&f.hookPreConnect),
+			huh.NewInput().
+				Title("Post-Connect Command (shell command to run after connecting)").
+				Value(&f.hookPostConnect),
+			huh.NewInput().
+				Title("Pre-Disconnect Command (shell command to run before disconnecting)").
+				Value(&f.hookPreDisconnect),
+			huh.NewInput().
+				Title("Post-Disconnect Command (shell command to run after disconnecting)").
+				Value(&f.hookPostDisconnect),
+			huh.NewSelect[string]().
+				Title("On Hook Failure").
+				Options(
+					huh.NewOption("Warn (log and continue)", "warn"),
+					huh.NewOption("Abort (stop connection)", "abort"),
+					huh.NewOption("Ignore (silently continue)", "ignore"),
+				).
+				Value(&f.hookOnFailure),
+		),
 	).WithTheme(huh.ThemeDracula()).
 		WithWidth(f.width).
 		WithHeight(f.height)
@@ -271,6 +338,7 @@ func (f *formModel) toConnection() config.Connection {
 		PortForwards: portForwards,
 		Group:        f.group,
 		Tags:         tags,
+		Hooks:        f.buildHooks(),
 	}
 
 	switch f.protocol {
@@ -286,6 +354,45 @@ func (f *formModel) toConnection() config.Connection {
 	}
 
 	return conn
+}
+
+// buildHooks constructs a hooks.Hooks from the form fields.
+func (f *formModel) buildHooks() hooks.Hooks {
+	onFailure := hooks.OnFailure(f.hookOnFailure)
+	if onFailure == "" {
+		onFailure = hooks.FailWarn
+	}
+
+	var h hooks.Hooks
+	h.PreConnect = parseHookCommands(f.hookPreConnect, hooks.PreConnect, onFailure)
+	h.PostConnect = parseHookCommands(f.hookPostConnect, hooks.PostConnect, onFailure)
+	h.PreDisconnect = parseHookCommands(f.hookPreDisconnect, hooks.PreDisconnect, onFailure)
+	h.PostDisconnect = parseHookCommands(f.hookPostDisconnect, hooks.PostDisconnect, onFailure)
+	return h
+}
+
+// parseHookCommands splits a semicolon-separated command string into Hook slices.
+func parseHookCommands(input string, event hooks.HookEvent, onFailure hooks.OnFailure) []hooks.Hook {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return nil
+	}
+
+	parts := strings.Split(input, ";")
+	var result []hooks.Hook
+	for _, cmd := range parts {
+		cmd = strings.TrimSpace(cmd)
+		if cmd == "" {
+			continue
+		}
+		result = append(result, hooks.Hook{
+			Event:     event,
+			Command:   cmd,
+			OnFailure: onFailure,
+			Timeout:   30 * time.Second,
+		})
+	}
+	return result
 }
 
 func (f *formModel) Update(msg tea.Msg) tea.Cmd {
