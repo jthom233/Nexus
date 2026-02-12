@@ -363,7 +363,30 @@ func (a *App) confirmQuit() {
 }
 
 func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	k := msg.String()
+	motion := a.list.table.motion
+
+	// Capture the pending operator before the engine processes this key,
+	// because HandleKey resets the engine upon producing a result.
+	pendingOp := motion.PendingOperator()
+
+	// Pass key events to the motion engine first.
+	result := motion.HandleKey(msg, a.list.table.cursor, len(a.list.table.rows), a.list.table.height)
+
+	if result != nil {
+		// Store the operator that was active when this result was produced.
+		a.list.table.lastOperator = pendingOp
+		// Motion sequence completed — apply the result.
+		return a.applyMotionResult(result)
+	}
+
+	// If the engine is now pending (accumulating a sequence), consume the key.
+	if motion.Pending() {
+		return a, nil
+	}
+
+	// --- App-level key handlers (non-motion keys) ---
+	switch k {
 	case "q":
 		a.confirmQuit()
 		return a, nil
@@ -404,17 +427,6 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return a, a.form.form.Init()
 		}
 		return a, nil
-	case "d":
-		if c := a.list.selectedConnection(); c != nil {
-			a.confirm.show(
-				"Delete connection '"+c.Name+"'?",
-				"delete",
-				c.ID,
-			)
-			a.confirm.width = a.width
-			a.confirm.height = a.height
-		}
-		return a, nil
 	case "D":
 		if c := a.list.selectedConnection(); c != nil {
 			st := a.list.statuses[c.ID]
@@ -428,10 +440,6 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.help.view = "detail"
 		}
 		return a, nil
-	case "g":
-		a.list.cycleGroup()
-		a.updateBreadcrumbs()
-		return a, nil
 	case "r":
 		a.log.info("Manual health check refresh")
 		a.statusBar.setFlash("Refreshing...", flashInfo)
@@ -439,24 +447,110 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			health.CheckAll(a.list.healthTargets()),
 			scheduleFlashClear(),
 		)
-	case "y":
-		return a.yankCommand()
 	case "s":
 		a.sessionsView.setSessions(a.sessions.All())
 		a.sessionsView.setSize(a.width, a.contentHeight())
 		a.pushView(viewSessions)
 		a.help.view = "sessions"
 		return a, nil
-	case "L":
-		a.log.setSize(a.width, a.contentHeight())
-		a.pushView(viewLog)
+
+	// Sort keys (Shift+letter)
+	case "N": // Sort by Name
+		if idx := a.list.sortKeyToColumnIndex("name"); idx >= 0 {
+			a.list.table.CycleSort(idx)
+		}
+		return a, nil
+	case "S": // Sort by Status
+		if idx := a.list.sortKeyToColumnIndex("status"); idx >= 0 {
+			a.list.table.CycleSort(idx)
+		}
+		return a, nil
+	case "P": // Sort by Protocol
+		if idx := a.list.sortKeyToColumnIndex("protocol"); idx >= 0 {
+			a.list.table.CycleSort(idx)
+		}
+		return a, nil
+
+	// Wide mode toggle
+	case "ctrl+w":
+		a.list.toggleWideMode()
 		return a, nil
 	}
 
-	// Pass navigation keys to table
-	var cmd tea.Cmd
-	a.list, cmd = a.list.Update(msg)
-	return a, cmd
+	return a, nil
+}
+
+// applyMotionResult handles a completed motion/operator result from the motion engine.
+func (a App) applyMotionResult(result *MotionResult) (tea.Model, tea.Cmd) {
+	switch result.Action {
+	case ActionMove:
+		target := result.Target
+		// Resolve H/M/L sentinel values
+		if target < 0 {
+			target = a.list.table.ResolveScreenTarget(target)
+		}
+		a.list.table.MoveCursor(target)
+		return a, nil
+
+	case ActionPageDown:
+		a.list.table.PageDown(result.Count)
+		return a, nil
+
+	case ActionPageUp:
+		a.list.table.PageUp(result.Count)
+		return a, nil
+
+	case ActionOpLine:
+		// dd = delete, yy = yank — operator was captured before engine reset
+		return a.handleOperatorLine(result)
+
+	case ActionOpRange:
+		return a.handleOperatorRange(result)
+	}
+	return a, nil
+}
+
+// handleOperatorLine handles dd/yy/cc operator-on-line results.
+// The operator type is tracked via table.lastOperator, which is captured
+// from the motion engine's pending state before HandleKey resets it.
+func (a App) handleOperatorLine(result *MotionResult) (tea.Model, tea.Cmd) {
+	op := a.list.table.lastOperator
+	switch op {
+	case OpDelete:
+		if c := a.list.selectedConnection(); c != nil {
+			a.confirm.show(
+				"Delete connection '"+c.Name+"'?",
+				"delete",
+				c.ID,
+			)
+			a.confirm.width = a.width
+			a.confirm.height = a.height
+		}
+	case OpYank:
+		return a.yankCommand()
+	}
+	return a, nil
+}
+
+// handleOperatorRange handles operator+motion range results (e.g., dG, ygg).
+func (a App) handleOperatorRange(result *MotionResult) (tea.Model, tea.Cmd) {
+	op := a.list.table.lastOperator
+	switch op {
+	case OpDelete:
+		// For range delete, still confirm for the selected connection
+		if c := a.list.selectedConnection(); c != nil {
+			a.confirm.show(
+				"Delete connection '"+c.Name+"'?",
+				"delete",
+				c.ID,
+			)
+			a.confirm.width = a.width
+			a.confirm.height = a.height
+		}
+	case OpYank:
+		return a.yankCommand()
+	}
+	return a, nil
 }
 
 func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

@@ -5,9 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/dr4zz/nexus/internal/config"
 	"github.com/dr4zz/nexus/internal/health"
 )
@@ -18,28 +16,68 @@ type connStatus struct {
 }
 
 type listModel struct {
-	cfg          *config.Config
-	table        table.Model
-	statuses     map[string]connStatus
-	filtered     []config.Connection
-	groupFilter  string
-	width        int
-	height       int
-	ready        bool
+	cfg         *config.Config
+	table       tableModel
+	statuses    map[string]connStatus
+	filtered    []config.Connection
+	groupFilter string
+	width       int
+	height      int
+	ready       bool
 }
 
 func newList(cfg *config.Config) listModel {
 	m := listModel{
 		cfg:      cfg,
 		statuses: make(map[string]connStatus),
+		table:    newTableModel(normalColumns()),
 	}
 	m.filtered = cfg.Connections
 	return m
 }
 
+// normalColumns returns the standard set of columns.
+func normalColumns() []Column {
+	return []Column{
+		{Title: "", MinWidth: 3, Flex: 0, SortKey: "status", Align: 2},       // status indicator
+		{Title: "NAME", MinWidth: 10, Flex: 35, SortKey: "name", Align: 0},   // name
+		{Title: "HOST", MinWidth: 10, Flex: 30, SortKey: "host", Align: 0},   // host
+		{Title: "PROTOCOL", MinWidth: 5, Flex: 0, SortKey: "protocol", Align: 0}, // protocol (fixed)
+		{Title: "GROUP", MinWidth: 8, Flex: 20, SortKey: "group", Align: 0},  // group
+		{Title: "LATENCY", MinWidth: 8, Flex: 0, SortKey: "latency", Align: 1}, // latency (right-aligned)
+	}
+}
+
+// wideColumns returns the extended set of columns for wide mode.
+func wideColumns() []Column {
+	return []Column{
+		{Title: "", MinWidth: 3, Flex: 0, SortKey: "status", Align: 2},
+		{Title: "NAME", MinWidth: 8, Flex: 20, SortKey: "name", Align: 0},
+		{Title: "HOST", MinWidth: 8, Flex: 15, SortKey: "host", Align: 0},
+		{Title: "PROTOCOL", MinWidth: 5, Flex: 0, SortKey: "protocol", Align: 0},
+		{Title: "GROUP", MinWidth: 6, Flex: 10, SortKey: "group", Align: 0},
+		{Title: "LATENCY", MinWidth: 8, Flex: 0, SortKey: "latency", Align: 1},
+		{Title: "PORT", MinWidth: 5, Flex: 0, SortKey: "port", Align: 1},
+		{Title: "USERNAME", MinWidth: 8, Flex: 10, SortKey: "username", Align: 0},
+		{Title: "TAGS", MinWidth: 8, Flex: 15, SortKey: "tags", Align: 0},
+		{Title: "IDENTITY", MinWidth: 8, Flex: 10, SortKey: "identity", Align: 0},
+	}
+}
+
+// sortKeyToColumnIndex finds the column index matching the given sort key.
+func (l *listModel) sortKeyToColumnIndex(key string) int {
+	for i, col := range l.table.columns {
+		if col.SortKey == key {
+			return i
+		}
+	}
+	return -1
+}
+
 func (l *listModel) setSize(width, height int) {
 	l.width = width
 	l.height = height
+	l.table.setSize(width, height)
 	l.rebuildTable()
 }
 
@@ -113,11 +151,17 @@ func (l *listModel) selectedConnection() *config.Connection {
 	if len(l.filtered) == 0 {
 		return nil
 	}
-	row := l.table.Cursor()
-	if row < 0 || row >= len(l.filtered) {
+	r := l.table.selectedRow()
+	if r == nil {
 		return nil
 	}
-	return &l.filtered[row]
+	// Look up the connection by ID.
+	for i := range l.filtered {
+		if l.filtered[i].ID == r.ID {
+			return &l.filtered[i]
+		}
+	}
+	return nil
 }
 
 func (l *listModel) healthTargets() map[string]string {
@@ -144,83 +188,93 @@ func (l *listModel) countsByStatus() (total, online, offline int) {
 }
 
 func (l *listModel) rebuildTable() {
-	columns := []table.Column{
-		{Title: "", Width: 3},          // status
-		{Title: "NAME", Width: 0},      // calculated
-		{Title: "PROTO", Width: 5},
-		{Title: "HOST", Width: 0},      // calculated
-		{Title: "GROUP", Width: 0},     // calculated
-		{Title: "LATENCY", Width: 8},
+	rows := l.buildRows()
+	if l.ready {
+		l.table.updateRows(rows)
+	} else {
+		l.table.setRows(rows)
 	}
+	l.table.setSize(l.width, l.height)
+	l.ready = true
+}
 
-	// Calculate dynamic widths
-	nameW := 20
-	groupW := 12
-	hostW := 18
-	fixed := 3 + 5 + 8 + 12 // status + proto + latency + padding
-	remaining := l.width - fixed
-	if remaining > 0 {
-		nameW = remaining * 35 / 100
-		hostW = remaining * 35 / 100
-		groupW = remaining * 30 / 100
-	}
-	columns[1].Width = nameW
-	columns[3].Width = hostW
-	columns[4].Width = groupW
-
-	rows := make([]table.Row, len(l.filtered))
+func (l *listModel) buildRows() []Row {
+	rows := make([]Row, len(l.filtered))
 	for i, c := range l.filtered {
 		st := l.statuses[c.ID]
-		indicator := statusIndicator(st.status)
+		indicator := statusChar(st.status)
 
 		latStr := ""
 		if st.status == health.Online || st.status == health.Degraded {
 			latStr = fmt.Sprintf("%dms", st.latency.Milliseconds())
 		}
 
-		rows[i] = table.Row{
-			indicator,
-			truncate(c.Name, nameW),
-			c.Protocol.Label(),
-			truncate(c.HostPort(), hostW),
-			truncate(c.Group, groupW),
-			latStr,
+		statusStr := st.status.String()
+
+		if l.table.wideMode {
+			rows[i] = Row{
+				Cells: []string{
+					indicator,
+					c.Name,
+					c.HostPort(),
+					c.Protocol.Label(),
+					c.Group,
+					latStr,
+					fmt.Sprintf("%d", c.EffectivePort()),
+					c.Username,
+					strings.Join(c.Tags, ","),
+					c.IdentityFile,
+				},
+				ID:     c.ID,
+				Status: statusStr,
+			}
+		} else {
+			rows[i] = Row{
+				Cells: []string{
+					indicator,
+					c.Name,
+					c.HostPort(),
+					c.Protocol.Label(),
+					c.Group,
+					latStr,
+				},
+				ID:     c.ID,
+				Status: statusStr,
+			}
 		}
 	}
+	return rows
+}
 
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithRows(rows),
-		table.WithFocused(true),
-		table.WithHeight(l.height),
-	)
-
-	s := table.DefaultStyles()
-	s.Header = TableHeaderStyle
-	s.Selected = TableSelectedStyle
-	s.Cell = TableRowStyle
-	t.SetStyles(s)
-
-	// Preserve cursor position
-	cursor := 0
-	if l.ready {
-		cursor = l.table.Cursor()
-		if cursor >= len(rows) {
-			cursor = len(rows) - 1
-		}
-		if cursor < 0 {
-			cursor = 0
-		}
+// statusChar returns the raw status character (without styling — styling is done by the table renderer).
+func statusChar(s health.Status) string {
+	switch s {
+	case health.Online:
+		return StatusOnline
+	case health.Offline:
+		return StatusOffline
+	case health.Degraded:
+		return StatusDegraded
+	default:
+		return StatusUnknown
 	}
-	t.SetCursor(cursor)
-	l.table = t
-	l.ready = true
+}
+
+// toggleWideMode switches between normal and wide column layouts.
+func (l *listModel) toggleWideMode() {
+	l.table.ToggleWideMode()
+	if l.table.WideMode() {
+		l.table.SetColumns(wideColumns())
+	} else {
+		l.table.SetColumns(normalColumns())
+	}
+	l.rebuildTable()
 }
 
 func (l listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
-	var cmd tea.Cmd
-	l.table, cmd = l.table.Update(msg)
-	return l, cmd
+	// The table model doesn't need Update for bubbletea messages —
+	// navigation is handled through the motion engine in app.go.
+	return l, nil
 }
 
 func (l listModel) View() string {
@@ -228,21 +282,4 @@ func (l listModel) View() string {
 		return ""
 	}
 	return l.table.View()
-}
-
-func truncate(s string, max int) string {
-	if max <= 0 {
-		return ""
-	}
-	if lipgloss.Width(s) <= max {
-		return s
-	}
-	if max <= 1 {
-		return s[:max]
-	}
-	// Rough byte-level truncation for ASCII-heavy content
-	if len(s) > max-1 {
-		return s[:max-1] + "~"
-	}
-	return s
 }
