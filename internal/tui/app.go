@@ -2461,6 +2461,10 @@ func (a App) viewName() string {
 		return "log"
 	case viewSessions:
 		return "sessions"
+	case viewPulse:
+		return "pulse"
+	case viewAuditLog:
+		return "audit"
 	default:
 		return "list"
 	}

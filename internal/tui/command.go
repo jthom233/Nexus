@@ -54,7 +54,7 @@ func defaultCommands() []CommandDef {
 		{Name: "recent", Aliases: nil, Description: "Show recent connections", ArgSpec: ""},
 		{Name: "frequent", Aliases: nil, Description: "Show frequently used", ArgSpec: ""},
 		{Name: "pulse", Aliases: nil, Description: "Health pulse check", ArgSpec: ""},
-		{Name: "log", Aliases: []string{"logs"}, Description: "Show log", ArgSpec: ""},
+		{Name: "log", Aliases: []string{"logs", "audit"}, Description: "Show audit log", ArgSpec: ""},
 		{Name: "sessions", Aliases: nil, Description: "Manage sessions", ArgSpec: ""},
 		{Name: "version", Aliases: []string{"ver"}, Description: "Show version", ArgSpec: ""},
 		{Name: "marks", Aliases: nil, Description: "Show marks", ArgSpec: ""},
