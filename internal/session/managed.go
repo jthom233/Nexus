@@ -292,10 +292,14 @@ func (m *ManagedSession) Run() error {
 		m.startReaders()
 		go m.waitDone()
 	} else {
-		// Reattach: stop old reader goroutines, clear stale buffer data,
-		// and start fresh readers so this session has independent I/O.
-		m.stopAndClearReaders()
+		// Reattach: stop old reader goroutines and start fresh ones.
+		// Do NOT clear ring buffers — we want accumulated output from
+		// while the session was detached to be shown on reattach.
+		m.stopOldReaders()
 		m.startReaders()
+
+		// Clear terminal so stale content from other sessions doesn't show
+		m.stdout.Write([]byte("\033[2J\033[H"))
 	}
 
 	err := m.attachLoop()
@@ -330,13 +334,11 @@ func (m *ManagedSession) signalStopReaders() {
 	}
 }
 
-// stopAndClearReaders signals reader goroutines to stop, waits briefly for them
-// to exit, then clears the ring buffers so stale data doesn't bleed through.
-func (m *ManagedSession) stopAndClearReaders() {
+// stopOldReaders signals reader goroutines to stop and waits briefly for them to exit.
+// Does NOT clear ring buffers — accumulated output is preserved for reattach.
+func (m *ManagedSession) stopOldReaders() {
 	m.signalStopReaders()
 	// Give readers a moment to notice the stop signal and exit.
-	// They will exit after their next Read() returns or immediately if
-	// they check the stop channel between reads.
 	done := make(chan struct{})
 	go func() {
 		m.readerWg.Wait()
@@ -349,8 +351,6 @@ func (m *ManagedSession) stopAndClearReaders() {
 		// They will see stopReaders is closed on their next iteration
 		// and will not write to the buffers.
 	}
-	m.outputBuf.Clear()
-	m.stderrBuf.Clear()
 }
 
 func (m *ManagedSession) startPortForward(pf config.PortForward) error {
