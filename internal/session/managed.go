@@ -122,6 +122,49 @@ func (r *ringBuffer) Clear() {
 	r.count = 0
 }
 
+// replayBuffer is a circular byte buffer that stores the last N bytes of output.
+// It is never drained — only snapshotted for replay on session reattach.
+// This allows restoring the terminal state when switching between sessions.
+type replayBuffer struct {
+	mu   sync.Mutex
+	data []byte
+	max  int
+}
+
+func newReplayBuffer(maxBytes int) *replayBuffer {
+	return &replayBuffer{
+		data: make([]byte, 0, 64*1024),
+		max:  maxBytes,
+	}
+}
+
+// Write appends data, discarding oldest bytes if over capacity.
+func (rb *replayBuffer) Write(data []byte) {
+	if len(data) == 0 {
+		return
+	}
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	rb.data = append(rb.data, data...)
+	if len(rb.data) > rb.max {
+		excess := len(rb.data) - rb.max
+		n := copy(rb.data, rb.data[excess:])
+		rb.data = rb.data[:n]
+	}
+}
+
+// Snapshot returns a copy of all stored bytes without clearing the buffer.
+func (rb *replayBuffer) Snapshot() []byte {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	if len(rb.data) == 0 {
+		return nil
+	}
+	cp := make([]byte, len(rb.data))
+	copy(cp, rb.data)
+	return cp
+}
+
 // stdinResult carries data or an error from the stdin reader goroutine.
 type stdinResult struct {
 	data []byte
@@ -160,11 +203,9 @@ type ManagedSession struct {
 	pfManager   *PortForwardManager
 
 	// Buffers for background output capture
-	outputBuf *ringBuffer
-	stderrBuf *ringBuffer
-
-	// Reader goroutines run from first connect until SSH session closes.
-	// No stop/restart mechanism needed — they buffer continuously.
+	outputBuf *ringBuffer    // incremental passthrough (drained by ticker)
+	stderrBuf *ringBuffer    // incremental passthrough (drained by ticker)
+	replayBuf *replayBuffer  // full session history for reattach (never drained)
 
 	// Lifecycle
 	doneCh  chan struct{} // closed when SSH session ends
@@ -201,6 +242,7 @@ func NewManagedSession(id, name, connID, protocol, host string, port int, userna
 		ProxyCommand: proxyCommand,
 		outputBuf:    newRingBuffer(1000),
 		stderrBuf:    newRingBuffer(100),
+		replayBuf:    newReplayBuffer(256 * 1024), // 256KB session history
 		doneCh:       make(chan struct{}),
 		status:       StatusConnecting,
 	}
@@ -297,8 +339,15 @@ func (m *ManagedSession) Run() error {
 		go m.waitDone()
 	} else {
 		// Reattach: reader goroutines are still running and buffering.
-		// Just clear the terminal — attachLoop will drain the buffer.
+		// Clear stale incremental data (replay covers it all).
+		m.outputBuf.Clear()
+		m.stderrBuf.Clear()
+
+		// Clear terminal and replay session history to restore screen state.
 		m.stdout.Write([]byte("\033[2J\033[H"))
+		if replay := m.replayBuf.Snapshot(); len(replay) > 0 {
+			m.stdout.Write(replay)
+		}
 	}
 
 	return m.attachLoop()
@@ -494,14 +543,17 @@ func (m *ManagedSession) startShell() error {
 	return nil
 }
 
-// readOutput continuously reads SSH stdout into the ring buffer.
+// readOutput continuously reads SSH stdout into both the incremental buffer
+// (for ticker-based passthrough) and the replay buffer (for reattach history).
 // Runs for the lifetime of the SSH connection — never stopped on detach.
 func (m *ManagedSession) readOutput() {
 	buf := make([]byte, 32*1024)
 	for {
 		n, err := m.sshStdout.Read(buf)
 		if n > 0 {
-			m.outputBuf.Write(buf[:n])
+			data := buf[:n]
+			m.outputBuf.Write(data)  // incremental: drained by ticker while attached
+			m.replayBuf.Write(data)  // history: replayed on reattach to restore terminal
 		}
 		if err != nil {
 			return
