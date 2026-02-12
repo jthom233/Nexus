@@ -1188,9 +1188,21 @@ func (a App) handleSessionsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.log.setSize(a.width, a.contentHeight())
 		a.pushView(viewLog)
 		return a, nil
+	case "j", "down":
+		a.sessionsView.table.MoveDown(1)
+		return a, nil
+	case "k", "up":
+		a.sessionsView.table.MoveUp(1)
+		return a, nil
+	case "g":
+		a.sessionsView.table.GotoTop()
+		return a, nil
+	case "G":
+		a.sessionsView.table.GotoBottom()
+		return a, nil
 	}
 
-	// Pass navigation keys to table
+	// Pass remaining keys to table
 	var cmd tea.Cmd
 	a.sessionsView, cmd = a.sessionsView.Update(msg)
 	return a, cmd
