@@ -648,13 +648,35 @@ func (m *ManagedSession) attachLoop() error {
 	// or error). The stdin reader goroutine monitors it so it stops
 	// competing for os.Stdin once this session is no longer attached.
 	detachCh := make(chan struct{})
-	defer close(detachCh)
+	stdinDone := make(chan struct{}) // closed when stdin goroutine exits
+
+	// Cleanup: interrupt the stdin goroutine's blocked Read and wait
+	// for it to exit BEFORE returning. This prevents the goroutine from
+	// racing with bubbletea's own stdin reader and eating keypresses.
+	defer func() {
+		close(detachCh)
+		// Interrupt any blocked Read by setting a past deadline.
+		// This works when stdin is *os.File (i.e., os.Stdin on Linux).
+		if f, ok := m.stdin.(*os.File); ok {
+			f.SetReadDeadline(time.Now())
+		}
+		// Wait for goroutine to actually exit (or timeout if deadline isn't supported).
+		select {
+		case <-stdinDone:
+		case <-time.After(50 * time.Millisecond):
+		}
+		// Reset deadline so bubbletea can read normally.
+		if f, ok := m.stdin.(*os.File); ok {
+			f.SetReadDeadline(time.Time{})
+		}
+	}()
 
 	stdinCh := make(chan stdinResult, 1)
 
 	// Start a stdin reader goroutine scoped to this attach cycle.
 	// It exits when detachCh is closed (checked after each Read).
 	go func() {
+		defer close(stdinDone)
 		buf := make([]byte, 4*1024)
 		for {
 			n, err := m.stdin.Read(buf)
@@ -676,6 +698,15 @@ func (m *ManagedSession) attachLoop() error {
 				}
 			}
 			if err != nil {
+				// Timeout from SetReadDeadline is expected during cleanup.
+				if os.IsTimeout(err) {
+					select {
+					case <-detachCh:
+						return
+					default:
+						continue
+					}
+				}
 				select {
 				case stdinCh <- stdinResult{err: err}:
 				case <-detachCh:
