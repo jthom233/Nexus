@@ -59,10 +59,15 @@ func NewApp(cfg *config.Config) App {
 	l := newLog()
 	l.info("Nexus started")
 	l.info("Loaded %d connections from config", len(cfg.Connections))
+
+	h := newHeader()
+	h.setConfigPath(config.ConfigPath())
+	h.setItemCount(len(cfg.Connections))
+
 	return App{
 		cfg:          cfg,
 		keys:         DefaultKeyMap(),
-		header:       newHeader(),
+		header:       h,
 		statusBar:    newStatusBar(),
 		list:         newList(cfg),
 		filter:       newFilter(),
@@ -88,7 +93,7 @@ func (a App) currentView() viewKind {
 
 func (a *App) pushView(v viewKind) {
 	a.viewStack = append(a.viewStack, v)
-	a.updateBreadcrumbs()
+	a.syncHeaderView()
 	a.syncStatusBarView()
 }
 
@@ -96,7 +101,7 @@ func (a *App) popView() {
 	if len(a.viewStack) > 1 {
 		a.viewStack = a.viewStack[:len(a.viewStack)-1]
 	}
-	a.updateBreadcrumbs()
+	a.syncHeaderView()
 	a.syncStatusBarView()
 }
 
@@ -115,41 +120,61 @@ func (a *App) syncStatusBarView() {
 	}
 }
 
-func (a *App) updateBreadcrumbs() {
-	crumbs := []string{}
-	for _, v := range a.viewStack {
-		switch v {
-		case viewList:
-			if a.list.groupFilter != "" {
-				crumbs = append(crumbs, a.list.groupFilter)
-			} else {
-				crumbs = append(crumbs, "All Connections")
-			}
-		case viewDetail:
-			if c := a.list.selectedConnection(); c != nil {
-				crumbs = append(crumbs, c.Name)
-			} else {
-				crumbs = append(crumbs, "Detail")
-			}
-		case viewForm:
-			if a.form.isEdit {
-				crumbs = append(crumbs, "Edit Connection")
-			} else {
-				crumbs = append(crumbs, "Add Connection")
-			}
-		case viewLog:
-			crumbs = append(crumbs, "Event Log")
-		case viewSessions:
-			crumbs = append(crumbs, "Sessions")
+func (a *App) syncHeaderView() {
+	v := a.currentView()
+	switch v {
+	case viewList:
+		name := "Connections"
+		if a.list.groupFilter != "" {
+			name = a.list.groupFilter
 		}
+		a.header.setView(name, 1)
+		a.header.setItemCount(len(a.list.filtered))
+	case viewDetail:
+		name := "Detail"
+		if c := a.list.selectedConnection(); c != nil {
+			name = "Detail: " + c.Name
+		}
+		a.header.setView(name, 1)
+		a.header.setItemCount(0)
+	case viewForm:
+		name := "Add Connection"
+		if a.form.isEdit {
+			name = "Edit Connection"
+		}
+		a.header.setView(name, 1)
+		a.header.setItemCount(0)
+	case viewLog:
+		a.header.setView("Event Log", 3)
+		a.header.setItemCount(0)
+	case viewSessions:
+		a.header.setView("Sessions", 2)
+		a.header.setItemCount(a.sessions.Count())
 	}
-	a.header.breadcrumbs = crumbs
 }
 
 func (a *App) updateSessionCount() {
 	count := a.sessions.Count()
 	a.statusBar.sessionCount = count
-	a.header.sessionCount = count
+	// Update header item count if currently on sessions view
+	if a.currentView() == viewSessions {
+		a.header.setItemCount(count)
+	}
+}
+
+// syncCursorPosition updates the statusbar with the current table cursor position.
+func (a *App) syncCursorPosition() {
+	switch a.currentView() {
+	case viewList:
+		a.statusBar.cursor = a.list.table.Cursor() + 1 // 1-based
+		a.statusBar.itemCount = len(a.list.table.rows)
+	case viewSessions:
+		a.statusBar.cursor = a.sessionsView.table.Cursor() + 1
+		a.statusBar.itemCount = len(a.sessionsView.sessions)
+	default:
+		a.statusBar.cursor = 0
+		a.statusBar.itemCount = 0
+	}
 }
 
 func (a App) Init() tea.Cmd {
@@ -189,17 +214,26 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				a.filter.deactivate()
 				a.list.applyFilter("")
+				a.header.setFilter("")
+				a.header.setItemCount(len(a.list.filtered))
 				a.statusBar.mode = ModeNormal
+				a.syncCursorPosition()
 				return a, a.setMode(ModeNormal)
 			case "enter":
 				a.filter.active = false
 				a.filter.input.Blur()
+				a.header.setFilter(a.filter.value())
+				a.header.setItemCount(len(a.list.filtered))
 				a.statusBar.mode = ModeNormal
+				a.syncCursorPosition()
 				return a, a.setMode(ModeNormal)
 			default:
 				var cmd tea.Cmd
 				a.filter, cmd = a.filter.Update(msg)
 				a.list.applyFilter(a.filter.value())
+				a.header.setFilter(a.filter.value())
+				a.header.setItemCount(len(a.list.filtered))
+				a.syncCursorPosition()
 				return a, cmd
 			}
 		}
@@ -236,6 +270,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusBar.total = total
 		a.statusBar.online = online
 		a.statusBar.offline = offline
+		a.syncCursorPosition()
 		return a, nil
 
 	case health.TickMsg:
@@ -490,14 +525,17 @@ func (a App) applyMotionResult(result *MotionResult) (tea.Model, tea.Cmd) {
 			target = a.list.table.ResolveScreenTarget(target)
 		}
 		a.list.table.MoveCursor(target)
+		a.syncCursorPosition()
 		return a, nil
 
 	case ActionPageDown:
 		a.list.table.PageDown(result.Count)
+		a.syncCursorPosition()
 		return a, nil
 
 	case ActionPageUp:
 		a.list.table.PageUp(result.Count)
+		a.syncCursorPosition()
 		return a, nil
 
 	case ActionOpLine:
@@ -830,12 +868,14 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 			a.list.groupFilter = msg.Args
 		}
 		a.list.applyGroupFilter()
-		a.updateBreadcrumbs()
+		a.syncHeaderView()
+		a.syncCursorPosition()
 		return a, nil
 	case "all":
 		a.list.groupFilter = ""
 		a.list.applyGroupFilter()
-		a.updateBreadcrumbs()
+		a.syncHeaderView()
+		a.syncCursorPosition()
 		return a, nil
 	case "import-ssh":
 		return a.importSSH()
@@ -885,6 +925,8 @@ func (a App) importSSH() (tea.Model, tea.Cmd) {
 		lipgloss.NewStyle().Render("Imported "+itoa(added)+" SSH connections"),
 		flashInfo,
 	)
+	a.syncHeaderView()
+	a.syncCursorPosition()
 
 	return a, tea.Batch(
 		health.CheckAll(a.list.healthTargets()),
@@ -922,6 +964,8 @@ func (a App) handleFormSubmit(msg FormSubmitMsg) (tea.Model, tea.Cmd) {
 	a.statusBar.total = total
 	a.statusBar.online = online
 	a.statusBar.offline = offline
+	a.syncHeaderView()
+	a.syncCursorPosition()
 
 	return a, tea.Batch(
 		health.CheckAll(a.list.healthTargets()),
@@ -958,6 +1002,8 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 		a.statusBar.total = total
 		a.statusBar.online = online
 		a.statusBar.offline = offline
+		a.syncHeaderView()
+		a.syncCursorPosition()
 		return a, scheduleFlashClear()
 
 	case "kill-session":
@@ -984,6 +1030,15 @@ func (a App) View() string {
 		return "Loading..."
 	}
 
+	// Overlay help or confirm on top — takes full screen
+	if a.confirm.active {
+		return a.confirm.View()
+	}
+	if a.help.active {
+		return a.help.View()
+	}
+
+	// Main layout: header + content + statusbar
 	headerView := a.header.View()
 	statusView := a.statusBar.View()
 
@@ -1009,17 +1064,14 @@ func (a App) View() string {
 		contentView = a.sessionsView.View()
 	}
 
-	main := lipgloss.JoinVertical(lipgloss.Left, headerView, contentView, statusView)
-
-	// Overlay help or confirm on top
-	if a.confirm.active {
-		return a.confirm.View()
+	// Calculate available height for content and pad/truncate to fill
+	contentH := a.height - lipgloss.Height(headerView) - lipgloss.Height(statusView)
+	if contentH < 1 {
+		contentH = 1
 	}
-	if a.help.active {
-		return a.help.View()
-	}
+	contentView = lipgloss.NewStyle().Height(contentH).Width(a.width).Render(contentView)
 
-	return main
+	return lipgloss.JoinVertical(lipgloss.Left, headerView, contentView, statusView)
 }
 
 func (a *App) layout() {
@@ -1044,10 +1096,13 @@ func (a *App) layout() {
 	a.statusBar.online = online
 	a.statusBar.offline = offline
 	a.updateSessionCount()
+	a.syncHeaderView()
+	a.syncCursorPosition()
 }
 
 func (a App) contentHeight() int {
-	// header ~ 2 lines, statusbar ~ 2 lines, keyhint bar ~ 1 line, some padding
+	// header = 3 lines (logo + config path + title bar)
+	// statusbar = 2 lines (status line + keyhint bar)
 	h := a.height - 5
 	if h < 5 {
 		h = 5
