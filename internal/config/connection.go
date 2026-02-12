@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dr4zz/nexus/internal/hooks"
 )
@@ -195,6 +196,11 @@ type Connection struct {
 	RDPOptions   RDPOptions    `yaml:"rdp_options,omitempty"`
 	VNCPassword  string        `yaml:"vnc_password,omitempty"`
 	Hooks        hooks.Hooks   `yaml:"hooks,omitempty"` // lifecycle hooks (pre/post connect/disconnect)
+
+	// Favorites & usage tracking
+	Favorite        bool       `yaml:"favorite,omitempty"`
+	LastConnectedAt *time.Time `yaml:"last_connected_at,omitempty"`
+	ConnectCount    int        `yaml:"connect_count,omitempty"`
 }
 
 // EffectivePort returns the configured port or the protocol default.
