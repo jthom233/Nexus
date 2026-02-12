@@ -14,6 +14,7 @@ type flashKind int
 const (
 	flashInfo flashKind = iota
 	flashError
+	flashWarn
 )
 
 type flash struct {
