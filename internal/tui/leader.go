@@ -229,6 +229,19 @@ func leaderGroups() []LeaderGroup {
 			},
 		},
 		{
+			Key:   "x",
+			Label: "Sort",
+			Items: []LeaderItem{
+				{Key: "n", Label: "By name", Action: "sort-name"},
+				{Key: "h", Label: "By host", Action: "sort-host"},
+				{Key: "g", Label: "By group", Action: "sort-group"},
+				{Key: "p", Label: "By protocol", Action: "sort-protocol"},
+				{Key: "s", Label: "By status", Action: "sort-status"},
+				{Key: "l", Label: "By latency", Action: "sort-latency"},
+				{Key: "f", Label: "By favorite", Action: "sort-fav"},
+			},
+		},
+		{
 			Key:   "h",
 			Label: "Health",
 			Items: []LeaderItem{

@@ -2072,6 +2072,57 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		a.list.toggleWideMode()
 		return a, nil
 
+	// Sort
+	case "sort-name":
+		if idx := a.list.sortKeyToColumnIndex("name"); idx >= 0 {
+			a.list.table.CycleSort(idx)
+			a.statusBar.setFlash("Sorted by name", flashInfo)
+			return a, scheduleFlashClear()
+		}
+		return a, nil
+	case "sort-host":
+		if idx := a.list.sortKeyToColumnIndex("host"); idx >= 0 {
+			a.list.table.CycleSort(idx)
+			a.statusBar.setFlash("Sorted by host", flashInfo)
+			return a, scheduleFlashClear()
+		}
+		return a, nil
+	case "sort-group":
+		if idx := a.list.sortKeyToColumnIndex("group"); idx >= 0 {
+			a.list.table.CycleSort(idx)
+			a.statusBar.setFlash("Sorted by group", flashInfo)
+			return a, scheduleFlashClear()
+		}
+		return a, nil
+	case "sort-protocol":
+		if idx := a.list.sortKeyToColumnIndex("protocol"); idx >= 0 {
+			a.list.table.CycleSort(idx)
+			a.statusBar.setFlash("Sorted by protocol", flashInfo)
+			return a, scheduleFlashClear()
+		}
+		return a, nil
+	case "sort-status":
+		if idx := a.list.sortKeyToColumnIndex("status"); idx >= 0 {
+			a.list.table.CycleSort(idx)
+			a.statusBar.setFlash("Sorted by status", flashInfo)
+			return a, scheduleFlashClear()
+		}
+		return a, nil
+	case "sort-latency":
+		if idx := a.list.sortKeyToColumnIndex("latency"); idx >= 0 {
+			a.list.table.CycleSort(idx)
+			a.statusBar.setFlash("Sorted by latency", flashInfo)
+			return a, scheduleFlashClear()
+		}
+		return a, nil
+	case "sort-fav":
+		if idx := a.list.sortKeyToColumnIndex("fav"); idx >= 0 {
+			a.list.table.CycleSort(idx)
+			a.statusBar.setFlash("Sorted by favorite", flashInfo)
+			return a, scheduleFlashClear()
+		}
+		return a, nil
+
 	// Health
 	case "check-all":
 		a.log.info("Manual health check refresh via leader")
