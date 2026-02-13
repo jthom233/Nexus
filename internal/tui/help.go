@@ -66,7 +66,7 @@ func (h helpModel) entriesForView() []helpEntry {
 			{"e", "Edit selected"},
 			{"d", "Delete selected"},
 			{"D", "Show detail view"},
-			{"g", "Switch group filter"},
+			{"tab", "Cycle group filter"},
 			{"r", "Refresh health checks"},
 			{"y", "Copy command to clipboard"},
 			{"s", "Active sessions"},

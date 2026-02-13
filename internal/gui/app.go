@@ -65,6 +65,13 @@ type App struct {
 	mu     sync.RWMutex
 	width  int
 	height int
+
+	// Window drag state (for borderless mode)
+	dragging   bool
+	dragStartX int
+	dragStartY int
+	dragWinX   int
+	dragWinY   int
 }
 
 // NewApp creates a new GUI application.
@@ -92,6 +99,9 @@ func (a *App) Update() error {
 
 	// Handle toolbar clicks
 	a.handleToolbarClicks()
+
+	// Handle window dragging from tab bar
+	a.handleWindowDrag()
 
 	// Route keyboard/mouse input to active session
 	activeTab := a.tabs.Active()
@@ -337,6 +347,54 @@ func (a *App) handleToolbarClicks() {
 		}
 		btnX += btn.Width + 4
 	}
+}
+
+// handleWindowDrag allows dragging the borderless window by clicking on
+// empty tab bar space (areas not occupied by a tab).
+func (a *App) handleWindowDrag() {
+	mx, my := ebiten.CursorPosition()
+
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		// Only start drag if clicking in tab bar area on empty space
+		if my >= 0 && my < tabBarHeight && !a.isTabHit(mx) {
+			a.dragging = true
+			// Get absolute cursor position on screen
+			wx, wy := ebiten.WindowPosition()
+			a.dragStartX = wx + mx
+			a.dragStartY = wy + my
+			a.dragWinX = wx
+			a.dragWinY = wy
+		}
+	}
+
+	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		a.dragging = false
+		return
+	}
+
+	if a.dragging {
+		wx, wy := ebiten.WindowPosition()
+		curAbsX := wx + mx
+		curAbsY := wy + my
+		newX := a.dragWinX + (curAbsX - a.dragStartX)
+		newY := a.dragWinY + (curAbsY - a.dragStartY)
+		ebiten.SetWindowPosition(newX, newY)
+	}
+}
+
+// isTabHit returns true if the given x coordinate hits an existing tab.
+func (a *App) isTabHit(mx int) bool {
+	tabCount := a.tabs.Count()
+	for i := 0; i < tabCount; i++ {
+		x := i * tabWidth
+		if x+tabWidth > a.width {
+			break
+		}
+		if mx >= x && mx < x+tabWidth {
+			return true
+		}
+	}
+	return false
 }
 
 // closeTabFromGUI closes a tab initiated from the GUI (click X or Disconnect).

@@ -855,6 +855,11 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.pushView(viewLog)
 		return a, nil
 
+	case "tab": // Cycle group filter
+		a.list.cycleGroup()
+		a.syncCursorPosition()
+		return a, nil
+
 	case "V": // Enter line-visual mode
 		return a.enterVisualMode()
 
