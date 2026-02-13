@@ -3,7 +3,6 @@ package gui
 import (
 	"fmt"
 	"image"
-	"image/color"
 	"image/draw"
 	"io"
 	"log"
@@ -48,9 +47,11 @@ type RDPSession struct {
 
 	fb     *image.RGBA
 	ebiImg *ebiten.Image
-	mu     sync.Mutex
-	closed bool
-	width  int
+	mu        sync.Mutex
+	closed    bool
+	dirty     bool             // true if framebuffer has pending changes
+	dirtyRect image.Rectangle  // bounding box of changed region
+	width     int
 	height int
 
 	lastMouseX int
@@ -132,27 +133,47 @@ func (r *RDPSession) Connect() error {
 
 // handleBitmapUpdate processes bitmap rectangles from the RDP server.
 func (r *RDPSession) handleBitmapUpdate(bitmaps []pdu.BitmapData) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	// Phase 1: Decompress and decode WITHOUT holding the mutex.
+	// This is the expensive work — do it lock-free.
+	type decodedBmp struct {
+		img  *image.RGBA
+		rect image.Rectangle
+	}
+	decoded := make([]decodedBmp, 0, len(bitmaps))
 
 	for _, bmp := range bitmaps {
 		data := bmp.BitmapDataStream
-		compressed := bmp.IsCompress()
-		if compressed {
+		if bmp.IsCompress() {
 			data = core.Decompress(data, int(bmp.Width), int(bmp.Height), bppToBytes(bmp.BitsPerPixel))
 		}
 		if data == nil {
 			continue
 		}
-		// Decompressed data is top-down; uncompressed RDP data is bottom-up.
-		// Decompressed 16-bit data uses big-endian byte order.
-		img := decodeBitmapData(data, int(bmp.Width), int(bmp.Height), int(bmp.BitsPerPixel), !compressed)
+		img := decodeBitmapData(data, int(bmp.Width), int(bmp.Height), int(bmp.BitsPerPixel), !bmp.IsCompress())
 		if img == nil {
 			continue
 		}
 		destRect := image.Rect(int(bmp.DestLeft), int(bmp.DestTop), int(bmp.DestRight)+1, int(bmp.DestBottom)+1)
-		draw.Draw(r.fb, destRect, img, image.Point{}, draw.Src)
+		decoded = append(decoded, decodedBmp{img: img, rect: destRect})
 	}
+
+	if len(decoded) == 0 {
+		return
+	}
+
+	// Phase 2: Brief lock to blit onto framebuffer and mark dirty.
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, d := range decoded {
+		draw.Draw(r.fb, d.rect, d.img, image.Point{}, draw.Src)
+		if r.dirtyRect.Empty() {
+			r.dirtyRect = d.rect
+		} else {
+			r.dirtyRect = r.dirtyRect.Union(d.rect)
+		}
+	}
+	r.dirty = true
 }
 
 // Update processes pending framebuffer changes.
@@ -163,7 +184,28 @@ func (r *RDPSession) Update() {
 	if r.ebiImg == nil {
 		r.ebiImg = ebiten.NewImage(r.width, r.height)
 	}
-	r.ebiImg.WritePixels(r.fb.Pix)
+
+	if !r.dirty {
+		return
+	}
+
+	// Clamp dirty rect to framebuffer bounds.
+	rect := r.dirtyRect.Intersect(image.Rect(0, 0, r.width, r.height))
+	if !rect.Empty() {
+		w := rect.Dx()
+		h := rect.Dy()
+		buf := make([]byte, 4*w*h)
+		for y := 0; y < h; y++ {
+			srcOff := (rect.Min.Y+y)*r.fb.Stride + rect.Min.X*4
+			dstOff := y * w * 4
+			copy(buf[dstOff:dstOff+w*4], r.fb.Pix[srcOff:srcOff+w*4])
+		}
+		sub := r.ebiImg.SubImage(rect).(*ebiten.Image)
+		sub.WritePixels(buf)
+	}
+
+	r.dirty = false
+	r.dirtyRect = image.Rectangle{}
 }
 
 // Framebuffer returns the current rendered image.
@@ -250,17 +292,27 @@ func (r *RDPSession) HandleMouseButton(button ebiten.MouseButton, pressed bool) 
 	if pressed {
 		p.PointerFlags |= pdu.PTRFLAGS_DOWN
 	}
+	p.XPos = uint16(r.lastMouseX)
+	p.YPos = uint16(r.lastMouseY)
+
+	// Back/forward buttons use extended mouse event type
 	switch button {
 	case ebiten.MouseButtonLeft:
 		p.PointerFlags |= pdu.PTRFLAGS_BUTTON1
+		r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_MOUSE, []pdu.InputEventsInterface{p})
 	case ebiten.MouseButtonRight:
 		p.PointerFlags |= pdu.PTRFLAGS_BUTTON2
+		r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_MOUSE, []pdu.InputEventsInterface{p})
 	case ebiten.MouseButtonMiddle:
 		p.PointerFlags |= pdu.PTRFLAGS_BUTTON3
+		r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_MOUSE, []pdu.InputEventsInterface{p})
+	case ebiten.MouseButton3: // Back
+		p.PointerFlags |= pdu.PTRFLAGS_BUTTON1
+		r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_MOUSEX, []pdu.InputEventsInterface{p})
+	case ebiten.MouseButton4: // Forward
+		p.PointerFlags |= pdu.PTRFLAGS_BUTTON2
+		r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_MOUSEX, []pdu.InputEventsInterface{p})
 	}
-	p.XPos = uint16(r.lastMouseX)
-	p.YPos = uint16(r.lastMouseY)
-	r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_MOUSE, []pdu.InputEventsInterface{p})
 }
 
 // HandleMouseWheel sends a mouse wheel event to the RDP server.
@@ -378,7 +430,7 @@ func bppToBytes(bpp uint16) int {
 // decodeBitmapData converts raw pixel data to a Go image.
 // bottomUp indicates the data is in bottom-up row order (uncompressed RDP data).
 // When false, data is top-down (decompressed data).
-func decodeBitmapData(data []byte, w, h, bpp int, bottomUp bool) image.Image {
+func decodeBitmapData(data []byte, w, h, bpp int, bottomUp bool) *image.RGBA {
 	if w <= 0 || h <= 0 {
 		return nil
 	}
@@ -399,61 +451,74 @@ func decodeBitmapData(data []byte, w, h, bpp int, bottomUp bool) image.Image {
 			destY = h - 1 - y
 		}
 		rowOffset := y * stride
+		dstRowOffset := destY * img.Stride
 
-		for x := 0; x < w; x++ {
-			switch bpp {
-			case 32:
-				offset := rowOffset + x*4
-				if offset+3 >= len(data) {
+		switch bpp {
+		case 32:
+			for x := 0; x < w; x++ {
+				src := rowOffset + x*4
+				if src+3 >= len(data) {
 					return img
 				}
-				img.SetRGBA(x, destY, color.RGBA{
-					B: data[offset],
-					G: data[offset+1],
-					R: data[offset+2],
-					A: 255,
-				})
-			case 24:
-				offset := rowOffset + x*3
-				if offset+2 >= len(data) {
+				dst := dstRowOffset + x*4
+				img.Pix[dst+0] = data[src+2] // R <- B
+				img.Pix[dst+1] = data[src+1] // G
+				img.Pix[dst+2] = data[src+0] // B <- R
+				img.Pix[dst+3] = 255         // A
+			}
+		case 24:
+			for x := 0; x < w; x++ {
+				src := rowOffset + x*3
+				if src+2 >= len(data) {
 					return img
 				}
-				img.SetRGBA(x, destY, color.RGBA{
-					B: data[offset],
-					G: data[offset+1],
-					R: data[offset+2],
-					A: 255,
-				})
-			case 16:
-				offset := rowOffset + x*2
-				if offset+1 >= len(data) {
+				dst := dstRowOffset + x*4
+				img.Pix[dst+0] = data[src+2] // R <- B
+				img.Pix[dst+1] = data[src+1] // G
+				img.Pix[dst+2] = data[src+0] // B <- R
+				img.Pix[dst+3] = 255         // A
+			}
+		case 16:
+			for x := 0; x < w; x++ {
+				src := rowOffset + x*2
+				if src+1 >= len(data) {
 					return img
 				}
 				var pixel uint16
 				if bottomUp {
-					pixel = uint16(data[offset]) | uint16(data[offset+1])<<8 // LE
+					pixel = uint16(data[src]) | uint16(data[src+1])<<8
 				} else {
-					pixel = uint16(data[offset])<<8 | uint16(data[offset+1]) // BE
+					pixel = uint16(data[src])<<8 | uint16(data[src+1])
 				}
 				r := uint8((pixel >> 11) & 0x1F)
 				g := uint8((pixel >> 5) & 0x3F)
 				b := uint8(pixel & 0x1F)
-				img.SetRGBA(x, destY, color.RGBA{R: r << 3, G: g << 2, B: b << 3, A: 255})
-			case 15:
-				offset := rowOffset + x*2
-				if offset+1 >= len(data) {
+				dst := dstRowOffset + x*4
+				img.Pix[dst+0] = r << 3
+				img.Pix[dst+1] = g << 2
+				img.Pix[dst+2] = b << 3
+				img.Pix[dst+3] = 255
+			}
+		case 15:
+			for x := 0; x < w; x++ {
+				src := rowOffset + x*2
+				if src+1 >= len(data) {
 					return img
 				}
 				var pixel uint16
 				if bottomUp {
-					pixel = uint16(data[offset]) | uint16(data[offset+1])<<8
+					pixel = uint16(data[src]) | uint16(data[src+1])<<8
 				} else {
-					pixel = uint16(data[offset])<<8 | uint16(data[offset+1])
+					pixel = uint16(data[src])<<8 | uint16(data[src+1])
 				}
 				r := uint8((pixel >> 10) & 0x1F)
 				g := uint8((pixel >> 5) & 0x1F)
 				b := uint8(pixel & 0x1F)
-				img.SetRGBA(x, destY, color.RGBA{R: r << 3, G: g << 3, B: b << 3, A: 255})
+				dst := dstRowOffset + x*4
+				img.Pix[dst+0] = r << 3
+				img.Pix[dst+1] = g << 3
+				img.Pix[dst+2] = b << 3
+				img.Pix[dst+3] = 255
 			}
 		}
 	}
