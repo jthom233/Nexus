@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"math"
 	"os"
 	"sync"
 
@@ -97,9 +96,9 @@ func (a *App) Update() error {
 	// Route keyboard/mouse input to active session
 	activeTab := a.tabs.Active()
 	if activeTab != nil && activeTab.Session != nil {
-		scale, offX, offY, ok := a.sessionTransform()
+		scaleX, scaleY, offX, offY, ok := a.sessionTransform()
 		if ok {
-			forwardInput(activeTab.Session, scale, offX, offY)
+			forwardInput(activeTab.Session, scaleX, scaleY, offX, offY)
 		}
 	}
 
@@ -152,7 +151,7 @@ func (a *App) Draw(screen *ebiten.Image) {
 		return
 	}
 
-	// Draw active session framebuffer scaled to fit
+	// Draw active session framebuffer stretched to fill available area
 	if activeTab.Session != nil {
 		fb := activeTab.Session.Framebuffer()
 		if fb != nil {
@@ -162,17 +161,10 @@ func (a *App) Draw(screen *ebiten.Image) {
 				availH := float64(a.height - chromeHeight)
 				scaleX := availW / float64(nw)
 				scaleY := availH / float64(nh)
-				scale := math.Min(scaleX, scaleY)
-
-				// Center in available area
-				drawW := float64(nw) * scale
-				drawH := float64(nh) * scale
-				offsetX := (availW - drawW) / 2
-				offsetY := (availH - drawH) / 2
 
 				op := &ebiten.DrawImageOptions{}
-				op.GeoM.Scale(scale, scale)
-				op.GeoM.Translate(offsetX, float64(chromeHeight)+offsetY)
+				op.GeoM.Scale(scaleX, scaleY)
+				op.GeoM.Translate(0, float64(chromeHeight))
 				op.Filter = ebiten.FilterLinear
 				screen.DrawImage(fb, op)
 			}
@@ -180,27 +172,24 @@ func (a *App) Draw(screen *ebiten.Image) {
 	}
 }
 
-// sessionTransform returns the scale and offset used to draw the active session.
+// sessionTransform returns the X/Y scale and offset used to draw the active session.
 // Mouse coordinates need to be reverse-mapped through this transform.
-func (a *App) sessionTransform() (scale, offsetX, offsetY float64, ok bool) {
+func (a *App) sessionTransform() (scaleX, scaleY, offsetX, offsetY float64, ok bool) {
 	activeTab := a.tabs.Active()
 	if activeTab == nil || activeTab.Session == nil {
-		return 0, 0, 0, false
+		return 0, 0, 0, 0, false
 	}
 	nw, nh := activeTab.Session.NativeSize()
 	if nw <= 0 || nh <= 0 {
-		return 0, 0, 0, false
+		return 0, 0, 0, 0, false
 	}
 	availW := float64(a.width)
 	availH := float64(a.height - chromeHeight)
-	scaleX := availW / float64(nw)
-	scaleY := availH / float64(nh)
-	scale = math.Min(scaleX, scaleY)
-	drawW := float64(nw) * scale
-	drawH := float64(nh) * scale
-	offsetX = (availW - drawW) / 2
-	offsetY = (availH-drawH)/2 + float64(chromeHeight)
-	return scale, offsetX, offsetY, true
+	scaleX = availW / float64(nw)
+	scaleY = availH / float64(nh)
+	offsetX = 0
+	offsetY = float64(chromeHeight)
+	return scaleX, scaleY, offsetX, offsetY, true
 }
 
 // Layout implements ebiten.Game. Returns the logical screen size.
