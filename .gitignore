@@ -26,6 +26,9 @@ config.yaml
 CLAUDE.md
 .claude*
 
+# Serena
+.serena/
+
 # Editor / IDE
 .vscode/
 .idea/

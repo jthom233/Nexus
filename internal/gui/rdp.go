@@ -44,6 +44,7 @@ type RDPSession struct {
 	secLayer  *sec.Client
 	pduLayer  *pdu.Client
 	channels  *plugin.Channels
+	clipboard *clipboardChannel
 
 	fb     *image.RGBA
 	ebiImg *ebiten.Image
@@ -104,6 +105,8 @@ func (r *RDPSession) Connect() error {
 	r.secLayer.SetFastPathListener(r.pduLayer)
 	r.secLayer.SetChannelSender(r.mcsLayer)
 	r.channels.SetChannelSender(r.secLayer)
+	r.clipboard = newClipboardChannel()
+	r.channels.Register(r.clipboard)
 
 	// Register bitmap update callback
 	r.pduLayer.On("update", func(data interface{}) {
@@ -243,12 +246,42 @@ func (r *RDPSession) HandleMouseWheel(dx, dy float64) {
 	if r.pduLayer == nil {
 		return
 	}
+	// Vertical wheel
 	if dy != 0 {
 		p := &pdu.PointerEvent{}
 		p.PointerFlags |= pdu.PTRFLAGS_WHEEL
 		if dy < 0 {
 			p.PointerFlags |= pdu.PTRFLAGS_WHEEL_NEGATIVE
 		}
+		// Encode rotation magnitude into the lower 9 bits.
+		// Ebiten reports fractional deltas; map to RDP click units (120 per notch).
+		step := int(dy)
+		if step == 0 {
+			step = 1
+		}
+		if step < 0 {
+			step = -step
+		}
+		p.PointerFlags |= uint16(step*120) & pdu.WheelRotationMask
+		p.XPos = uint16(r.lastMouseX)
+		p.YPos = uint16(r.lastMouseY)
+		r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_MOUSE, []pdu.InputEventsInterface{p})
+	}
+	// Horizontal wheel
+	if dx != 0 {
+		p := &pdu.PointerEvent{}
+		p.PointerFlags |= pdu.PTRFLAGS_HWHEEL
+		if dx < 0 {
+			p.PointerFlags |= pdu.PTRFLAGS_WHEEL_NEGATIVE
+		}
+		step := int(dx)
+		if step == 0 {
+			step = 1
+		}
+		if step < 0 {
+			step = -step
+		}
+		p.PointerFlags |= uint16(step*120) & pdu.WheelRotationMask
 		p.XPos = uint16(r.lastMouseX)
 		p.YPos = uint16(r.lastMouseY)
 		r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_MOUSE, []pdu.InputEventsInterface{p})
@@ -282,6 +315,9 @@ func (r *RDPSession) Close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.closed = true
+	if r.clipboard != nil {
+		r.clipboard.stop()
+	}
 	if r.tpktLayer != nil {
 		r.tpktLayer.Close()
 	}
