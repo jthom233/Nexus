@@ -3,6 +3,7 @@ package vault
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -225,10 +226,12 @@ func TestInternalVault_FileCreatedOnDisk(t *testing.T) {
 	if info.Size() == 0 {
 		t.Fatal("vault file is empty")
 	}
-	// Check permissions (should be 0600).
-	perm := info.Mode().Perm()
-	if perm != 0o600 {
-		t.Fatalf("expected file permissions 0600, got %04o", perm)
+	// Check permissions (should be 0600 on Unix; Windows doesn't support Unix perms).
+	if runtime.GOOS != "windows" {
+		perm := info.Mode().Perm()
+		if perm != 0o600 {
+			t.Fatalf("expected file permissions 0600, got %04o", perm)
+		}
 	}
 }
 
