@@ -82,12 +82,12 @@ type BulkResultMsg struct {
 
 // ExecuteBulkHealthCheck runs health checks on the specified connections and
 // returns a tea.Cmd that produces health.ResultMsg when finished.
-func ExecuteBulkHealthCheck(connections []config.Connection) tea.Cmd {
+func ExecuteBulkHealthCheck(checker *health.Checker, connections []config.Connection) tea.Cmd {
 	targets := make(map[string]string, len(connections))
 	for _, c := range connections {
 		targets[c.ID] = c.HostPort()
 	}
-	return health.CheckAll(targets)
+	return checker.CheckAll(targets)
 }
 
 // ExecuteBulkTag adds or removes a tag from all given connections.

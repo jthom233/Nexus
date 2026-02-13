@@ -12,6 +12,9 @@ import (
 // Settings holds application-level settings.
 type Settings struct {
 	HealthCheckInterval string `yaml:"health_check_interval,omitempty"`
+	HealthCheckEnabled  *bool  `yaml:"health_check_enabled,omitempty"` // nil = true (default)
+	HealthCheckWorkers  int    `yaml:"health_check_workers,omitempty"` // 0 = 50 (default)
+	HealthCheckTimeout  string `yaml:"health_check_timeout,omitempty"` // "" = "3s" (default)
 	Theme               string `yaml:"theme,omitempty"`
 	Vault               string `yaml:"vault,omitempty"` // "internal" (default), "pass", or "keyring"
 }
@@ -24,6 +27,34 @@ func (s Settings) HealthInterval() time.Duration {
 	d, err := time.ParseDuration(s.HealthCheckInterval)
 	if err != nil {
 		return 30 * time.Second
+	}
+	return d
+}
+
+// HealthEnabled returns whether health checks are enabled, defaulting to true.
+func (s Settings) HealthEnabled() bool {
+	if s.HealthCheckEnabled == nil {
+		return true
+	}
+	return *s.HealthCheckEnabled
+}
+
+// HealthWorkers returns the max concurrent health check workers, defaulting to 50.
+func (s Settings) HealthWorkers() int {
+	if s.HealthCheckWorkers <= 0 {
+		return 50
+	}
+	return s.HealthCheckWorkers
+}
+
+// HealthTimeout returns the per-check TCP dial timeout, defaulting to 3s.
+func (s Settings) HealthTimeout() time.Duration {
+	if s.HealthCheckTimeout == "" {
+		return 3 * time.Second
+	}
+	d, err := time.ParseDuration(s.HealthCheckTimeout)
+	if err != nil {
+		return 3 * time.Second
 	}
 	return d
 }

@@ -1,6 +1,9 @@
 version: 1
 settings:
   health_check_interval: 30s
+  health_check_enabled: true
+  health_check_workers: 50
+  health_check_timeout: 3s
   theme: default
 
 groups:
