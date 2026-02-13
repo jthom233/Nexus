@@ -8,6 +8,7 @@ type Tab struct {
 	Protocol  string
 	Label     string
 	Session   Session
+	Status    string // "connecting", "connected", "error", "closed"
 	Error     error
 	ReplyFunc func(string, interface{}) error
 }

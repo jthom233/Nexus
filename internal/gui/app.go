@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"math"
+	"os"
 	"sync"
 
 	"github.com/dr4zz/nexus/internal/ipc"
@@ -96,9 +96,9 @@ func (a *App) Update() error {
 	// Route keyboard/mouse input to active session
 	activeTab := a.tabs.Active()
 	if activeTab != nil && activeTab.Session != nil {
-		scale, offX, offY, ok := a.sessionTransform()
+		scaleX, scaleY, offX, offY, ok := a.sessionTransform()
 		if ok {
-			forwardInput(activeTab.Session, scale, offX, offY)
+			forwardInput(activeTab.Session, scaleX, scaleY, offX, offY)
 		}
 	}
 
@@ -127,7 +127,31 @@ func (a *App) Draw(screen *ebiten.Image) {
 		return
 	}
 
-	// Draw active session framebuffer scaled to fit
+	// Show status messages for non-connected states
+	switch activeTab.Status {
+	case "connecting":
+		msg := "Connecting..."
+		cx := a.width/2 - len(msg)*3
+		cy := chromeHeight + (a.height-chromeHeight)/2
+		ebitenutil.DebugPrintAt(screen, msg, cx, cy)
+		return
+	case "error":
+		errMsg := "Connection failed"
+		if activeTab.Error != nil {
+			errMsg = activeTab.Error.Error()
+		}
+		// Truncate long error messages
+		if len(errMsg) > 80 {
+			errMsg = errMsg[:80] + "..."
+		}
+		label := "[!] " + errMsg
+		cx := a.width/2 - len(label)*3
+		cy := chromeHeight + (a.height-chromeHeight)/2
+		ebitenutil.DebugPrintAt(screen, label, cx, cy)
+		return
+	}
+
+	// Draw active session framebuffer stretched to fill available area
 	if activeTab.Session != nil {
 		fb := activeTab.Session.Framebuffer()
 		if fb != nil {
@@ -137,17 +161,10 @@ func (a *App) Draw(screen *ebiten.Image) {
 				availH := float64(a.height - chromeHeight)
 				scaleX := availW / float64(nw)
 				scaleY := availH / float64(nh)
-				scale := math.Min(scaleX, scaleY)
-
-				// Center in available area
-				drawW := float64(nw) * scale
-				drawH := float64(nh) * scale
-				offsetX := (availW - drawW) / 2
-				offsetY := (availH - drawH) / 2
 
 				op := &ebiten.DrawImageOptions{}
-				op.GeoM.Scale(scale, scale)
-				op.GeoM.Translate(offsetX, float64(chromeHeight)+offsetY)
+				op.GeoM.Scale(scaleX, scaleY)
+				op.GeoM.Translate(0, float64(chromeHeight))
 				op.Filter = ebiten.FilterLinear
 				screen.DrawImage(fb, op)
 			}
@@ -155,27 +172,24 @@ func (a *App) Draw(screen *ebiten.Image) {
 	}
 }
 
-// sessionTransform returns the scale and offset used to draw the active session.
+// sessionTransform returns the X/Y scale and offset used to draw the active session.
 // Mouse coordinates need to be reverse-mapped through this transform.
-func (a *App) sessionTransform() (scale, offsetX, offsetY float64, ok bool) {
+func (a *App) sessionTransform() (scaleX, scaleY, offsetX, offsetY float64, ok bool) {
 	activeTab := a.tabs.Active()
 	if activeTab == nil || activeTab.Session == nil {
-		return 0, 0, 0, false
+		return 0, 0, 0, 0, false
 	}
 	nw, nh := activeTab.Session.NativeSize()
 	if nw <= 0 || nh <= 0 {
-		return 0, 0, 0, false
+		return 0, 0, 0, 0, false
 	}
 	availW := float64(a.width)
 	availH := float64(a.height - chromeHeight)
-	scaleX := availW / float64(nw)
-	scaleY := availH / float64(nh)
-	scale = math.Min(scaleX, scaleY)
-	drawW := float64(nw) * scale
-	drawH := float64(nh) * scale
-	offsetX = (availW - drawW) / 2
-	offsetY = (availH-drawH)/2 + float64(chromeHeight)
-	return scale, offsetX, offsetY, true
+	scaleX = availW / float64(nw)
+	scaleY = availH / float64(nh)
+	offsetX = 0
+	offsetY = float64(chromeHeight)
+	return scaleX, scaleY, offsetX, offsetY, true
 }
 
 // Layout implements ebiten.Game. Returns the logical screen size.
@@ -206,7 +220,13 @@ func (a *App) drawTabBar(screen *ebiten.Image) {
 
 		// Tab background
 		var bgColor color.RGBA
-		if tab.ConnID == activeID {
+		if tab.Status == "error" {
+			if tab.ConnID == activeID {
+				bgColor = color.RGBA{R: 120, G: 50, B: 50, A: 255} // red-tinted active
+			} else {
+				bgColor = color.RGBA{R: 90, G: 40, B: 40, A: 255} // red-tinted inactive
+			}
+		} else if tab.ConnID == activeID {
 			bgColor = color.RGBA{R: 69, G: 71, B: 90, A: 255} // #45475A
 		} else {
 			bgColor = color.RGBA{R: 49, G: 50, B: 68, A: 255} // #313244
@@ -218,8 +238,11 @@ func (a *App) drawTabBar(screen *ebiten.Image) {
 		op.GeoM.Translate(float64(x+1), 1)
 		screen.DrawImage(tabImg, op)
 
-		// Tab label text (truncate to fit, leave room for close button)
+		// Tab label text — prefix with [!] for error tabs
 		label := tab.Label
+		if tab.Status == "error" {
+			label = "[!] " + label
+		}
 		maxChars := (tabWidth - tabCloseRegion - 10) / 6 // ~6px per char
 		if len(label) > maxChars {
 			label = label[:maxChars-1] + ".."
@@ -339,6 +362,10 @@ func (a *App) closeTabFromGUI(connID string) {
 	}
 
 	a.tabs.Remove(connID)
+
+	if a.tabs.Count() == 0 {
+		os.Exit(0)
+	}
 }
 
 // OpenTab adds a new tab for a graphical session.
@@ -391,6 +418,7 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 		Protocol:  protocol,
 		Label:     connID + " (" + protocol + ")",
 		Session:   sess,
+		Status:    "connecting",
 		ReplyFunc: reply,
 	}
 	a.tabs.Add(tab)
@@ -399,6 +427,7 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 	go func() {
 		if err := sess.Connect(); err != nil {
 			tab.Error = err
+			tab.Status = "error"
 			if reply != nil {
 				reply(ipc.MsgTabError, &ipc.TabErrorEvent{
 					ConnID: connID,
@@ -407,6 +436,7 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 			}
 			return
 		}
+		tab.Status = "connected"
 		if reply != nil {
 			reply(ipc.MsgTabOpened, &ipc.TabOpenedEvent{ConnID: connID})
 		}
@@ -425,6 +455,10 @@ func (a *App) CloseTab(connID string) {
 		tab.Session.Close()
 	}
 	a.tabs.Remove(connID)
+
+	if a.tabs.Count() == 0 {
+		os.Exit(0)
+	}
 }
 
 // SessionSize returns available session area (below chrome).

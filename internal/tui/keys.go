@@ -18,6 +18,7 @@ type KeyMap struct {
 	Help    key.Binding
 	Yank         key.Binding
 	Sessions     key.Binding
+	KillSession  key.Binding
 	ShowPassword key.Binding
 	Escape       key.Binding
 	Quit         key.Binding
@@ -81,6 +82,10 @@ func DefaultKeyMap() KeyMap {
 		Sessions: key.NewBinding(
 			key.WithKeys("s"),
 			key.WithHelp("s", "sessions"),
+		),
+		KillSession: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "kill session"),
 		),
 		ShowPassword: key.NewBinding(
 			key.WithKeys("p"),

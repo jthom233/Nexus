@@ -1,15 +1,21 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
+	"github.com/dr4zz/nexus/internal/config"
+	"github.com/dr4zz/nexus/internal/hooks"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
@@ -104,6 +110,67 @@ func (r *ringBuffer) Drain() []byte {
 	return result
 }
 
+// Clear discards all buffered data without returning it.
+func (r *ringBuffer) Clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := 0; i < r.count; i++ {
+		idx := (r.start + i) % r.cap
+		r.buf[idx] = nil
+	}
+	r.start = 0
+	r.count = 0
+}
+
+// replayBuffer is a circular byte buffer that stores the last N bytes of output.
+// It is never drained — only snapshotted for replay on session reattach.
+// This allows restoring the terminal state when switching between sessions.
+type replayBuffer struct {
+	mu   sync.Mutex
+	data []byte
+	max  int
+}
+
+func newReplayBuffer(maxBytes int) *replayBuffer {
+	return &replayBuffer{
+		data: make([]byte, 0, 64*1024),
+		max:  maxBytes,
+	}
+}
+
+// Write appends data, discarding oldest bytes if over capacity.
+func (rb *replayBuffer) Write(data []byte) {
+	if len(data) == 0 {
+		return
+	}
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	rb.data = append(rb.data, data...)
+	if len(rb.data) > rb.max {
+		excess := len(rb.data) - rb.max
+		n := copy(rb.data, rb.data[excess:])
+		rb.data = rb.data[:n]
+	}
+}
+
+// Snapshot returns a copy of all stored bytes without clearing the buffer.
+func (rb *replayBuffer) Snapshot() []byte {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	if len(rb.data) == 0 {
+		return nil
+	}
+	cp := make([]byte, len(rb.data))
+	copy(cp, rb.data)
+	return cp
+}
+
+// stdinResult carries data or an error from the stdin reader goroutine.
+type stdinResult struct {
+	data []byte
+	err  error
+}
+
 // ManagedSession wraps an SSH connection with detach/reattach support.
 // It implements tea.ExecCommand (Run, SetStdin, SetStdout, SetStderr).
 type ManagedSession struct {
@@ -117,17 +184,28 @@ type ManagedSession struct {
 	Username     string
 	Password     string
 	IdentityFile string
+	ProxyJump    string
+	ProxyCommand string
+	PortForwards []config.PortForward
+
+	// Lifecycle hooks
+	ConnHooks  hooks.Hooks
+	hookRunner *hooks.HookRunner
+	hookEnv    map[string]string
 
 	// SSH state (persists across detach/reattach cycles)
-	client    *ssh.Client
-	session   *ssh.Session
-	sshStdin  io.WriteCloser
-	sshStdout io.Reader
-	sshStderr io.Reader
+	client      *ssh.Client
+	jumpClients []*ssh.Client // intermediate jump host clients for cleanup
+	session     *ssh.Session
+	sshStdin    io.WriteCloser
+	sshStdout   io.Reader
+	sshStderr   io.Reader
+	pfManager   *PortForwardManager
 
 	// Buffers for background output capture
-	outputBuf *ringBuffer
-	stderrBuf *ringBuffer
+	outputBuf *ringBuffer    // incremental passthrough (drained by ticker)
+	stderrBuf *ringBuffer    // incremental passthrough (drained by ticker)
+	replayBuf *replayBuffer  // full session history for reattach (never drained)
 
 	// Lifecycle
 	doneCh  chan struct{} // closed when SSH session ends
@@ -149,7 +227,7 @@ type ManagedSession struct {
 }
 
 // NewManagedSession creates a new managed session ready to connect.
-func NewManagedSession(id, name, connID, protocol, host string, port int, username, password, identityFile string) *ManagedSession {
+func NewManagedSession(id, name, connID, protocol, host string, port int, username, password, identityFile, proxyJump, proxyCommand string) *ManagedSession {
 	return &ManagedSession{
 		ID:           id,
 		Name:         name,
@@ -160,11 +238,45 @@ func NewManagedSession(id, name, connID, protocol, host string, port int, userna
 		Username:     username,
 		Password:     password,
 		IdentityFile: identityFile,
+		ProxyJump:    proxyJump,
+		ProxyCommand: proxyCommand,
 		outputBuf:    newRingBuffer(1000),
 		stderrBuf:    newRingBuffer(100),
+		replayBuf:    newReplayBuffer(256 * 1024), // 256KB session history
 		doneCh:       make(chan struct{}),
 		status:       StatusConnecting,
 	}
+}
+
+// SetHooks configures lifecycle hooks for this session.
+func (m *ManagedSession) SetHooks(h hooks.Hooks) {
+	m.ConnHooks = h
+	m.hookRunner = hooks.NewHookRunner()
+	m.hookEnv = hooks.ConnectionEnv(m.ConnID, m.Host, m.Port, m.Username, m.Protocol)
+}
+
+// runHooksForEvent executes hooks for the given event, logging warnings
+// for FailWarn results. Returns error only if a FailAbort hook fails.
+func (m *ManagedSession) runHooksForEvent(event hooks.HookEvent) error {
+	if m.hookRunner == nil {
+		return nil
+	}
+	hks := m.ConnHooks.ForEvent(event)
+	if len(hks) == 0 {
+		return nil
+	}
+
+	results, err := m.hookRunner.RunHooks(context.Background(), event, hks, m.hookEnv)
+
+	// Log warnings for failed hooks that didn't abort
+	for _, r := range results {
+		if r.Error != nil && r.Hook.OnFailure == hooks.FailWarn {
+			msg := fmt.Sprintf("hook warning [%s] %q: %v\n", event, r.Hook.Command, r.Error)
+			m.stderrBuf.Write([]byte(msg))
+		}
+	}
+
+	return err
 }
 
 // SetStdin sets the stdin reader (called by bubbletea before Run).
@@ -180,6 +292,12 @@ func (m *ManagedSession) SetStderr(w io.Writer) { m.stderr = w }
 // Returns ErrDetached on Ctrl+\, or the session error when SSH exits.
 func (m *ManagedSession) Run() error {
 	if !m.connected {
+		// Run pre-connect hooks
+		if err := m.runHooksForEvent(hooks.PreConnect); err != nil {
+			m.setStatus(StatusClosed)
+			return fmt.Errorf("pre-connect hook: %w", err)
+		}
+
 		if err := m.connect(); err != nil {
 			m.setStatus(StatusClosed)
 			return err
@@ -193,16 +311,66 @@ func (m *ManagedSession) Run() error {
 		m.ConnectedAt = time.Now()
 		m.setStatus(StatusConnected)
 
-		// Launch background goroutines for the lifetime of the SSH connection
+		// Run post-connect hooks (best-effort)
+		m.runHooksForEvent(hooks.PostConnect)
+
+		// Start port forwards
+		if len(m.PortForwards) > 0 {
+			m.pfManager = NewPortForwardManager()
+			for _, pf := range m.PortForwards {
+				if err := m.startPortForward(pf); err != nil {
+					// Log to stderr buffer but don't fail the session
+					msg := fmt.Sprintf("port forward %s: %v\n", pf.String(), err)
+					m.stderrBuf.Write([]byte(msg))
+				}
+			}
+		}
+
+		// Clear terminal for new session
+		m.stdout.Write([]byte("\033[2J\033[H"))
+
+		// Launch background goroutines for the LIFETIME of the SSH connection.
+		// These run continuously from first connect until the SSH pipe closes.
+		// They are NOT stopped on detach — they keep buffering output in the
+		// ring buffer so it can be replayed on reattach. This avoids the race
+		// condition of multiple goroutines reading from the same SSH pipe.
 		go m.readOutput()
 		go m.readStderr()
 		go m.waitDone()
+	} else {
+		// Reattach: reader goroutines are still running and buffering.
+		// Clear stale incremental data (replay covers it all).
+		m.outputBuf.Clear()
+		m.stderrBuf.Clear()
+
+		// Clear terminal and replay session history to restore screen state.
+		m.stdout.Write([]byte("\033[2J\033[H"))
+		if replay := m.replayBuf.Snapshot(); len(replay) > 0 {
+			m.stdout.Write(replay)
+		}
 	}
 
 	return m.attachLoop()
 }
 
+func (m *ManagedSession) startPortForward(pf config.PortForward) error {
+	switch pf.Type {
+	case config.PortForwardLocal:
+		return m.pfManager.StartLocal(m.client, pf.LocalAddr, pf.RemoteAddr)
+	case config.PortForwardRemote:
+		return m.pfManager.StartRemote(m.client, pf.LocalAddr, pf.RemoteAddr)
+	case config.PortForwardDynamic:
+		return m.pfManager.StartDynamic(m.client, pf.LocalAddr)
+	default:
+		return fmt.Errorf("unknown forward type: %s", pf.Type)
+	}
+}
+
 func (m *ManagedSession) connect() error {
+	if m.ProxyJump != "" {
+		return m.connectViaJumpHosts()
+	}
+
 	addr := net.JoinHostPort(m.Host, strconv.Itoa(m.Port))
 
 	authMethods := buildSSHAuth(m.Username, m.Password, m.IdentityFile)
@@ -223,6 +391,109 @@ func (m *ManagedSession) connect() error {
 	}
 	m.client = client
 	return nil
+}
+
+func (m *ManagedSession) connectViaJumpHosts() error {
+	hops := strings.Split(m.ProxyJump, ",")
+
+	var currentClient *ssh.Client
+	var jumpClients []*ssh.Client
+
+	for _, hop := range hops {
+		hop = strings.TrimSpace(hop)
+		hopUser, hopHost, hopPort := parseJumpHost(hop)
+
+		var conn net.Conn
+		var err error
+		if currentClient == nil {
+			// First hop: direct TCP connection
+			conn, err = net.DialTimeout("tcp", net.JoinHostPort(hopHost, hopPort), 10*time.Second)
+		} else {
+			// Subsequent hops: dial through existing SSH client
+			conn, err = currentClient.Dial("tcp", net.JoinHostPort(hopHost, hopPort))
+		}
+		if err != nil {
+			// Clean up any already-established jump clients
+			for i := len(jumpClients) - 1; i >= 0; i-- {
+				jumpClients[i].Close()
+			}
+			return fmt.Errorf("jump host %s: %w", hop, err)
+		}
+
+		// SSH handshake through the connection
+		authMethods := buildSSHAuth(hopUser, "", "")
+		if len(authMethods) == 0 {
+			authMethods = defaultSSHAuth()
+		}
+
+		ncc, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(hopHost, hopPort), &ssh.ClientConfig{
+			User:            hopUser,
+			Auth:            authMethods,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Timeout:         10 * time.Second,
+		})
+		if err != nil {
+			conn.Close()
+			for i := len(jumpClients) - 1; i >= 0; i-- {
+				jumpClients[i].Close()
+			}
+			return fmt.Errorf("jump host SSH %s: %w", hop, err)
+		}
+		currentClient = ssh.NewClient(ncc, chans, reqs)
+		jumpClients = append(jumpClients, currentClient)
+	}
+
+	// Final hop: connect to target through the last jump host
+	targetAddr := net.JoinHostPort(m.Host, strconv.Itoa(m.Port))
+	conn, err := currentClient.Dial("tcp", targetAddr)
+	if err != nil {
+		for i := len(jumpClients) - 1; i >= 0; i-- {
+			jumpClients[i].Close()
+		}
+		return fmt.Errorf("target dial via jump: %w", err)
+	}
+
+	authMethods := buildSSHAuth(m.Username, m.Password, m.IdentityFile)
+	if len(authMethods) == 0 {
+		authMethods = defaultSSHAuth()
+	}
+
+	ncc, chans, reqs, err := ssh.NewClientConn(conn, targetAddr, &ssh.ClientConfig{
+		User:            m.Username,
+		Auth:            authMethods,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	})
+	if err != nil {
+		conn.Close()
+		for i := len(jumpClients) - 1; i >= 0; i-- {
+			jumpClients[i].Close()
+		}
+		return fmt.Errorf("target SSH via jump: %w", err)
+	}
+
+	m.client = ssh.NewClient(ncc, chans, reqs)
+	m.jumpClients = jumpClients
+	return nil
+}
+
+// parseJumpHost parses a jump host string in the format user@host:port.
+// Port defaults to "22" if not specified. User defaults to $USER if not specified.
+func parseJumpHost(hop string) (user, host, port string) {
+	port = "22"
+	if at := strings.LastIndex(hop, "@"); at >= 0 {
+		user = hop[:at]
+		hop = hop[at+1:]
+	}
+	if h, p, err := net.SplitHostPort(hop); err == nil {
+		host, port = h, p
+	} else {
+		host = hop
+	}
+	if user == "" {
+		user = os.Getenv("USER")
+	}
+	return
 }
 
 func (m *ManagedSession) startShell() error {
@@ -272,13 +543,17 @@ func (m *ManagedSession) startShell() error {
 	return nil
 }
 
-// readOutput continuously reads SSH stdout into the ring buffer.
+// readOutput continuously reads SSH stdout into both the incremental buffer
+// (for ticker-based passthrough) and the replay buffer (for reattach history).
+// Runs for the lifetime of the SSH connection — never stopped on detach.
 func (m *ManagedSession) readOutput() {
 	buf := make([]byte, 32*1024)
 	for {
 		n, err := m.sshStdout.Read(buf)
 		if n > 0 {
-			m.outputBuf.Write(buf[:n])
+			data := buf[:n]
+			m.outputBuf.Write(data)  // incremental: drained by ticker while attached
+			m.replayBuf.Write(data)  // history: replayed on reattach to restore terminal
 		}
 		if err != nil {
 			return
@@ -287,6 +562,7 @@ func (m *ManagedSession) readOutput() {
 }
 
 // readStderr continuously reads SSH stderr into the ring buffer.
+// Runs for the lifetime of the SSH connection — never stopped on detach.
 func (m *ManagedSession) readStderr() {
 	buf := make([]byte, 4*1024)
 	for {
@@ -307,24 +583,34 @@ func (m *ManagedSession) waitDone() {
 	m.doneErr = err
 	m.status = StatusClosed
 	m.mu.Unlock()
+
+	// Run post-disconnect hooks (best-effort, before cleanup)
+	m.runHooksForEvent(hooks.PostDisconnect)
+
 	close(m.doneCh)
+
+	// Stop port forwards
+	if m.pfManager != nil {
+		m.pfManager.StopAll()
+	}
 
 	// Clean up
 	m.session.Close()
 	m.client.Close()
+	// Close jump host clients in reverse order
+	for i := len(m.jumpClients) - 1; i >= 0; i-- {
+		m.jumpClients[i].Close()
+	}
+	m.jumpClients = nil
 }
 
 // attachLoop enters raw mode and runs the interactive I/O loop.
 // Returns ErrDetached on Ctrl+\ or the session error when SSH exits.
 func (m *ManagedSession) attachLoop() error {
-	// Determine terminal fd
-	stdinFile, isFile := m.stdin.(*os.File)
-	var fd int
-	var hasTerminal bool
-	if isFile {
-		fd = int(stdinFile.Fd())
-		hasTerminal = term.IsTerminal(fd)
-	}
+	// Use os.Stdin directly for terminal operations — the reader passed by
+	// bubbletea may be wrapped and not type-assertable to *os.File.
+	fd := int(os.Stdin.Fd())
+	hasTerminal := term.IsTerminal(fd)
 
 	if hasTerminal {
 		oldState, err := term.MakeRaw(fd)
@@ -333,6 +619,13 @@ func (m *ManagedSession) attachLoop() error {
 		}
 		defer term.Restore(fd, oldState)
 	}
+
+	// Catch SIGQUIT (Ctrl+\ when terminal is not in raw mode) as a fallback
+	// detach mechanism. In raw mode, Ctrl+\ sends byte 0x1C which is caught
+	// in the stdin read loop below.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGQUIT)
+	defer signal.Stop(sigCh)
 
 	// Send current terminal size
 	if hasTerminal {
@@ -351,12 +644,77 @@ func (m *ManagedSession) attachLoop() error {
 		m.stderr.Write(data)
 	}
 
-	// Channel for stdin reading results
-	type stdinResult struct {
-		data []byte
-		err  error
-	}
+	// detachCh is closed when this attachLoop exits (detach, session end,
+	// or error). The stdin reader goroutine monitors it so it stops
+	// competing for os.Stdin once this session is no longer attached.
+	detachCh := make(chan struct{})
+	stdinDone := make(chan struct{}) // closed when stdin goroutine exits
+
+	// Cleanup: interrupt the stdin goroutine's blocked Read and wait
+	// for it to exit BEFORE returning. This prevents the goroutine from
+	// racing with bubbletea's own stdin reader and eating keypresses.
+	defer func() {
+		close(detachCh)
+		// Interrupt any blocked Read by setting a past deadline.
+		// This works when stdin is *os.File (i.e., os.Stdin on Linux).
+		if f, ok := m.stdin.(*os.File); ok {
+			f.SetReadDeadline(time.Now())
+		}
+		// Wait for goroutine to actually exit (or timeout if deadline isn't supported).
+		select {
+		case <-stdinDone:
+		case <-time.After(50 * time.Millisecond):
+		}
+		// Reset deadline so bubbletea can read normally.
+		if f, ok := m.stdin.(*os.File); ok {
+			f.SetReadDeadline(time.Time{})
+		}
+	}()
+
 	stdinCh := make(chan stdinResult, 1)
+
+	// Start a stdin reader goroutine scoped to this attach cycle.
+	// It exits when detachCh is closed (checked after each Read).
+	go func() {
+		defer close(stdinDone)
+		buf := make([]byte, 4*1024)
+		for {
+			n, err := m.stdin.Read(buf)
+
+			// Check if we've detached while blocked on Read.
+			select {
+			case <-detachCh:
+				return
+			default:
+			}
+
+			if n > 0 {
+				data := make([]byte, n)
+				copy(data, buf[:n])
+				select {
+				case stdinCh <- stdinResult{data: data}:
+				case <-detachCh:
+					return
+				}
+			}
+			if err != nil {
+				// Timeout from SetReadDeadline is expected during cleanup.
+				if os.IsTimeout(err) {
+					select {
+					case <-detachCh:
+						return
+					default:
+						continue
+					}
+				}
+				select {
+				case stdinCh <- stdinResult{err: err}:
+				case <-detachCh:
+				}
+				return
+			}
+		}
+	}()
 
 	// Channel to stop the resize watcher
 	stopResize := make(chan struct{})
@@ -385,23 +743,6 @@ func (m *ManagedSession) attachLoop() error {
 		}()
 	}
 
-	// Start stdin reader goroutine
-	go func() {
-		buf := make([]byte, 4*1024)
-		for {
-			n, err := m.stdin.Read(buf)
-			if n > 0 {
-				data := make([]byte, n)
-				copy(data, buf[:n])
-				stdinCh <- stdinResult{data: data}
-			}
-			if err != nil {
-				stdinCh <- stdinResult{err: err}
-				return
-			}
-		}
-	}()
-
 	// Poll interval for draining output buffer
 	ticker := time.NewTicker(5 * time.Millisecond)
 	defer ticker.Stop()
@@ -419,6 +760,13 @@ func (m *ManagedSession) attachLoop() error {
 			err := m.doneErr
 			m.mu.Unlock()
 			return err
+
+		case <-sigCh:
+			// SIGQUIT (Ctrl+\ in non-raw mode) — treat as detach
+			close(stopResize)
+			m.DetachedAt = time.Now()
+			m.setStatus(StatusDetached)
+			return ErrDetached
 
 		case res := <-stdinCh:
 			if res.err != nil {
@@ -458,12 +806,30 @@ func (m *ManagedSession) Kill() {
 		return
 	}
 	m.status = StatusClosed
+
+	// Run pre-disconnect hooks (best-effort)
+	// Note: we run these without holding the lock since they may take time.
+	// We already set status to Closed above to prevent re-entry.
+	m.mu.Unlock()
+	m.runHooksForEvent(hooks.PreDisconnect)
+	m.mu.Lock()
+
+	// Stop port forwards
+	if m.pfManager != nil {
+		m.pfManager.StopAll()
+	}
+
 	if m.session != nil {
 		m.session.Close()
 	}
 	if m.client != nil {
 		m.client.Close()
 	}
+	// Close jump host clients in reverse order
+	for i := len(m.jumpClients) - 1; i >= 0; i-- {
+		m.jumpClients[i].Close()
+	}
+	m.jumpClients = nil
 }
 
 // Status returns the current session status.
@@ -495,4 +861,12 @@ func (m *ManagedSession) Uptime() time.Duration {
 		return 0
 	}
 	return time.Since(m.ConnectedAt)
+}
+
+// PortForwardList returns the list of active port forwards for this session.
+func (m *ManagedSession) PortForwardList() []ActiveForward {
+	if m.pfManager == nil {
+		return nil
+	}
+	return m.pfManager.List()
 }

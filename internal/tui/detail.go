@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -90,6 +91,45 @@ func (d *detailModel) updateContent() {
 	}
 	if len(c.Tags) > 0 {
 		row("Tags:", strings.Join(c.Tags, ", "))
+	}
+
+	// Port forwards
+	if len(c.PortForwards) > 0 {
+		b.WriteString("\n")
+		b.WriteString(DetailTitleStyle.Render("  Port Forwards") + "\n\n")
+		for _, pf := range c.PortForwards {
+			row("Forward:", pf.String())
+		}
+	}
+
+	// Proxy settings
+	if c.ProxyJump != "" {
+		row("Proxy Jump:", c.ProxyJump)
+	}
+	if c.ProxyCommand != "" {
+		row("Proxy Cmd:", c.ProxyCommand)
+	}
+
+	// Notes
+	if c.Notes != "" {
+		b.WriteString("\n")
+		b.WriteString(DetailTitleStyle.Render("  Notes") + "\n\n")
+		b.WriteString(DetailValueStyle.Render("  " + c.Notes) + "\n")
+	}
+
+	// Custom Fields
+	if len(c.CustomFields) > 0 {
+		b.WriteString("\n")
+		b.WriteString(DetailTitleStyle.Render("  Custom Fields") + "\n\n")
+		// Sort keys for deterministic display
+		cfKeys := make([]string, 0, len(c.CustomFields))
+		for k := range c.CustomFields {
+			cfKeys = append(cfKeys, k)
+		}
+		sort.Strings(cfKeys)
+		for _, k := range cfKeys {
+			row(k+":", c.CustomFields[k])
+		}
 	}
 
 	b.WriteString("\n")

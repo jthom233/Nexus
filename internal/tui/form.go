@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/huh"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dr4zz/nexus/internal/config"
+	"github.com/dr4zz/nexus/internal/hooks"
+	"github.com/dr4zz/nexus/internal/template"
 )
 
 // FormSubmitMsg is sent when the form is submitted with a connection.
@@ -35,6 +38,9 @@ type formModel struct {
 	password     string
 	domain       string
 	identityFile string
+	proxyJump    string
+	proxyCommand string
+	portForwards string
 	group        string
 	tags         string
 	resolution   string
@@ -42,16 +48,27 @@ type formModel struct {
 	dynamicRes   bool
 	vncPassword  string
 
+	// Hook fields
+	hookPreConnect     string
+	hookPostConnect    string
+	hookPreDisconnect  string
+	hookPostDisconnect string
+	hookOnFailure      string
+
 	editID string
 	groups []string
+
+	// Template support
+	templateStore  *template.TemplateStore
+	templateChoice string
 }
 
-func newForm(groups []string) formModel {
-	return formModel{groups: groups}
+func newForm(groups []string, tplStore *template.TemplateStore) formModel {
+	return formModel{groups: groups, templateStore: tplStore}
 }
 
-func newFormPtr(groups []string) *formModel {
-	return &formModel{groups: groups}
+func newFormPtr(groups []string, tplStore *template.TemplateStore) *formModel {
+	return &formModel{groups: groups, templateStore: tplStore}
 }
 
 func (f *formModel) startAdd(groups []string) {
@@ -65,13 +82,22 @@ func (f *formModel) startAdd(groups []string) {
 	f.password = ""
 	f.domain = ""
 	f.identityFile = ""
+	f.proxyJump = ""
+	f.proxyCommand = ""
+	f.portForwards = ""
 	f.group = ""
 	f.tags = ""
 	f.resolution = "1920x1080"
 	f.fullscreen = false
 	f.dynamicRes = true
 	f.vncPassword = ""
+	f.hookPreConnect = ""
+	f.hookPostConnect = ""
+	f.hookPreDisconnect = ""
+	f.hookPostDisconnect = ""
+	f.hookOnFailure = "warn"
 	f.groups = groups
+	f.templateChoice = ""
 	f.buildForm()
 	f.active = true
 }
@@ -91,6 +117,9 @@ func (f *formModel) startEdit(conn config.Connection, groups []string) {
 	f.password = conn.Password
 	f.domain = conn.Domain
 	f.identityFile = conn.IdentityFile
+	f.proxyJump = conn.ProxyJump
+	f.proxyCommand = conn.ProxyCommand
+	f.portForwards = config.FormatPortForwards(conn.PortForwards)
 	f.group = conn.Group
 	f.tags = strings.Join(conn.Tags, ", ")
 	f.resolution = conn.RDPOptions.Resolution
@@ -98,8 +127,38 @@ func (f *formModel) startEdit(conn config.Connection, groups []string) {
 	f.vncPassword = conn.VNCPassword
 	f.dynamicRes = conn.RDPOptions.DynamicResolution
 	f.groups = groups
+
+	// Load hooks from connection
+	f.hookPreConnect = hookCommandsToString(conn.Hooks.PreConnect)
+	f.hookPostConnect = hookCommandsToString(conn.Hooks.PostConnect)
+	f.hookPreDisconnect = hookCommandsToString(conn.Hooks.PreDisconnect)
+	f.hookPostDisconnect = hookCommandsToString(conn.Hooks.PostDisconnect)
+	f.hookOnFailure = hookOnFailureToString(conn.Hooks)
+
 	f.buildForm()
 	f.active = true
+}
+
+// hookCommandsToString returns a semicolon-separated string of hook commands.
+func hookCommandsToString(hks []hooks.Hook) string {
+	if len(hks) == 0 {
+		return ""
+	}
+	cmds := make([]string, 0, len(hks))
+	for _, h := range hks {
+		cmds = append(cmds, h.Command)
+	}
+	return strings.Join(cmds, "; ")
+}
+
+// hookOnFailureToString returns the on-failure policy from the first non-empty hook list.
+func hookOnFailureToString(h hooks.Hooks) string {
+	for _, hks := range [][]hooks.Hook{h.PreConnect, h.PostConnect, h.PreDisconnect, h.PostDisconnect} {
+		if len(hks) > 0 {
+			return string(hks[0].OnFailure)
+		}
+	}
+	return "warn"
 }
 
 func (f *formModel) buildForm() {
@@ -108,7 +167,27 @@ func (f *formModel) buildForm() {
 		groupOptions = append(groupOptions, huh.NewOption(g, g))
 	}
 
+	// Build template options for the dropdown
+	templateOptions := []huh.Option[string]{huh.NewOption("None", "")}
+	if f.templateStore != nil {
+		for _, tpl := range f.templateStore.List() {
+			label := tpl.Name
+			if tpl.Description != "" {
+				label = tpl.Name + " — " + tpl.Description
+			}
+			templateOptions = append(templateOptions, huh.NewOption(label, tpl.Name))
+		}
+	}
+
 	f.form = huh.NewForm(
+		// Template selection (only visible when adding)
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Template").
+				Description("Select a template to pre-fill fields").
+				Options(templateOptions...).
+				Value(&f.templateChoice),
+		).WithHideFunc(func() bool { return f.isEdit }),
 		// Common fields
 		huh.NewGroup(
 			huh.NewInput().
@@ -177,6 +256,22 @@ func (f *formModel) buildForm() {
 			huh.NewInput().
 				Title("Identity File").
 				Value(&f.identityFile),
+			huh.NewInput().
+				Title("ProxyJump (e.g. user@bastion:22,user@bastion2:22)").
+				Value(&f.proxyJump),
+			huh.NewInput().
+				Title("ProxyCommand (e.g. ssh -W %h:%p bastion)").
+				Value(&f.proxyCommand),
+			huh.NewInput().
+				Title("Port Forwards (e.g. L:8080:remote:80,R:9090:local:9090,D:1080)").
+				Value(&f.portForwards).
+				Validate(func(s string) error {
+					if strings.TrimSpace(s) == "" {
+						return nil
+					}
+					_, err := config.ParsePortForwards(s)
+					return err
+				}),
 		).WithHideFunc(func() bool { return f.protocol != "ssh" }),
 		// RDP-specific
 		huh.NewGroup(
@@ -200,12 +295,68 @@ func (f *formModel) buildForm() {
 				Value(&f.vncPassword).
 				EchoMode(huh.EchoModePassword),
 		).WithHideFunc(func() bool { return f.protocol != "vnc" }),
+		// Lifecycle hooks
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Pre-Connect Command (shell command to run before connecting)").
+				Value(&f.hookPreConnect),
+			huh.NewInput().
+				Title("Post-Connect Command (shell command to run after connecting)").
+				Value(&f.hookPostConnect),
+			huh.NewInput().
+				Title("Pre-Disconnect Command (shell command to run before disconnecting)").
+				Value(&f.hookPreDisconnect),
+			huh.NewInput().
+				Title("Post-Disconnect Command (shell command to run after disconnecting)").
+				Value(&f.hookPostDisconnect),
+			huh.NewSelect[string]().
+				Title("On Hook Failure").
+				Options(
+					huh.NewOption("Warn (log and continue)", "warn"),
+					huh.NewOption("Abort (stop connection)", "abort"),
+					huh.NewOption("Ignore (silently continue)", "ignore"),
+				).
+				Value(&f.hookOnFailure),
+		),
 	).WithTheme(huh.ThemeDracula()).
 		WithWidth(f.width).
 		WithHeight(f.height)
 }
 
+func (f *formModel) applyTemplateToFields() {
+	if f.templateChoice == "" || f.templateStore == nil {
+		return
+	}
+	tpl, ok := f.templateStore.Get(f.templateChoice)
+	if !ok {
+		return
+	}
+	if f.protocol == "" || f.protocol == "ssh" {
+		if tpl.Protocol != "" {
+			f.protocol = tpl.Protocol
+		}
+	}
+	if f.port == "" && tpl.Port != 0 {
+		f.port = strconv.Itoa(tpl.Port)
+	}
+	if f.username == "" && tpl.Username != "" {
+		f.username = tpl.Username
+	}
+	if f.group == "" && tpl.Group != "" {
+		f.group = tpl.Group
+	}
+	if f.tags == "" && len(tpl.Tags) > 0 {
+		f.tags = strings.Join(tpl.Tags, ", ")
+	}
+	if f.proxyJump == "" && tpl.ProxyJump != "" {
+		f.proxyJump = tpl.ProxyJump
+	}
+}
+
 func (f *formModel) toConnection() config.Connection {
+	// Apply template defaults to any fields the user left empty.
+	f.applyTemplateToFields()
+
 	id := f.editID
 	if id == "" {
 		id = sanitizeForID(f.name)
@@ -226,6 +377,12 @@ func (f *formModel) toConnection() config.Connection {
 		}
 	}
 
+	var portForwards []config.PortForward
+	if f.portForwards != "" {
+		// Validation already passed in the form
+		portForwards, _ = config.ParsePortForwards(f.portForwards)
+	}
+
 	conn := config.Connection{
 		ID:           id,
 		Name:         strings.TrimSpace(f.name),
@@ -235,8 +392,12 @@ func (f *formModel) toConnection() config.Connection {
 		Username:     strings.TrimSpace(f.username),
 		Password:     f.password,
 		IdentityFile: strings.TrimSpace(f.identityFile),
+		ProxyJump:    strings.TrimSpace(f.proxyJump),
+		ProxyCommand: strings.TrimSpace(f.proxyCommand),
+		PortForwards: portForwards,
 		Group:        f.group,
 		Tags:         tags,
+		Hooks:        f.buildHooks(),
 	}
 
 	switch f.protocol {
@@ -252,6 +413,45 @@ func (f *formModel) toConnection() config.Connection {
 	}
 
 	return conn
+}
+
+// buildHooks constructs a hooks.Hooks from the form fields.
+func (f *formModel) buildHooks() hooks.Hooks {
+	onFailure := hooks.OnFailure(f.hookOnFailure)
+	if onFailure == "" {
+		onFailure = hooks.FailWarn
+	}
+
+	var h hooks.Hooks
+	h.PreConnect = parseHookCommands(f.hookPreConnect, hooks.PreConnect, onFailure)
+	h.PostConnect = parseHookCommands(f.hookPostConnect, hooks.PostConnect, onFailure)
+	h.PreDisconnect = parseHookCommands(f.hookPreDisconnect, hooks.PreDisconnect, onFailure)
+	h.PostDisconnect = parseHookCommands(f.hookPostDisconnect, hooks.PostDisconnect, onFailure)
+	return h
+}
+
+// parseHookCommands splits a semicolon-separated command string into Hook slices.
+func parseHookCommands(input string, event hooks.HookEvent, onFailure hooks.OnFailure) []hooks.Hook {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return nil
+	}
+
+	parts := strings.Split(input, ";")
+	var result []hooks.Hook
+	for _, cmd := range parts {
+		cmd = strings.TrimSpace(cmd)
+		if cmd == "" {
+			continue
+		}
+		result = append(result, hooks.Hook{
+			Event:     event,
+			Command:   cmd,
+			OnFailure: onFailure,
+			Timeout:   30 * time.Second,
+		})
+	}
+	return result
 }
 
 func (f *formModel) Update(msg tea.Msg) tea.Cmd {

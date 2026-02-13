@@ -1,0 +1,305 @@
+# Implementation & Validation Checklist
+
+Based on: /home/dr4zz/projects/nexus/speckit.specify
+
+## Requirements Validation
+
+- [ ] SSH sessions with detach/reattach (managed sessions with ring buffer)
+- [ ] Standard SSH and Telnet sessions (native terminal)
+- [ ] RDP and VNC via Ebiten GUI with IPC bridge
+- [ ] YAML config with connections, groups, tags
+- [ ] AES-256-GCM credential encryption with master password
+- [ ] Health checking (TCP connect with latency)
+- [ ] Connection list with table view, fuzzy filter, command mode
+- [ ] Detail view, add/edit form, sessions view, event log
+- [ ] Keyhint bar, help overlay, confirm dialogs
+- [ ] SSH config import (~/.ssh/config parser)
+- [ ] Clipboard copy (yank SSH command)
+- [ ] F1.1 — Modal System (Normal/Insert/Visual/Command modes)**
+- [ ] Normal mode is default. Every key is a command. No text input in Normal.
+- [ ] Insert mode entered via `i`/`a`/`o` in text fields (filter, command, form fields).
+- [ ] Command mode via `:` (ex commands) and `/` (search) and `?` (reverse search).
+- [ ] Mode indicator in statusline: NORMAL (blue), INSERT (green), VISUAL (purple), COMMAND (yellow).
+- [ ] `Esc` always returns to Normal mode. Universal cancel.
+- [ ] Mode transitions fire events for statusline color change and cursor shape change.
+- [ ] F1.2 — Neovim Motion Keys**
+- [ ] `j`/`k` up/down in all lists and views.
+- [ ] `h`/`l` for left/right panel navigation (when panels exist), column selection in tables.
+- [ ] `gg` jump to first item. `G` jump to last item. `{count}G` jump to item N.
+- [ ] `Ctrl+d`/`Ctrl+u` half-page scroll. `Ctrl+f`/`Ctrl+b` full-page scroll.
+- [ ] `H`/`M`/`L` top/middle/bottom of visible screen.
+- [ ] `{`/`}` jump between groups/sections in grouped lists.
+- [ ] `w`/`b` next/previous group (word motion equivalent for lists).
+- [ ] `0`/`$` first/last column in table views.
+- [ ] `n`/`N` next/previous search match.
+- [ ] `*` search for connection name under cursor. `#` reverse search.
+- [ ] `f{char}` jump to next item starting with char. `;`/`,` repeat.
+- [ ] Count prefix: `5j` moves down 5 items. `3dd` deletes 3 items.
+- [ ] F1.3 — Operator + Motion Composition**
+- [ ] `dd` delete current connection (with confirmation).
+- [ ] `yy` yank/copy current connection details to clipboard.
+- [ ] `p`/`P` paste connection (duplicate after/before current).
+- [ ] `dG` delete from current to end (with confirmation for bulk).
+- [ ] `dgg` delete from current to start (with confirmation for bulk).
+- [ ] Operators work with Visual mode selections.
+- [ ] F1.4 — Leader Key + Which-Key Popup**
+- [ ] Space is the leader key.
+- [ ] After pressing Space, if no follow-up key within 500ms, show which-key popup.
+- [ ] Which-key popup shows all available leader key groups with descriptions.
+- [ ] Leader key groups:
+- [ ] `<leader>c` — Connect: quick connect, connect selected, connect all in group
+- [ ] `<leader>f` — Find: fuzzy find connections, find by tag, find by group, find by host
+- [ ] `<leader>s` — Sessions: list sessions, kill session, kill all, reattach
+- [ ] `<leader>g` — Groups: list groups, filter by group, create group
+- [ ] `<leader>i` — Import: import SSH config, import CSV, import JSON
+- [ ] `<leader>e` — Export: export selection, export all, export group
+- [ ] `<leader>t` — Tags: filter by tag, add tag, remove tag
+- [ ] `<leader>v` — View: toggle tree view, toggle table view, toggle detail panel
+- [ ] `<leader>h` — Health: check all, check selected, check group
+- [ ] `<leader>p` — Password: show password, copy password, generate password
+- [ ] `<leader>o` — Options: settings, themes, keybindings
+- [ ] `<leader>?` — Help: keybindings reference, about
+- [ ] Nested groups show sub-menus (e.g., `<leader>i` shows import options).
+- [ ] F1.5 — k9s-Style Visual Layout**
+- [ ] Top bar: Logo (NEXUS in cyan) + cluster/config info (right-aligned).
+- [ ] Menu/hotkey bar: Context-sensitive key hints styled like k9s (<key>description).
+- [ ] Title bar: Current view name + item count + filter status.
+- [ ] Main content: Table or tree view filling available space.
+- [ ] Status bar: Mode indicator (color-coded) + connection stats + flash messages + position.
+- [ ] Command/filter input: Bottom line for `:` commands and `/` search.
+- [ ] F1.6 — k9s-Style Table Rendering**
+- [ ] Column headers with sort indicators (▲/▼).
+- [ ] Age/uptime column with human-readable format (2d3h, 15m, 3s).
+- [ ] Row striping for readability.
+- [ ] Current row highlighted with cursor bar (like k9s).
+- [ ] Wide mode toggle (Ctrl+W) showing additional columns (port, username, tags, identity file).
+- [ ] Column width auto-sizing with minimum widths.
+- [ ] F1.7 — Incremental Search & Filter**
+- [ ] `/` activates forward search. `?` activates reverse search.
+- [ ] Incremental filtering: results update as you type (like k9s).
+- [ ] Search highlights matching text in the table.
+- [ ] `n`/`N` cycle through matches.
+- [ ] Search persists until cleared with `Esc` or new search.
+- [ ] Filter bar shows active filter with clear button.
+- [ ] F1.8 — Color Scheme System**
+- [ ] Default theme: TokyoNight Storm (modern, cool blue-purple palette popular with neovim users).
+- [ ] Mode colors: normal (blue), insert (green), visual (purple), command (yellow), replace (red).
+- [ ] Protocol colors: ssh (green), rdp (blue), vnc (orange), telnet (yellow).
+- [ ] Status colors: online (green), offline (red), degraded (yellow), unknown (grey).
+- [ ] User-customizable themes via YAML skin file.
+- [ ] Respect terminal colors option (use ANSI 16-color palette for terminal theme compatibility).
+- [ ] F2.1 — SSH Jump Host / ProxyJump Chains**
+- [ ] Per-connection ProxyJump configuration (single hop or multi-hop chain).
+- [ ] ProxyCommand support for custom tunneling.
+- [ ] Visual indicator in table showing connections that use jump hosts.
+- [ ] Jump host health checking (check each hop independently).
+- [ ] Dynamic port forwarding through jump hosts.
+- [ ] F2.2 — SSH Port Forwarding**
+- [ ] Local port forward (-L): map local port to remote host:port through SSH tunnel.
+- [ ] Remote port forward (-R): map remote port to local host:port.
+- [ ] Dynamic SOCKS proxy (-D): create a SOCKS5 proxy through SSH tunnel.
+- [ ] Port forward configuration stored per-connection.
+- [ ] Active port forwards shown in session detail.
+- [ ] Port forward management view (list, add, remove active forwards).
+- [ ] F2.3 — Session Recording & Playback**
+- [ ] Record SSH sessions to asciicast v2 format (asciinema-compatible).
+- [ ] Recording toggle per-connection (optional/required/disabled).
+- [ ] Recording storage in configurable directory.
+- [ ] Session playback via built-in player (rendered in TUI).
+- [ ] Recording metadata: connection ID, timestamp, duration, user.
+- [ ] Recording retention policy (auto-delete after N days).
+- [ ] F2.4 — Connection Lifecycle Hooks**
+- [ ] Pre-connect hooks: run shell command before connecting (e.g., VPN up, wake-on-LAN).
+- [ ] Post-connect hooks: run shell command after successful connect (e.g., notify, log).
+- [ ] Pre-disconnect hooks: run shell command before disconnecting (e.g., cleanup).
+- [ ] Post-disconnect hooks: run shell command after disconnect (e.g., VPN down, log).
+- [ ] Hook configuration per-connection or inherited from folder/group.
+- [ ] Hook output captured in event log.
+- [ ] Hook failure handling: abort connect, warn and continue, or ignore.
+- [ ] F2.5 — Tmux Integration**
+- [ ] Detect existing tmux session and offer to use it.
+- [ ] Create named tmux sessions per connection group.
+- [ ] Split pane support within tmux for multiple SSH sessions.
+- [ ] Session persistence via tmux (survive TUI restart).
+- [ ] tmux layout presets: single, hsplit, vsplit, quad, tiled.
+- [ ] F2.6 — Quick Connect**
+- [ ] `<leader>cc` or `:connect` opens quick connect prompt.
+- [ ] Parse `user@host:port` or `ssh://user@host:port` format.
+- [ ] Auto-detect protocol from port (22=ssh, 23=telnet, 3389=rdp, 5900=vnc).
+- [ ] Option to save quick connection as permanent entry after connecting.
+- [ ] Recent quick connects remembered (last 20).
+- [ ] Template application to quick connections.
+- [ ] F3.1 — Folder Tree View**
+- [ ] Hierarchical folder structure for organizing connections.
+- [ ] Tree view as alternative to flat table (toggle with `<leader>vt`).
+- [ ] Folders are collapsible (za toggle, zM close all, zR open all — vim fold keys).
+- [ ] Drag-and-drop reordering via move commands (`:mv connection folder`).
+- [ ] Folder CRUD via commands (`:mkdir`, `:rmdir`) or leader keys.
+- [ ] Nested folders up to 10 levels deep.
+- [ ] F3.2 — Favorites & Recent**
+- [ ] Mark connections as favorites with `<leader>ff` (toggle).
+- [ ] Favorites view accessible via `<leader>fv` or `:favorites`.
+- [ ] Favorites pinned to top of list (optional).
+- [ ] Recent connections view (last 50) via `<leader>fr` or `:recent`.
+- [ ] Most-used connections view (sorted by connection count) via `:frequent`.
+- [ ] F3.3 — Bookmark/Marks System (vim marks)**
+- [ ] `m{a-z}` set a local mark on current connection.
+- [ ] `'{a-z}` jump to marked connection.
+- [ ] `m{A-Z}` set global marks (persist across views).
+- [ ] `:marks` show all marks.
+- [ ] `` ` `` `` jump to previous position (before last jump).
+- [ ] `Ctrl+o`/`Ctrl+i` jump list (back/forward navigation history).
+- [ ] F3.4 — Navigation Bracket Keys**
+- [ ] `]c` / `[c` — next/previous connection
+- [ ] `]g` / `[g` — next/previous group
+- [ ] `]e` / `[e` — next/previous error (offline connection)
+- [ ] `]s` / `[s` — next/previous active session
+- [ ] `]f` / `[f` — next/previous favorite
+- [ ] F3.5 — Connection Templates**
+- [ ] Define reusable templates with preset fields.
+- [ ] Templates selectable when adding new connection.
+- [ ] Template inheritance: connection inherits all template fields, user overrides specific ones.
+- [ ] Custom templates via `:template create` or `<leader>ot`.
+- [ ] F3.6 — Tags System Enhancement**
+- [ ] Multi-tag per connection (already exists, enhance UX).
+- [ ] Tag autocomplete in forms and commands.
+- [ ] Tag-based filtering with boolean logic (`:tag web AND production`, `:tag web OR api`).
+- [ ] Tag cloud view showing all tags with connection counts.
+- [ ] Bulk tag operations in Visual mode (select connections, `:tag add production`).
+- [ ] F4.1 — SQLite Backend**
+- [ ] SQLite database as storage backend for large deployments (1000+ connections).
+- [ ] Automatic migration from YAML to SQLite and back.
+- [ ] Full-text search index for fast filtering.
+- [ ] Transaction support for bulk operations.
+- [ ] Database encryption (SQLCipher or application-level encryption).
+- [ ] Config option to choose backend: yaml (default for <100 connections) or sqlite.
+- [ ] F4.2 — Enhanced Import**
+- [ ] Import from SSH config (already exists, enhance).
+- [ ] Import from CSV with field mapping wizard.
+- [ ] Import from JSON (RDM-compatible format).
+- [ ] Import from PuTTY sessions (Windows registry or .reg file).
+- [ ] Import from mRemoteNG XML.
+- [ ] Import from SecureCRT INI files.
+- [ ] Import preview showing what will be created/updated before committing.
+- [ ] Merge strategy: skip duplicates, overwrite, rename.
+- [ ] F4.3 — Export**
+- [ ] Export to CSV, JSON, YAML.
+- [ ] Export selection, group, or all connections.
+- [ ] Export with or without credentials (credentials require master password confirmation).
+- [ ] Export encrypted (master password protected).
+- [ ] F4.4 — Credential Vault Enhancements**
+- [ ] Multiple credential stores (personal vault, shared vault).
+- [ ] Credential entries separate from connections (reusable across connections).
+- [ ] Credential inheritance from folders.
+- [ ] SSH key management: list, generate, import keys.
+- [ ] SSH agent integration.
+- [ ] Credential expiry warnings.
+- [ ] F5.1 — Enhanced Health Dashboard (Pulse View)**
+- [ ] Overview dashboard accessible via `:pulse` or `<leader>hp`.
+- [ ] Connection summary: total, online, offline, degraded, unknown counts.
+- [ ] Group health breakdown.
+- [ ] Protocol distribution chart (text-based bar chart).
+- [ ] Recent connection activity (last 10 connections with timestamps).
+- [ ] Active sessions summary.
+- [ ] Latency heatmap (connections sorted by response time).
+- [ ] F5.2 — Connection Audit Log**
+- [ ] Persistent log of all connection events (connect, disconnect, error, credential use).
+- [ ] Log entries: timestamp, connection ID, event type, duration, exit code, user.
+- [ ] Searchable log viewer with date range filter.
+- [ ] Log retention policy (configurable days).
+- [ ] Export log to CSV/JSON.
+- [ ] Log stored in SQLite (separate from connections DB).
+- [ ] F5.3 — Connection Notes & Documentation**
+- [ ] Per-connection markdown notes.
+- [ ] Notes viewable in detail view with markdown rendering.
+- [ ] Quick note add via `<leader>n` or `:note`.
+- [ ] Notes searchable via global search.
+- [ ] Connection README: auto-displayed before connecting (optional).
+- [ ] F5.4 — Custom Fields**
+- [ ] User-defined key-value metadata per connection.
+- [ ] Custom fields visible in detail view.
+- [ ] Custom fields searchable.
+- [ ] Custom field definitions configurable globally (field name, type: text/number/date/boolean/select).
+- [ ] Custom fields displayable as table columns.
+- [ ] F6.1 — Telescope-Style Fuzzy Finder**
+- [ ] Activated via `<leader>ff` or `Ctrl+p`.
+- [ ] Three-panel layout: prompt (top), results (left), preview (right).
+- [ ] Fuzzy matching with scoring and ranking.
+- [ ] Results update live as user types.
+- [ ] Preview shows connection details of highlighted item.
+- [ ] Multi-select with Tab (select and move to next).
+- [ ] Action on selected: connect, edit, delete, copy, tag.
+- [ ] Pickers: connections, sessions, tags, groups, recent, favorites, commands, help topics.
+- [ ] F6.2 — Split Panes (Window Management)**
+- [ ] `Ctrl+w s` horizontal split (table + detail).
+- [ ] `Ctrl+w v` vertical split (two tables side by side).
+- [ ] `Ctrl+w q` close current pane.
+- [ ] `Ctrl+w o` maximize current pane (close all others).
+- [ ] `Ctrl+w h/j/k/l` navigate between panes.
+- [ ] `Ctrl+w =` equalize pane sizes.
+- [ ] Split detail pane showing connection info alongside the list.
+- [ ] F6.3 — Command Palette Enhancement**
+- [ ] `:` activates command mode with autocomplete.
+- [ ] Tab completion with cycling through matches.
+- [ ] Command history (Up/Down arrows, persisted across sessions).
+- [ ] Argument parsing with named parameters (`:connect --protocol ssh --host 10.0.0.1`).
+- [ ] Command aliases (user-configurable, e.g., `:c` for `:connect`).
+- [ ] F6.4 — Notification System**
+- [ ] Flash messages for operations (already exists, enhance).
+- [ ] Connection state change notifications (came online, went offline).
+- [ ] Session timeout warnings.
+- [ ] Credential expiry warnings.
+- [ ] Notification history viewable in log.
+- [ ] Desktop notification integration (optional, via notify-send).
+- [ ] F6.5 — Undo/Redo**
+- [ ] `u` undo last destructive operation (delete, edit, move).
+- [ ] `Ctrl+r` redo.
+- [ ] Undo stack depth: 50 operations.
+- [ ] Undo applies to: connection CRUD, tag changes, group changes, config changes.
+- [ ] Visual feedback on undo/redo (flash message showing what was undone).
+- [ ] F6.6 — Bulk Operations**
+- [ ] Visual mode select + operation.
+- [ ] `:range` operations (`:1,10 delete`, `:tag add production 1,10`).
+- [ ] Bulk connect (open multiple sessions).
+- [ ] Bulk health check.
+- [ ] Bulk tag/untag.
+- [ ] Bulk move to folder.
+- [ ] Bulk export selection.
+- [ ] Progress indicator for bulk operations.
+
+## Implementation Checklist
+
+- [ ] Code follows project style guide
+- [ ] Functions have clear documentation
+- [ ] Error handling is comprehensive
+- [ ] Input validation is performed
+- [ ] Logging is appropriate
+- [ ] Performance is acceptable
+- [ ] Security considerations addressed
+
+## Testing Checklist
+
+- [ ] Unit tests written for all functions
+- [ ] Integration tests cover main workflows
+- [ ] Edge cases are tested
+- [ ] Error conditions are tested
+- [ ] Performance tests (if applicable)
+- [ ] All tests pass
+- [ ] Test coverage >80%
+
+## Quality Assurance
+
+- [ ] Code review completed
+- [ ] Documentation updated
+- [ ] CHANGELOG.md updated
+- [ ] No compiler warnings
+- [ ] Linter passes (clippy, etc.)
+- [ ] Dependencies are up to date
+
+## Deployment Readiness
+
+- [ ] All tests pass in CI
+- [ ] Version number updated
+- [ ] Release notes prepared
+- [ ] Breaking changes documented
+- [ ] Migration guide provided (if needed)

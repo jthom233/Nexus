@@ -13,6 +13,7 @@ import (
 type Settings struct {
 	HealthCheckInterval string `yaml:"health_check_interval,omitempty"`
 	Theme               string `yaml:"theme,omitempty"`
+	Vault               string `yaml:"vault,omitempty"` // "internal" (default), "pass", or "keyring"
 }
 
 // HealthInterval returns the parsed health check interval, defaulting to 30s.
@@ -27,12 +28,26 @@ func (s Settings) HealthInterval() time.Duration {
 	return d
 }
 
+// ConfigTemplate stores a user-defined connection template in the config file.
+type ConfigTemplate struct {
+	Name          string   `yaml:"name"`
+	Description   string   `yaml:"description,omitempty"`
+	Protocol      string   `yaml:"protocol,omitempty"`
+	Port          int      `yaml:"port,omitempty"`
+	Username      string   `yaml:"username,omitempty"`
+	Group         string   `yaml:"group,omitempty"`
+	Tags          []string `yaml:"tags,omitempty"`
+	ProxyJump     string   `yaml:"proxy_jump,omitempty"`
+	RecordSession bool     `yaml:"record_session,omitempty"`
+}
+
 // Config is the root configuration structure.
 type Config struct {
 	Version     int          `yaml:"version"`
 	Settings    Settings     `yaml:"settings"`
 	Groups      []Group      `yaml:"groups,omitempty"`
-	Connections []Connection `yaml:"connections,omitempty"`
+	Connections []Connection     `yaml:"connections,omitempty"`
+	Templates   []ConfigTemplate `yaml:"templates,omitempty"`
 
 	EncryptionKey []byte `yaml:"-"`
 }
@@ -172,6 +187,18 @@ func Save(cfg *Config) error {
 // AddConnection adds a connection and saves.
 func (cfg *Config) AddConnection(conn Connection) error {
 	cfg.Connections = append(cfg.Connections, conn)
+	return Save(cfg)
+}
+
+// InsertConnectionAt inserts a connection at the given index and saves.
+// If the index is out of range, the connection is appended.
+func (cfg *Config) InsertConnectionAt(conn Connection, index int) error {
+	if index < 0 || index >= len(cfg.Connections) {
+		cfg.Connections = append(cfg.Connections, conn)
+	} else {
+		cfg.Connections = append(cfg.Connections[:index+1], cfg.Connections[index:]...)
+		cfg.Connections[index] = conn
+	}
 	return Save(cfg)
 }
 
