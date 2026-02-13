@@ -32,7 +32,7 @@ func main() {
 	ebiten.SetWindowTitle("Nexus - Remote Sessions")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetWindowDecorated(false)
-	ebiten.SetTPS(30) // 30 updates per second
+	ebiten.SetTPS(60) // 60 updates per second
 
 	if err := ebiten.RunGame(app); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

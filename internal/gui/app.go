@@ -22,7 +22,7 @@ const (
 const (
 	defaultWidth  = 1280
 	defaultHeight = 800
-	targetFPS     = 30
+	targetFPS     = 60
 )
 
 // Tab layout constants.

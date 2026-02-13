@@ -75,6 +75,8 @@ func forwardMouse(sess Session, scaleX, scaleY, offsetX, offsetY float64) {
 		ebiten.MouseButtonLeft,
 		ebiten.MouseButtonRight,
 		ebiten.MouseButtonMiddle,
+		ebiten.MouseButton3,
+		ebiten.MouseButton4,
 	} {
 		pressed := ebiten.IsMouseButtonPressed(btn)
 		was := gInput.buttons[btn]
