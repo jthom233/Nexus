@@ -17,10 +17,9 @@ var gInput = &inputState{
 	lastY:   -1,
 }
 
-// forwardInput captures Ebiten keyboard/mouse events and forwards them
-// to the active session. scaleX/scaleY/offsetX/offsetY map window coords to session coords.
-func forwardInput(sess Session, scaleX, scaleY, offsetX, offsetY float64) {
-	// Keyboard: detect press/release edges
+// forwardKeyboard captures Ebiten keyboard events and forwards them to the session.
+// Called every tick regardless of session rendering state.
+func forwardKeyboard(sess Session) {
 	for key := ebiten.Key(0); key <= ebiten.KeyMax; key++ {
 		pressed := ebiten.IsKeyPressed(key)
 		was := gInput.keys[key]
@@ -35,7 +34,11 @@ func forwardInput(sess Session, scaleX, scaleY, offsetX, offsetY float64) {
 			delete(gInput.keys, key)
 		}
 	}
+}
 
+// forwardMouse captures Ebiten mouse events and forwards them to the session.
+// Requires valid scale/offset transform to map window coords to session coords.
+func forwardMouse(sess Session, scaleX, scaleY, offsetX, offsetY float64) {
 	if scaleX <= 0 || scaleY <= 0 {
 		return
 	}

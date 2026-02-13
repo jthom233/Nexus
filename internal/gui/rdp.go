@@ -211,6 +211,22 @@ func (r *RDPSession) HandleKeyRelease(key ebiten.Key) {
 	}
 }
 
+// HandleHookKey sends a raw scancode from the keyboard hook to the RDP server.
+func (r *RDPSession) HandleHookKey(scancode uint16, extended bool, release bool) {
+	if r.pduLayer == nil {
+		return
+	}
+	p := &pdu.ScancodeKeyEvent{}
+	p.KeyCode = scancode
+	if extended {
+		p.KeyboardFlags |= pdu.KBDFLAGS_EXTENDED
+	}
+	if release {
+		p.KeyboardFlags |= pdu.KBDFLAGS_RELEASE
+	}
+	r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_SCANCODE, []pdu.InputEventsInterface{p})
+}
+
 // HandleMouseMove sends a mouse move event to the RDP server.
 func (r *RDPSession) HandleMouseMove(x, y int) {
 	if r.pduLayer == nil {
