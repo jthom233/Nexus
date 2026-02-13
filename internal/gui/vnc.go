@@ -227,6 +227,10 @@ func (v *VNCSession) HandleKeyRelease(key ebiten.Key) {
 	}
 }
 
+// HandleHookKey is a no-op for VNC — the keyboard hook only captures raw scancodes
+// which don't apply to the VNC keysym protocol.
+func (v *VNCSession) HandleHookKey(scancode uint16, extended bool, release bool) {}
+
 // HandleMouseMove sends a mouse move event to the VNC server.
 func (v *VNCSession) HandleMouseMove(x, y int) {
 	if v.conn == nil {

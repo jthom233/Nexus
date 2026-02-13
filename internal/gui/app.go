@@ -50,6 +50,7 @@ type Session interface {
 	NativeSize() (int, int) // Returns the session's native resolution
 	HandleKeyPress(key ebiten.Key)
 	HandleKeyRelease(key ebiten.Key)
+	HandleHookKey(scancode uint16, extended bool, release bool)
 	HandleMouseMove(x, y int)
 	HandleMouseButton(button ebiten.MouseButton, pressed bool)
 	HandleMouseWheel(dx, dy float64)
@@ -81,6 +82,7 @@ func NewApp() *App {
 		width:  defaultWidth,
 		height: defaultHeight,
 	}
+	installKeyHook()
 	return a
 }
 
@@ -103,12 +105,24 @@ func (a *App) Update() error {
 	// Handle window dragging from tab bar
 	a.handleWindowDrag()
 
-	// Route keyboard/mouse input to active session
+	// Route input to active session
 	activeTab := a.tabs.Active()
 	if activeTab != nil && activeTab.Session != nil {
-		scaleX, scaleY, offX, offY, ok := a.sessionTransform()
-		if ok {
-			forwardInput(activeTab.Session, scaleX, scaleY, offX, offY)
+		// Keyboard always forwarded regardless of framebuffer state
+		forwardKeyboard(activeTab.Session)
+
+		// Process low-level keyboard hook events (Windows system keys)
+		for _, ev := range drainHookEvents() {
+			if ev.release {
+				activeTab.Session.HandleHookKey(ev.scancode, ev.extended, true)
+			} else {
+				activeTab.Session.HandleHookKey(ev.scancode, ev.extended, false)
+			}
+		}
+
+		// Mouse requires valid transform for coordinate mapping
+		if scaleX, scaleY, offX, offY, ok := a.sessionTransform(); ok {
+			forwardMouse(activeTab.Session, scaleX, scaleY, offX, offY)
 		}
 	}
 
