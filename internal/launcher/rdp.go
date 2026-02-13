@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/dr4zz/nexus/internal/config"
@@ -132,7 +131,7 @@ func ensureGUI() error {
 	cmd.Stdin = nil
 	cmd.Env = os.Environ()
 	// Start in its own process group so it survives TUI exit
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	setProcGroup(cmd)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
@@ -174,9 +173,11 @@ func findGUIBinary() (string, error) {
 	selfPath, err := os.Executable()
 	if err == nil {
 		dir := filepath.Dir(selfPath)
-		candidate := filepath.Join(dir, "nexus-gui")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
+		for _, name := range []string{"nexus-gui", "nexus-gui.exe"} {
+			candidate := filepath.Join(dir, name)
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate, nil
+			}
 		}
 	}
 

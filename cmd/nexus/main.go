@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"syscall"
 
 	"github.com/dr4zz/nexus/internal/config"
 	"github.com/dr4zz/nexus/internal/tui"
@@ -50,7 +49,7 @@ func handleMasterPassword(cfg *config.Config) error {
 	if hasEncrypted {
 		// Existing encrypted passwords — prompt for master password
 		fmt.Print("Master password: ")
-		pw, err := term.ReadPassword(syscall.Stdin)
+		pw, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
 		if err != nil {
 			return fmt.Errorf("reading password: %w", err)
@@ -59,14 +58,14 @@ func handleMasterPassword(cfg *config.Config) error {
 	} else if hasPlaintext {
 		// Only plaintext passwords — set up encryption
 		fmt.Print("Set a master password to encrypt credentials: ")
-		pw1, err := term.ReadPassword(syscall.Stdin)
+		pw1, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
 		if err != nil {
 			return fmt.Errorf("reading password: %w", err)
 		}
 
 		fmt.Print("Confirm: ")
-		pw2, err := term.ReadPassword(syscall.Stdin)
+		pw2, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
 		if err != nil {
 			return fmt.Errorf("reading password: %w", err)
