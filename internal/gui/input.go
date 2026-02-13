@@ -176,6 +176,10 @@ func ebitenKeyToScancode(key ebiten.Key) uint16 {
 		ebiten.KeyPageDown:     0x51,
 		ebiten.KeyInsert:       0x52,
 		ebiten.KeyDelete:       0x53,
+		ebiten.KeyControlRight: 0x1D,
+		ebiten.KeyAltRight:     0x38,
+		ebiten.KeyMetaLeft:     0x5B,
+		ebiten.KeyMetaRight:    0x5C,
 	}
 	if sc, ok := scancodes[key]; ok {
 		return sc
@@ -265,9 +269,30 @@ func ebitenKeyToVNCKeysym(key ebiten.Key) uint32 {
 		ebiten.KeyComma:        0x002C,
 		ebiten.KeyPeriod:       0x002E,
 		ebiten.KeySlash:        0x002F,
+		ebiten.KeyControlRight: 0xFFE4,
+		ebiten.KeyAltRight:     0xFFEA,
+		ebiten.KeyMetaLeft:     0xFFEB,
+		ebiten.KeyMetaRight:    0xFFEC,
 	}
 	if ks, ok := keysyms[key]; ok {
 		return ks
 	}
 	return 0
+}
+
+// isExtendedScancode returns true for keys that require the RDP extended
+// scancode flag (KBDFLAGS_EXTENDED). These are keys on the enhanced keyboard
+// that share scancodes with the numeric keypad.
+func isExtendedScancode(key ebiten.Key) bool {
+	switch key {
+	case ebiten.KeyInsert, ebiten.KeyDelete,
+		ebiten.KeyHome, ebiten.KeyEnd,
+		ebiten.KeyPageUp, ebiten.KeyPageDown,
+		ebiten.KeyArrowUp, ebiten.KeyArrowDown,
+		ebiten.KeyArrowLeft, ebiten.KeyArrowRight,
+		ebiten.KeyControlRight, ebiten.KeyAltRight,
+		ebiten.KeyMetaLeft, ebiten.KeyMetaRight:
+		return true
+	}
+	return false
 }
