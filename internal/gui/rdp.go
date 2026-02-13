@@ -187,6 +187,9 @@ func (r *RDPSession) HandleKeyPress(key ebiten.Key) {
 	if sc != 0 {
 		p := &pdu.ScancodeKeyEvent{}
 		p.KeyCode = sc
+		if isExtendedScancode(key) {
+			p.KeyboardFlags |= pdu.KBDFLAGS_EXTENDED
+		}
 		r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_SCANCODE, []pdu.InputEventsInterface{p})
 	}
 }
@@ -201,6 +204,9 @@ func (r *RDPSession) HandleKeyRelease(key ebiten.Key) {
 		p := &pdu.ScancodeKeyEvent{}
 		p.KeyCode = sc
 		p.KeyboardFlags |= pdu.KBDFLAGS_RELEASE
+		if isExtendedScancode(key) {
+			p.KeyboardFlags |= pdu.KBDFLAGS_EXTENDED
+		}
 		r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_SCANCODE, []pdu.InputEventsInterface{p})
 	}
 }

@@ -5,14 +5,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // SocketPath returns the Unix domain socket path for IPC.
 func SocketPath() string {
 	dir := os.Getenv("XDG_RUNTIME_DIR")
 	if dir == "" {
-		dir = filepath.Join(os.TempDir(), fmt.Sprintf("nexus-%d", os.Getuid()))
+		if runtime.GOOS == "windows" {
+			dir = filepath.Join(os.TempDir(), "nexus-ipc")
+		} else {
+			dir = filepath.Join(os.TempDir(), fmt.Sprintf("nexus-%d", os.Getuid()))
+		}
 	}
+	os.MkdirAll(dir, 0700)
 	return filepath.Join(dir, "nexus.sock")
 }
 
