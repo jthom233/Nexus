@@ -180,6 +180,35 @@ func ebitenKeyToScancode(key ebiten.Key) uint16 {
 		ebiten.KeyAltRight:     0x38,
 		ebiten.KeyMetaLeft:     0x5B,
 		ebiten.KeyMetaRight:    0x5C,
+
+		// Generic modifier aliases (Ebiten may report these instead of Left/Right variants)
+		ebiten.KeyAlt:     0x38,
+		ebiten.KeyControl: 0x1D,
+		ebiten.KeyShift:   0x2A,
+
+		// Numpad
+		ebiten.KeyNumpad0:        0x52,
+		ebiten.KeyNumpad1:        0x4F,
+		ebiten.KeyNumpad2:        0x50,
+		ebiten.KeyNumpad3:        0x51,
+		ebiten.KeyNumpad4:        0x4B,
+		ebiten.KeyNumpad5:        0x4C,
+		ebiten.KeyNumpad6:        0x4D,
+		ebiten.KeyNumpad7:        0x47,
+		ebiten.KeyNumpad8:        0x48,
+		ebiten.KeyNumpad9:        0x49,
+		ebiten.KeyNumpadAdd:      0x4E,
+		ebiten.KeyNumpadSubtract: 0x4A,
+		ebiten.KeyNumpadMultiply: 0x37,
+		ebiten.KeyNumpadDivide:   0x35,
+		ebiten.KeyNumpadDecimal:  0x53,
+		ebiten.KeyNumpadEnter:    0x1C,
+
+		// Lock and special keys
+		ebiten.KeyNumLock:     0x45,
+		ebiten.KeyScrollLock:  0x46,
+		ebiten.KeyPrintScreen: 0x37,
+		ebiten.KeyContextMenu: 0x5D,
 	}
 	if sc, ok := scancodes[key]; ok {
 		return sc
@@ -273,6 +302,35 @@ func ebitenKeyToVNCKeysym(key ebiten.Key) uint32 {
 		ebiten.KeyAltRight:     0xFFEA,
 		ebiten.KeyMetaLeft:     0xFFEB,
 		ebiten.KeyMetaRight:    0xFFEC,
+
+		// Generic modifier aliases
+		ebiten.KeyAlt:     0xFFE9,
+		ebiten.KeyControl: 0xFFE3,
+		ebiten.KeyShift:   0xFFE1,
+
+		// Numpad
+		ebiten.KeyNumpad0:        0xFFB0,
+		ebiten.KeyNumpad1:        0xFFB1,
+		ebiten.KeyNumpad2:        0xFFB2,
+		ebiten.KeyNumpad3:        0xFFB3,
+		ebiten.KeyNumpad4:        0xFFB4,
+		ebiten.KeyNumpad5:        0xFFB5,
+		ebiten.KeyNumpad6:        0xFFB6,
+		ebiten.KeyNumpad7:        0xFFB7,
+		ebiten.KeyNumpad8:        0xFFB8,
+		ebiten.KeyNumpad9:        0xFFB9,
+		ebiten.KeyNumpadAdd:      0xFFAB,
+		ebiten.KeyNumpadSubtract: 0xFFAD,
+		ebiten.KeyNumpadMultiply: 0xFFAA,
+		ebiten.KeyNumpadDivide:   0xFFAF,
+		ebiten.KeyNumpadDecimal:  0xFFAE,
+		ebiten.KeyNumpadEnter:    0xFF8D,
+
+		// Lock and special keys
+		ebiten.KeyNumLock:     0xFF7F,
+		ebiten.KeyScrollLock:  0xFF14,
+		ebiten.KeyPrintScreen: 0xFF61,
+		ebiten.KeyContextMenu: 0xFF67,
 	}
 	if ks, ok := keysyms[key]; ok {
 		return ks
@@ -291,7 +349,9 @@ func isExtendedScancode(key ebiten.Key) bool {
 		ebiten.KeyArrowUp, ebiten.KeyArrowDown,
 		ebiten.KeyArrowLeft, ebiten.KeyArrowRight,
 		ebiten.KeyControlRight, ebiten.KeyAltRight,
-		ebiten.KeyMetaLeft, ebiten.KeyMetaRight:
+		ebiten.KeyMetaLeft, ebiten.KeyMetaRight,
+		ebiten.KeyNumpadDivide, ebiten.KeyNumpadEnter,
+		ebiten.KeyPrintScreen, ebiten.KeyContextMenu:
 		return true
 	}
 	return false
