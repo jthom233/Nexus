@@ -850,6 +850,11 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.help.view = "sessions"
 		return a, nil
 
+	case "L": // View event log
+		a.log.setSize(a.width, a.contentHeight())
+		a.pushView(viewLog)
+		return a, nil
+
 	case "V": // Enter line-visual mode
 		return a.enterVisualMode()
 
