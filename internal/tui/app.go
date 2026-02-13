@@ -61,6 +61,7 @@ type App struct {
 	auditLog     *audit.AuditLog
 	auditLogView *LogViewModel
 	finder       *FinderModel
+	checker      *health.Checker
 
 	// View stack
 	viewStack []viewKind
@@ -136,6 +137,11 @@ func NewApp(cfg *config.Config) App {
 		undoStack:    NewUndoStack(),
 		bracketNav:   NewBracketNav(),
 		tagManager:   NewTagManager(),
+		checker: health.NewChecker(health.Options{
+			Workers: cfg.Settings.HealthWorkers(),
+			Timeout: cfg.Settings.HealthTimeout(),
+			Enabled: cfg.Settings.HealthEnabled(),
+		}),
 		mode:         ModeNormal,
 		visualState:  NewVisualState(),
 	}
@@ -246,7 +252,7 @@ func (a *App) syncCursorPosition() {
 
 func (a App) Init() tea.Cmd {
 	return tea.Batch(
-		health.CheckAll(a.list.healthTargets()),
+		a.checker.CheckAll(a.list.healthTargets()),
 		health.ScheduleTick(a.cfg.Settings.HealthInterval()),
 	)
 }
@@ -414,7 +420,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case health.TickMsg:
 		return a, tea.Batch(
-			health.CheckAll(a.list.healthTargets()),
+			a.checker.CheckAll(a.list.healthTargets()),
 			health.ScheduleTick(a.cfg.Settings.HealthInterval()),
 		)
 
@@ -838,7 +844,7 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.log.info("Manual health check refresh")
 		a.statusBar.setFlash("Refreshing...", flashInfo)
 		return a, tea.Batch(
-			health.CheckAll(a.list.healthTargets()),
+			a.checker.CheckAll(a.list.healthTargets()),
 			scheduleFlashClear(),
 		)
 	case "s":
@@ -1245,7 +1251,7 @@ func (a App) handlePulseKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.log.info("Manual health check refresh from pulse view")
 		a.statusBar.setFlash("Refreshing...", flashInfo)
 		return a, tea.Batch(
-			health.CheckAll(a.list.healthTargets()),
+			a.checker.CheckAll(a.list.healthTargets()),
 			scheduleFlashClear(),
 		)
 	}
@@ -1696,7 +1702,7 @@ func (a App) importSSH() (tea.Model, tea.Cmd) {
 	a.syncCursorPosition()
 
 	return a, tea.Batch(
-		health.CheckAll(a.list.healthTargets()),
+		a.checker.CheckAll(a.list.healthTargets()),
 		scheduleFlashClear(),
 	)
 }
@@ -1756,7 +1762,7 @@ func (a App) handleFormSubmit(msg FormSubmitMsg) (tea.Model, tea.Cmd) {
 	a.syncCursorPosition()
 
 	return a, tea.Batch(
-		health.CheckAll(a.list.healthTargets()),
+		a.checker.CheckAll(a.list.healthTargets()),
 		scheduleFlashClear(),
 	)
 }
@@ -2128,7 +2134,7 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		a.log.info("Manual health check refresh via leader")
 		a.statusBar.setFlash("Refreshing health checks...", flashInfo)
 		return a, tea.Batch(
-			health.CheckAll(a.list.healthTargets()),
+			a.checker.CheckAll(a.list.healthTargets()),
 			scheduleFlashClear(),
 		)
 	case "check-selected":
@@ -2685,7 +2691,7 @@ func (a App) performUndo() (tea.Model, tea.Cmd) {
 	a.syncCursorPosition()
 
 	return a, tea.Batch(
-		health.CheckAll(a.list.healthTargets()),
+		a.checker.CheckAll(a.list.healthTargets()),
 		scheduleFlashClear(),
 	)
 }
@@ -2749,7 +2755,7 @@ func (a App) performRedo() (tea.Model, tea.Cmd) {
 	a.syncCursorPosition()
 
 	return a, tea.Batch(
-		health.CheckAll(a.list.healthTargets()),
+		a.checker.CheckAll(a.list.healthTargets()),
 		scheduleFlashClear(),
 	)
 }
@@ -3232,7 +3238,7 @@ func (a App) handleImportCommand(args string) (tea.Model, tea.Cmd) {
 	a.statusBar.setFlash(msg, flashInfo)
 
 	return a, tea.Batch(
-		health.CheckAll(a.list.healthTargets()),
+		a.checker.CheckAll(a.list.healthTargets()),
 		scheduleFlashClear(),
 	)
 }
