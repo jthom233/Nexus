@@ -292,6 +292,23 @@ func (v *VNCSession) SendCtrlAltDel() {
 	}
 }
 
+// SendCtrlShiftEsc sends the Ctrl+Shift+Escape key sequence.
+func (v *VNCSession) SendCtrlShiftEsc() {
+	if v.conn == nil {
+		return
+	}
+	// X11 keysyms: Control_L=0xFFE3, Shift_L=0xFFE1, Escape=0xFF1B
+	keys := []vnc.Key{0xFFE3, 0xFFE1, 0xFF1B}
+	for _, k := range keys {
+		msg := &vnc.KeyEvent{Down: 1, Key: k}
+		msg.Write(v.conn)
+	}
+	for i := len(keys) - 1; i >= 0; i-- {
+		msg := &vnc.KeyEvent{Down: 0, Key: keys[i]}
+		msg.Write(v.conn)
+	}
+}
+
 // Close terminates the VNC session.
 func (v *VNCSession) Close() {
 	v.mu.Lock()
