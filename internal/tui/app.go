@@ -12,7 +12,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dr4zz/nexus/internal/config"
-	"github.com/dr4zz/nexus/internal/ipc"
 	"github.com/dr4zz/nexus/internal/health"
 	"github.com/dr4zz/nexus/internal/launcher"
 	"github.com/dr4zz/nexus/internal/session"
@@ -2181,19 +2180,6 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		return a, scheduleFlashClear()
 	case "keybindings":
 		a.statusBar.setFlash("Keybinding editor not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
-
-	// Window
-	case "raise-gui":
-		go func() {
-			client, err := ipc.Connect(2 * time.Second)
-			if err != nil {
-				return
-			}
-			defer client.Close()
-			client.Send(ipc.MsgRestoreWindow, nil)
-		}()
-		a.statusBar.setFlash("Raising GUI window...", flashInfo)
 		return a, scheduleFlashClear()
 
 	// Help (direct action from "?")

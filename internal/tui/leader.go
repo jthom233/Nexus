@@ -268,13 +268,6 @@ func leaderGroups() []LeaderGroup {
 			},
 		},
 		{
-			Key:   "w",
-			Label: "Window",
-			Items: []LeaderItem{
-				{Key: "g", Label: "Raise GUI", Action: "raise-gui"},
-			},
-		},
-		{
 			Key:   "?",
 			Label: "Help",
 			Items: nil, // Direct action, no sub-items
