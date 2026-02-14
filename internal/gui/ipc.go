@@ -67,6 +67,8 @@ func (m *IPCManager) handleMessage(env *ipc.Envelope, reply func(string, interfa
 		}
 		err := m.app.OpenTab(cmd.ConnID, cmd.Protocol, cmd.Host, cmd.Port,
 			cmd.Username, cmd.Password, cmd.Domain, opts, reply)
+		// Auto-restore window when a new tab is opened
+		m.app.RestoreWindow()
 		if err != nil {
 			reply(ipc.MsgTabError, &ipc.TabErrorEvent{
 				ConnID: cmd.ConnID,
@@ -88,5 +90,8 @@ func (m *IPCManager) handleMessage(env *ipc.Envelope, reply func(string, interfa
 			return
 		}
 		m.app.tabs.Focus(cmd.ConnID)
+
+	case ipc.MsgRestoreWindow:
+		m.app.RestoreWindow()
 	}
 }
