@@ -41,7 +41,7 @@ type toolbarButton struct {
 var toolbarButtons = []toolbarButton{
 	{Label: "Ctrl+Alt+Del", Width: 110},
 	{Label: "Disconnect", Width: 90},
-	{Label: "Detach [C-\\]", Width: 100},
+	{Label: "To TUI", Width: 60},
 }
 
 // Session is the interface for RDP/VNC sessions rendering into framebuffers.
@@ -122,16 +122,11 @@ func (a *App) Update() error {
 	// Handle window dragging from tab bar
 	a.handleWindowDrag()
 
-	// Check GUI-level hotkeys first (e.g., Ctrl+\ to detach)
-	hotkeyConsumed := a.handleGUIHotkeys()
-
 	// Route input to active session
 	activeTab := a.tabs.Active()
 	if activeTab != nil && activeTab.Session != nil {
-		if !hotkeyConsumed {
-			// Keyboard always forwarded regardless of framebuffer state
-			forwardKeyboard(activeTab.Session)
-		}
+		// Keyboard always forwarded regardless of framebuffer state
+		forwardKeyboard(activeTab.Session)
 
 		// Process low-level keyboard hook events (Windows system keys)
 		for _, ev := range drainHookEvents() {
@@ -379,10 +374,7 @@ func (a *App) handleToolbarClicks() {
 				if activeTab != nil {
 					a.closeTabFromGUI(activeTab.ConnID)
 				}
-			case 2: // Detach
-				if activeTab != nil && activeTab.Session != nil {
-					flushKeyReleases(activeTab.Session)
-				}
+			case 2: // To TUI
 				ebiten.MinimizeWindow()
 			}
 			return
@@ -557,24 +549,6 @@ func (a *App) CloseTab(connID string) {
 	if a.tabs.Count() == 0 {
 		os.Exit(0)
 	}
-}
-
-// handleGUIHotkeys checks for GUI-level key combos before forwarding to sessions.
-// Returns true if a hotkey was consumed.
-func (a *App) handleGUIHotkeys() bool {
-	ctrl := ebiten.IsKeyPressed(ebiten.KeyControl) ||
-		ebiten.IsKeyPressed(ebiten.KeyControlLeft) ||
-		ebiten.IsKeyPressed(ebiten.KeyControlRight)
-	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyBackslash) {
-		// Flush all pressed keys to session before detaching to prevent stuck keys.
-		activeTab := a.tabs.Active()
-		if activeTab != nil && activeTab.Session != nil {
-			flushKeyReleases(activeTab.Session)
-		}
-		ebiten.MinimizeWindow()
-		return true
-	}
-	return false
 }
 
 // RestoreWindow queues a window restore for the next Update() tick.

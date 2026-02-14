@@ -28,8 +28,7 @@ const (
 	MsgOpenTab  = "open-tab"
 	MsgCloseTab = "close-tab"
 	MsgFocusTab = "focus-tab"
-	MsgStatus        = "status"
-	MsgRestoreWindow = "restore-window"
+	MsgStatus = "status"
 
 	// GUI → TUI events
 	MsgTabOpened = "tab-opened"

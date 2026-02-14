@@ -91,7 +91,5 @@ func (m *IPCManager) handleMessage(env *ipc.Envelope, reply func(string, interfa
 		}
 		m.app.tabs.Focus(cmd.ConnID)
 
-	case ipc.MsgRestoreWindow:
-		m.app.RestoreWindow()
 	}
 }
