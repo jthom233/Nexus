@@ -85,6 +85,7 @@ func (h helpModel) entriesForView() []helpEntry {
 	case "log":
 		return append([]helpEntry{
 			{"j/k ↑/↓", "Scroll log"},
+			{"y", "Copy log to clipboard"},
 		}, common...)
 	case "sessions":
 		return append([]helpEntry{

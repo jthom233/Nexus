@@ -1233,6 +1233,15 @@ func (a App) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		a.popView()
 		return a, nil
+	case "y":
+		// Yank (copy) all log entries to system clipboard
+		text := a.log.plainText()
+		if err := clipboard.WriteAll(text); err != nil {
+			a.statusBar.setFlash("Clipboard error: "+err.Error(), flashError)
+		} else {
+			a.statusBar.setFlash("Copied log to clipboard", flashInfo)
+		}
+		return a, scheduleFlashClear()
 	}
 
 	// Pass scroll keys to viewport
