@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/dr4zz/nexus/internal/ipc"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -74,6 +75,10 @@ type App struct {
 	dragStartY int
 	dragWinX   int
 	dragWinY   int
+
+	// pendingRestore is set by IPC goroutines to request window restore
+	// on the next Update() tick (Ebiten calls must happen on main thread).
+	pendingRestore atomic.Bool
 }
 
 // NewApp creates a new GUI application.
@@ -94,6 +99,11 @@ func (a *App) SetIPCManager(mgr *IPCManager) {
 
 // Update implements ebiten.Game. Called every tick.
 func (a *App) Update() error {
+	// Process pending window restore (queued from IPC goroutine).
+	if a.pendingRestore.CompareAndSwap(true, false) {
+		ebiten.RestoreWindow()
+	}
+
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -555,9 +565,10 @@ func (a *App) handleGUIHotkeys() bool {
 	return false
 }
 
-// RestoreWindow restores the GUI window from minimized state.
+// RestoreWindow queues a window restore for the next Update() tick.
+// Safe to call from any goroutine (IPC handlers, etc.).
 func (a *App) RestoreWindow() {
-	ebiten.RestoreWindow()
+	a.pendingRestore.Store(true)
 }
 
 // SessionSize returns available session area (below chrome).
