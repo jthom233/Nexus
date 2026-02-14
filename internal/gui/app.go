@@ -76,9 +76,10 @@ type App struct {
 	dragWinX   int
 	dragWinY   int
 
-	// pendingRestore is set by IPC goroutines to request window restore
-	// on the next Update() tick (Ebiten calls must happen on main thread).
-	pendingRestore atomic.Bool
+	// Pending actions queued from IPC goroutines for the main thread.
+	// Ebiten window calls must happen on the Update/Draw goroutine.
+	pendingRestore    atomic.Bool
+	pendingFullscreen atomic.Bool
 }
 
 // NewApp creates a new GUI application.
@@ -99,9 +100,12 @@ func (a *App) SetIPCManager(mgr *IPCManager) {
 
 // Update implements ebiten.Game. Called every tick.
 func (a *App) Update() error {
-	// Process pending window restore (queued from IPC goroutine).
+	// Process pending window actions (queued from IPC goroutine).
 	if a.pendingRestore.CompareAndSwap(true, false) {
 		ebiten.RestoreWindow()
+	}
+	if a.pendingFullscreen.CompareAndSwap(true, false) {
+		ebiten.SetFullscreen(true)
 	}
 
 	a.mu.RLock()
@@ -464,18 +468,16 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	// Handle fullscreen option
+	// Handle fullscreen option (queue for main thread, use stored dimensions)
 	if options != nil {
 		if fs, ok := options["fullscreen"].(bool); ok && fs {
-			ebiten.SetFullscreen(true)
-			// Set resolution to monitor size
-			mw, mh := ebiten.Monitor().Size()
-			if mw > 0 && mh > 0 {
-				if options == nil {
-					options = make(map[string]interface{})
-				}
-				options["resolution"] = fmt.Sprintf("%dx%d", mw, mh)
+			a.pendingFullscreen.Store(true)
+			// Use current window dimensions as resolution estimate
+			// (actual fullscreen resolution applied on next Update tick)
+			if options == nil {
+				options = make(map[string]interface{})
 			}
+			options["resolution"] = fmt.Sprintf("%dx%d", a.width, a.height)
 		}
 	}
 

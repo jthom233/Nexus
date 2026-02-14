@@ -110,6 +110,25 @@ func (l *logModel) updateContent() {
 	l.viewport.GotoBottom()
 }
 
+// plainText returns all log entries as unformatted text for clipboard copy.
+func (l *logModel) plainText() string {
+	var b strings.Builder
+	for _, e := range l.entries {
+		ts := e.time.Format("15:04:05")
+		var level string
+		switch e.level {
+		case logInfo:
+			level = "INFO"
+		case logWarn:
+			level = "WARN"
+		case logError:
+			level = "ERR "
+		}
+		b.WriteString(fmt.Sprintf("%s %s %s\n", ts, level, e.message))
+	}
+	return b.String()
+}
+
 func (l *logModel) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	l.viewport, cmd = l.viewport.Update(msg)
@@ -122,7 +141,7 @@ func (l *logModel) View() string {
 	}
 	title := HelpTitleStyle.Render("Event Log")
 	scrollHint := lipgloss.NewStyle().Foreground(ColorSubtle).Render(
-		fmt.Sprintf(" %d entries  j/k to scroll  esc to close", len(l.entries)),
+		fmt.Sprintf(" %d entries  j/k scroll  y copy  esc close", len(l.entries)),
 	)
 	header := lipgloss.JoinHorizontal(lipgloss.Center, title, scrollHint)
 	return lipgloss.JoinVertical(lipgloss.Left, header, "", l.viewport.View())
