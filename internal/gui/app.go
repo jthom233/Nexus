@@ -102,7 +102,9 @@ func (a *App) SetIPCManager(mgr *IPCManager) {
 func (a *App) Update() error {
 	// Process pending window actions (queued from IPC goroutine).
 	if a.pendingRestore.CompareAndSwap(true, false) {
-		ebiten.RestoreWindow()
+		if ebiten.IsWindowMinimized() || ebiten.IsWindowMaximized() {
+			ebiten.RestoreWindow()
+		}
 	}
 	if a.pendingFullscreen.CompareAndSwap(true, false) {
 		ebiten.SetFullscreen(true)
