@@ -71,7 +71,7 @@ func (h helpModel) entriesForView() []helpEntry {
 			{"r", "Refresh health checks"},
 			{"y", "Copy command to clipboard"},
 			{"s", "Active sessions"},
-			{"L", "View event log"},
+			{"Ctrl+l", "View event log"},
 		}, common...)
 	case "detail":
 		return append([]helpEntry{
@@ -80,7 +80,7 @@ func (h helpModel) entriesForView() []helpEntry {
 			{"e", "Edit connection"},
 			{"p", "Toggle password visibility"},
 			{"j/k ↑/↓", "Scroll"},
-			{"L", "View event log"},
+			{"Ctrl+l", "View event log"},
 		}, common...)
 	case "log":
 		return append([]helpEntry{
@@ -92,7 +92,7 @@ func (h helpModel) entriesForView() []helpEntry {
 			{"enter", "Reattach to session"},
 			{"Space", "Leader key (command palette)"},
 			{"d", "Kill/disconnect session"},
-			{"L", "View event log"},
+			{"Ctrl+l", "View event log"},
 		}, common...)
 	case "form":
 		return append([]helpEntry{

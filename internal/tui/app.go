@@ -857,7 +857,7 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.help.view = "sessions"
 		return a, nil
 
-	case "L": // View event log
+	case "ctrl+l": // View event log
 		a.log.setSize(a.width, a.contentHeight())
 		a.pushView(viewLog)
 		return a, nil
@@ -1159,7 +1159,7 @@ func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.pushView(viewSessions)
 		a.help.view = "sessions"
 		return a, nil
-	case "L":
+	case "ctrl+l":
 		a.log.setSize(a.width, a.contentHeight())
 		a.pushView(viewLog)
 		return a, nil
@@ -1201,7 +1201,7 @@ func (a App) handleSessionsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.confirm.height = a.height
 		}
 		return a, nil
-	case "L":
+	case "ctrl+l":
 		a.log.setSize(a.width, a.contentHeight())
 		a.pushView(viewLog)
 		return a, nil
@@ -2077,6 +2077,10 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		return a, nil
 	case "view-wide":
 		a.list.toggleWideMode()
+		return a, nil
+	case "view-log":
+		a.log.setSize(a.width, a.contentHeight())
+		a.pushView(viewLog)
 		return a, nil
 
 	// Sort
