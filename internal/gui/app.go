@@ -41,8 +41,14 @@ type toolbarButton struct {
 var toolbarButtons = []toolbarButton{
 	{Label: "Ctrl+Alt+Del", Width: 110},
 	{Label: "Disconnect", Width: 90},
-	{Label: "To TUI", Width: 60},
 }
+
+// Window control button layout (top-right of tab bar).
+const (
+	winBtnWidth  = 30
+	winBtnHeight = 22
+	winBtnGap    = 2
+)
 
 // Session is the interface for RDP/VNC sessions rendering into framebuffers.
 type Session interface {
@@ -244,18 +250,18 @@ func (a *App) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 func (a *App) drawTabBar(screen *ebiten.Image) {
 	tabs := a.tabs.All()
-	if len(tabs) == 0 {
-		return
-	}
 
 	activeID := ""
 	if active := a.tabs.Active(); active != nil {
 		activeID = active.ConnID
 	}
 
+	// Reserve space for window control buttons on the right
+	winBtnsWidth := 2*(winBtnWidth+winBtnGap) + winBtnGap
+
 	for i, tab := range tabs {
 		x := i * tabWidth
-		if x+tabWidth > a.width {
+		if x+tabWidth > a.width-winBtnsWidth {
 			break
 		}
 
@@ -263,14 +269,14 @@ func (a *App) drawTabBar(screen *ebiten.Image) {
 		var bgColor color.RGBA
 		if tab.Status == "error" {
 			if tab.ConnID == activeID {
-				bgColor = color.RGBA{R: 120, G: 50, B: 50, A: 255} // red-tinted active
+				bgColor = color.RGBA{R: 120, G: 50, B: 50, A: 255}
 			} else {
-				bgColor = color.RGBA{R: 90, G: 40, B: 40, A: 255} // red-tinted inactive
+				bgColor = color.RGBA{R: 90, G: 40, B: 40, A: 255}
 			}
 		} else if tab.ConnID == activeID {
-			bgColor = color.RGBA{R: 69, G: 71, B: 90, A: 255} // #45475A
+			bgColor = color.RGBA{R: 69, G: 71, B: 90, A: 255}
 		} else {
-			bgColor = color.RGBA{R: 49, G: 50, B: 68, A: 255} // #313244
+			bgColor = color.RGBA{R: 49, G: 50, B: 68, A: 255}
 		}
 
 		tabImg := ebiten.NewImage(tabWidth-2, tabBarHeight-2)
@@ -279,12 +285,12 @@ func (a *App) drawTabBar(screen *ebiten.Image) {
 		op.GeoM.Translate(float64(x+1), 1)
 		screen.DrawImage(tabImg, op)
 
-		// Tab label text — prefix with [!] for error tabs
+		// Tab label text
 		label := tab.Label
 		if tab.Status == "error" {
 			label = "[!] " + label
 		}
-		maxChars := (tabWidth - tabCloseRegion - 10) / 6 // ~6px per char
+		maxChars := (tabWidth - tabCloseRegion - 10) / 6
 		if len(label) > maxChars {
 			label = label[:maxChars-1] + ".."
 		}
@@ -294,6 +300,31 @@ func (a *App) drawTabBar(screen *ebiten.Image) {
 		closeX := x + tabWidth - tabCloseRegion
 		ebitenutil.DebugPrintAt(screen, "x", closeX+6, 6)
 	}
+
+	// Draw window control buttons (top-right)
+	btnY := (tabBarHeight - winBtnHeight) / 2
+
+	// Maximize/Restore button
+	maxBtnX := a.width - 2*(winBtnWidth+winBtnGap)
+	maxImg := ebiten.NewImage(winBtnWidth, winBtnHeight)
+	maxImg.Fill(color.RGBA{R: 59, G: 60, B: 78, A: 255})
+	mop := &ebiten.DrawImageOptions{}
+	mop.GeoM.Translate(float64(maxBtnX), float64(btnY))
+	screen.DrawImage(maxImg, mop)
+	if ebiten.IsFullscreen() {
+		ebitenutil.DebugPrintAt(screen, "[ ]", maxBtnX+3, btnY+4)
+	} else {
+		ebitenutil.DebugPrintAt(screen, "[+]", maxBtnX+3, btnY+4)
+	}
+
+	// Close button
+	closeBtnX := a.width - winBtnWidth - winBtnGap
+	closeImg := ebiten.NewImage(winBtnWidth, winBtnHeight)
+	closeImg.Fill(color.RGBA{R: 180, G: 50, B: 50, A: 255})
+	cop := &ebiten.DrawImageOptions{}
+	cop.GeoM.Translate(float64(closeBtnX), float64(btnY))
+	screen.DrawImage(closeImg, cop)
+	ebitenutil.DebugPrintAt(screen, " X", closeBtnX+5, btnY+4)
 }
 
 func (a *App) drawToolbar(screen *ebiten.Image) {
@@ -330,6 +361,26 @@ func (a *App) handleTabClicks() {
 		return
 	}
 
+	// Check window control buttons (top-right)
+	btnY := (tabBarHeight - winBtnHeight) / 2
+	if my >= btnY && my < btnY+winBtnHeight {
+		// Maximize/Restore button
+		maxBtnX := a.width - 2*(winBtnWidth+winBtnGap)
+		if mx >= maxBtnX && mx < maxBtnX+winBtnWidth {
+			if ebiten.IsFullscreen() {
+				ebiten.SetFullscreen(false)
+			} else {
+				ebiten.SetFullscreen(true)
+			}
+			return
+		}
+		// Close button
+		closeBtnX := a.width - winBtnWidth - winBtnGap
+		if mx >= closeBtnX && mx < closeBtnX+winBtnWidth {
+			os.Exit(0)
+		}
+	}
+
 	tabs := a.tabs.All()
 	for i, tab := range tabs {
 		x := i * tabWidth
@@ -337,7 +388,6 @@ func (a *App) handleTabClicks() {
 			break
 		}
 		if mx >= x && mx < x+tabWidth {
-			// Check if clicking the close region
 			closeX := x + tabWidth - tabCloseRegion
 			if mx >= closeX {
 				a.closeTabFromGUI(tab.ConnID)
@@ -374,8 +424,6 @@ func (a *App) handleToolbarClicks() {
 				if activeTab != nil {
 					a.closeTabFromGUI(activeTab.ConnID)
 				}
-			case 2: // To TUI
-				ebiten.MinimizeWindow()
 			}
 			return
 		}
@@ -416,8 +464,15 @@ func (a *App) handleWindowDrag() {
 	}
 }
 
-// isTabHit returns true if the given x coordinate hits an existing tab.
+// isTabHit returns true if the given x coordinate hits an existing tab
+// or the window control buttons area.
 func (a *App) isTabHit(mx int) bool {
+	// Window control buttons area
+	winBtnsStart := a.width - 2*(winBtnWidth+winBtnGap) - winBtnGap
+	if mx >= winBtnsStart {
+		return true
+	}
+
 	tabCount := a.tabs.Count()
 	for i := 0; i < tabCount; i++ {
 		x := i * tabWidth
