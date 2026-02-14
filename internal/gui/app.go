@@ -40,6 +40,7 @@ type toolbarButton struct {
 
 var toolbarButtons = []toolbarButton{
 	{Label: "Ctrl+Alt+Del", Width: 110},
+	{Label: "Task Manager", Width: 100},
 	{Label: "Disconnect", Width: 90},
 }
 
@@ -63,6 +64,7 @@ type Session interface {
 	HandleMouseButton(button ebiten.MouseButton, pressed bool)
 	HandleMouseWheel(dx, dy float64)
 	SendCtrlAltDel()
+	SendCtrlShiftEsc()
 	Close()
 }
 
@@ -420,7 +422,11 @@ func (a *App) handleToolbarClicks() {
 				if activeTab != nil && activeTab.Session != nil {
 					activeTab.Session.SendCtrlAltDel()
 				}
-			case 1: // Disconnect
+			case 1: // Task Manager
+				if activeTab != nil && activeTab.Session != nil {
+					activeTab.Session.SendCtrlShiftEsc()
+				}
+			case 2: // Disconnect
 				if activeTab != nil {
 					a.closeTabFromGUI(activeTab.ConnID)
 				}

@@ -384,6 +384,26 @@ func (r *RDPSession) SendCtrlAltDel() {
 	}
 }
 
+// SendCtrlShiftEsc sends the Ctrl+Shift+Escape key sequence to open Task Manager.
+func (r *RDPSession) SendCtrlShiftEsc() {
+	if r.pduLayer == nil {
+		return
+	}
+	// Scancodes: Ctrl=0x1D, Shift=0x2A, Escape=0x01
+	keys := []uint16{0x1D, 0x2A, 0x01}
+	for _, sc := range keys {
+		p := &pdu.ScancodeKeyEvent{}
+		p.KeyCode = sc
+		r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_SCANCODE, []pdu.InputEventsInterface{p})
+	}
+	for i := len(keys) - 1; i >= 0; i-- {
+		p := &pdu.ScancodeKeyEvent{}
+		p.KeyCode = keys[i]
+		p.KeyboardFlags |= pdu.KBDFLAGS_RELEASE
+		r.pduLayer.SendInputEvents(pdu.INPUT_EVENT_SCANCODE, []pdu.InputEventsInterface{p})
+	}
+}
+
 // Close terminates the RDP session.
 func (r *RDPSession) Close() {
 	r.mu.Lock()
