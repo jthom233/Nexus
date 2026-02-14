@@ -40,6 +40,7 @@ type toolbarButton struct {
 var toolbarButtons = []toolbarButton{
 	{Label: "Ctrl+Alt+Del", Width: 110},
 	{Label: "Disconnect", Width: 90},
+	{Label: "Detach [C-\\]", Width: 100},
 }
 
 // Session is the interface for RDP/VNC sessions rendering into framebuffers.
@@ -105,11 +106,16 @@ func (a *App) Update() error {
 	// Handle window dragging from tab bar
 	a.handleWindowDrag()
 
+	// Check GUI-level hotkeys first (e.g., Ctrl+\ to detach)
+	hotkeyConsumed := a.handleGUIHotkeys()
+
 	// Route input to active session
 	activeTab := a.tabs.Active()
 	if activeTab != nil && activeTab.Session != nil {
-		// Keyboard always forwarded regardless of framebuffer state
-		forwardKeyboard(activeTab.Session)
+		if !hotkeyConsumed {
+			// Keyboard always forwarded regardless of framebuffer state
+			forwardKeyboard(activeTab.Session)
+		}
 
 		// Process low-level keyboard hook events (Windows system keys)
 		for _, ev := range drainHookEvents() {
@@ -348,14 +354,17 @@ func (a *App) handleToolbarClicks() {
 	for i, btn := range toolbarButtons {
 		if mx >= btnX && mx < btnX+btn.Width {
 			activeTab := a.tabs.Active()
-			if activeTab == nil || activeTab.Session == nil {
-				return
-			}
 			switch i {
 			case 0: // Ctrl+Alt+Del
-				activeTab.Session.SendCtrlAltDel()
+				if activeTab != nil && activeTab.Session != nil {
+					activeTab.Session.SendCtrlAltDel()
+				}
 			case 1: // Disconnect
-				a.closeTabFromGUI(activeTab.ConnID)
+				if activeTab != nil {
+					a.closeTabFromGUI(activeTab.ConnID)
+				}
+			case 2: // Detach
+				ebiten.MinimizeWindow()
 			}
 			return
 		}
@@ -531,6 +540,24 @@ func (a *App) CloseTab(connID string) {
 	if a.tabs.Count() == 0 {
 		os.Exit(0)
 	}
+}
+
+// handleGUIHotkeys checks for GUI-level key combos before forwarding to sessions.
+// Returns true if a hotkey was consumed.
+func (a *App) handleGUIHotkeys() bool {
+	ctrl := ebiten.IsKeyPressed(ebiten.KeyControl) ||
+		ebiten.IsKeyPressed(ebiten.KeyControlLeft) ||
+		ebiten.IsKeyPressed(ebiten.KeyControlRight)
+	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyBackslash) {
+		ebiten.MinimizeWindow()
+		return true
+	}
+	return false
+}
+
+// RestoreWindow restores the GUI window from minimized state.
+func (a *App) RestoreWindow() {
+	ebiten.RestoreWindow()
 }
 
 // SessionSize returns available session area (below chrome).
