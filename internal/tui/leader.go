@@ -226,6 +226,7 @@ func leaderGroups() []LeaderGroup {
 				{Key: "l", Label: "Table view", Action: "view-table"},
 				{Key: "d", Label: "Detail panel", Action: "view-detail"},
 				{Key: "w", Label: "Wide mode", Action: "view-wide"},
+				{Key: "e", Label: "Event log", Action: "view-log"},
 			},
 		},
 		{
