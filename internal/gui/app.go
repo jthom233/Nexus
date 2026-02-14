@@ -380,6 +380,9 @@ func (a *App) handleToolbarClicks() {
 					a.closeTabFromGUI(activeTab.ConnID)
 				}
 			case 2: // Detach
+				if activeTab != nil && activeTab.Session != nil {
+					flushKeyReleases(activeTab.Session)
+				}
 				ebiten.MinimizeWindow()
 			}
 			return
@@ -563,6 +566,11 @@ func (a *App) handleGUIHotkeys() bool {
 		ebiten.IsKeyPressed(ebiten.KeyControlLeft) ||
 		ebiten.IsKeyPressed(ebiten.KeyControlRight)
 	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyBackslash) {
+		// Flush all pressed keys to session before detaching to prevent stuck keys.
+		activeTab := a.tabs.Active()
+		if activeTab != nil && activeTab.Session != nil {
+			flushKeyReleases(activeTab.Session)
+		}
 		ebiten.MinimizeWindow()
 		return true
 	}

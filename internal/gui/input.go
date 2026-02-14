@@ -99,6 +99,18 @@ func forwardMouse(sess Session, scaleX, scaleY, offsetX, offsetY float64) {
 	}
 }
 
+// flushKeyReleases sends release events for all currently pressed keys and buttons,
+// then clears the input state. Used when detaching to prevent stuck keys in sessions.
+func flushKeyReleases(sess Session) {
+	for key := range gInput.keys {
+		sess.HandleKeyRelease(key)
+	}
+	gInput.keys = make(map[ebiten.Key]bool)
+	gInput.buttons = make(map[ebiten.MouseButton]bool)
+	gInput.lastX = -1
+	gInput.lastY = -1
+}
+
 // ebitenKeyToScancode maps Ebiten keys to RDP scancodes.
 func ebitenKeyToScancode(key ebiten.Key) uint16 {
 	scancodes := map[ebiten.Key]uint16{
