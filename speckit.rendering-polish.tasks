@@ -1,0 +1,173 @@
+# Task Breakdown: Rendering Engine Polish
+
+## Source Plan
+./speckit.rendering-polish.plan
+
+---
+
+## Phase 1: Terminal Capabilities Foundation
+
+### T1.1 — Create internal/termcap/termcap.go
+- Define `Capabilities` struct with fields: `SyncOutput bool`, `OSC52 bool`, `ColorProfile colorprofile.Profile`, `DarkBackground bool`
+- Define `Detect() (*Capabilities, error)` function that orchestrates all probes
+- All probes run sequentially with 100ms timeout each
+- Total detection budget: <500ms
+- Export package-level `var Current *Capabilities` set once at startup
+- **Files:** new `internal/termcap/termcap.go`
+
+### T1.2 — Create internal/termcap/probe.go
+- `probeSyncOutput() bool` — send DECRPM query `\x1b[?2026$p`, parse response for mode support
+- `probeOSC52() bool` — write a small test payload via OSC 52, verify no error (or check terminal env vars as heuristic: TERM_PROGRAM known to support it)
+- `probeColorProfile() colorprofile.Profile` — use `charmbracelet/colorprofile.Detect()` (promote from indirect to direct dep)
+- `probeBackgroundColor() (isDark bool)` — send OSC 11 query `\x1b]11;?\x07`, parse RGB response, compute luminance
+- All probes work in raw terminal mode using `golang.org/x/term`
+- Each probe has its own 100ms timeout via `select` with `time.After`
+- **Files:** new `internal/termcap/probe.go`
+
+### T1.3 — Create internal/termcap/clipboard.go
+- Define `Clipboard` interface: `WriteAll(string) error`, `ReadAll() (string, error)`
+- `OSC52Clipboard` struct: writes `\x1b]52;c;{base64}\x07` to os.Stdout
+- `SystemClipboard` struct: wraps `atotto/clipboard` (existing behavior)
+- `NewClipboard(caps *Capabilities) Clipboard` factory: returns OSC52 if supported, System otherwise
+- OSC 52 payload limit: reject >100KB with fallback to SystemClipboard
+- Export `var DefaultClipboard Clipboard` set at startup
+- **Files:** new `internal/termcap/clipboard.go`
+
+### T1.4 — Add config fields to Settings
+- Add `ColorProfile string` field with yaml tag `color_profile,omitempty`
+- Add `Animations *bool` field with yaml tag `animations,omitempty`
+- Add helper methods: `Settings.AnimationsEnabled() bool` (default true), `Settings.ColorProfileOverride() string`
+- **Files:** modify `internal/config/config.go`
+
+### T1.5 — Wire capabilities into startup
+- In `cmd/nexus/main.go`, call `termcap.Detect()` BEFORE `tea.NewProgram()`
+- Pass capabilities to `tui.NewApp()` (add parameter or set via package-level var)
+- Pass capabilities to clipboard initialization
+- **Files:** modify `cmd/nexus/main.go`, modify `internal/tui/app.go` (NewApp signature)
+
+---
+
+## Phase 2: Synchronized Output + Color Profiles
+
+### T2.1 — Enable synchronized output conditionally
+- In `cmd/nexus/main.go`, when building `tea.NewProgram()` options:
+  - If `caps.SyncOutput` is true, append `tea.WithSynchronizedOutput()` (verify this exists in bubbletea v1.3.10)
+  - If bubbletea v1 doesn't have this option, implement manually by wrapping the program's output writer
+- **Files:** modify `cmd/nexus/main.go`
+
+### T2.2 — Detect and apply color profile
+- Read `caps.ColorProfile` (auto-detected)
+- Check `cfg.Settings.ColorProfile` for manual override
+- Call `theme.SetProfile(profile)` to configure color downsampling
+- **Files:** modify `cmd/nexus/main.go`, modify `internal/theme/theme.go`
+
+### T2.3 — Add theme.SetProfile() for color downsampling
+- Add `profile colorprofile.Profile` field to theme package
+- When rendering colors, use `lipgloss.ColorProfile` to downsample if needed
+- Create helper: `theme.AdaptColor(c lipgloss.Color) lipgloss.TerminalColor` that returns the color appropriate for the current profile
+- **Files:** modify `internal/theme/theme.go`
+
+### T2.4 — Fix theme application from config
+- In `cmd/nexus/main.go` after `config.Load()`, call `theme.Set(cfg.Settings.Theme)`
+- This fixes the existing bug where Settings.Theme is ignored
+- **Files:** modify `cmd/nexus/main.go`
+
+### T2.5 — Background luminance detection
+- Use OSC 11 probe result to set `theme.IsDark` / `theme.IsLight`
+- For now, only used to set a flag — actual light theme support is future work
+- Store result in Capabilities for downstream use
+- **Files:** modify `internal/termcap/probe.go`, modify `internal/theme/theme.go`
+
+---
+
+## Phase 3: OSC 52 Clipboard
+
+### T3.1 — Replace clipboard calls in TUI
+- Find all `clipboard.WriteAll()` calls in `internal/tui/app.go`
+- Replace with `termcap.DefaultClipboard.WriteAll()`
+- Update import statements (remove `atotto/clipboard` from tui package, add `internal/termcap`)
+- **Files:** modify `internal/tui/app.go`
+
+### T3.2 — Implement OSC52Clipboard.WriteAll
+- Base64-encode the text payload
+- Write `\x1b]52;c;{base64}\x1b\\` to the program's output
+- Handle payload >100KB: return error, caller falls back to flash message
+- **Files:** modify `internal/termcap/clipboard.go`
+
+### T3.3 — Implement fallback chain
+- Clipboard factory: try OSC 52 first, fall back to atotto/clipboard
+- If both fail (e.g., no X11 AND no OSC 52), WriteAll returns an error
+- TUI code shows "Clipboard unavailable" flash on error (already handles errors)
+- **Files:** modify `internal/termcap/clipboard.go`, verify `internal/tui/app.go` error handling
+
+### T3.4 — Keep GUI clipboard unchanged
+- Verify `internal/gui/clipboard.go` still uses `atotto/clipboard` directly
+- The GUI process (cmd/nexus-gui/) runs in a graphical environment where system clipboard is always available
+- No changes needed — just verify no regressions
+- **Files:** verify `internal/gui/clipboard.go` (read-only)
+
+---
+
+## Phase 4: Micro-Transitions
+
+### T4.1 — Create animation infrastructure
+- New file `internal/tui/animation.go`
+- `Transition` struct: startFrame, endFrame, currentFrame, duration, onComplete
+- `TransitionTick` msg type for driving frames
+- `StartTransition(duration time.Duration) tea.Cmd` — returns a tea.Tick chain
+- `Skip()` method jumps to final frame
+- Global `animationsEnabled` read from config at startup
+- **Files:** new `internal/tui/animation.go`
+
+### T4.2 — Add view transition fade
+- When `a.pushView()` or `a.popView()` is called, start a fade transition
+- Fade: render outgoing view at decreasing opacity, then incoming view at increasing opacity
+- Opacity simulated via color interpolation (blend content colors toward Bg color)
+- Duration: ~100ms (6 frames at 16ms)
+- If animations disabled, skip directly to final view
+- **Files:** modify `internal/tui/app.go` (pushView/popView methods)
+
+### T4.3 — Enhance flash message with fade
+- Current flash: appears instantly, disappears after timeout
+- Enhanced: fade in over 3 frames (~48ms), hold for configured duration, fade out over 5 frames (~80ms)
+- Fade out uses progressively more muted text color
+- **Files:** modify `internal/tui/statusbar.go` or wherever flash is rendered
+
+### T4.4 — Add animations config option
+- Read `cfg.Settings.AnimationsEnabled()` at startup
+- Pass to App model
+- All animation code checks this flag before starting transitions
+- When false, all transitions are instant (zero frames)
+- **Files:** modify `internal/tui/app.go`, modify `internal/tui/animation.go`
+
+---
+
+## Phase 5: Verification
+
+### T5.1 — Unit tests for termcap probes
+- Test probe response parsing with mock terminal output
+- Test timeout behavior (no response within 100ms)
+- Test color profile detection with mocked env vars
+- **Files:** new `internal/termcap/termcap_test.go`
+
+### T5.2 — Unit tests for OSC 52 clipboard
+- Test base64 encoding of various payloads
+- Test >100KB rejection
+- Test escape sequence formatting
+- **Files:** new `internal/termcap/clipboard_test.go`
+
+### T5.3 — Unit tests for color downsampling
+- Given TrueColor theme + ANSI256 profile, verify colors are downsampled
+- Given ANSI profile, verify 16-color mapping
+- **Files:** new `internal/theme/theme_test.go` or add to existing
+
+### T5.4 — Build verification
+- `go build ./...` succeeds
+- `go vet ./...` passes (pre-existing warnings acceptable)
+- No new import cycles
+- **Files:** CI / manual verification
+
+### T5.5 — Manual testing matrix
+- Test in: Ghostty, Kitty, Alacritty, tmux (over SSH), plain xterm, PuTTY (if available)
+- Verify: no flicker (Mode 2026 terminals), clipboard works over SSH (OSC 52 terminals), colors degrade gracefully (256-color session), animations smooth and skippable
+- **Files:** manual verification checklist

@@ -17,6 +17,8 @@ type Settings struct {
 	HealthCheckTimeout  string `yaml:"health_check_timeout,omitempty"` // "" = "3s" (default)
 	Theme               string `yaml:"theme,omitempty"`
 	Vault               string `yaml:"vault,omitempty"` // "internal" (default), "pass", or "keyring"
+	ColorProfile string `yaml:"color_profile,omitempty"` // "auto" (default), "truecolor", "256", "16", "mono"
+	Animations   *bool  `yaml:"animations,omitempty"`     // nil = true (default)
 }
 
 // HealthInterval returns the parsed health check interval, defaulting to 30s.
@@ -57,6 +59,22 @@ func (s Settings) HealthTimeout() time.Duration {
 		return 3 * time.Second
 	}
 	return d
+}
+
+// AnimationsEnabled returns whether animations are enabled, defaulting to true.
+func (s Settings) AnimationsEnabled() bool {
+	if s.Animations == nil {
+		return true
+	}
+	return *s.Animations
+}
+
+// ColorProfileOverride returns the manually configured color profile, or "auto".
+func (s Settings) ColorProfileOverride() string {
+	if s.ColorProfile == "" {
+		return "auto"
+	}
+	return s.ColorProfile
 }
 
 // ConfigTemplate stores a user-defined connection template in the config file.

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/atotto/clipboard"
+	"github.com/dr4zz/nexus/internal/termcap"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dr4zz/nexus/internal/config"
@@ -72,6 +72,10 @@ type App struct {
 
 	// Undo/Redo
 	undoStack *UndoStack
+
+	// Animation
+	viewTransition    transition
+	animationsEnabled bool
 
 	// State
 	mode        Mode
@@ -142,8 +146,10 @@ func NewApp(cfg *config.Config) App {
 			Timeout: cfg.Settings.HealthTimeout(),
 			Enabled: cfg.Settings.HealthEnabled(),
 		}),
-		mode:         ModeNormal,
-		visualState:  NewVisualState(),
+		mode:              ModeNormal,
+		visualState:       NewVisualState(),
+		viewTransition:    newTransition(6), // 6 frames @ 16ms = ~96ms
+		animationsEnabled: cfg.Settings.AnimationsEnabled(),
 	}
 }
 
@@ -158,6 +164,9 @@ func (a *App) pushView(v viewKind) {
 	a.viewStack = append(a.viewStack, v)
 	a.syncHeaderView()
 	a.syncStatusBarView()
+	if a.animationsEnabled {
+		a.viewTransition.markPending()
+	}
 }
 
 func (a *App) popView() {
@@ -166,6 +175,9 @@ func (a *App) popView() {
 	}
 	a.syncHeaderView()
 	a.syncStatusBarView()
+	if a.animationsEnabled {
+		a.viewTransition.markPending()
+	}
 }
 
 func (a *App) syncStatusBarView() {
@@ -496,6 +508,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusBar.clearFlash()
 		return a, nil
 
+	case transitionTickMsg:
+		if a.animationsEnabled {
+			return a, a.viewTransition.advance()
+		}
+		return a, nil
+
 	case CommandMsg:
 		return a.handleCommand(msg)
 
@@ -542,6 +560,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Pulse has no model update needed
 	case viewAuditLog:
 		cmd := a.auditLogView.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	// Start any pending view transition (queued by pushView/popView).
+	if cmd := a.viewTransition.consumePending(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
@@ -1103,7 +1126,7 @@ func (a App) yankVisualSelection() (tea.Model, tea.Cmd) {
 	}
 
 	text := strings.Join(lines, "\n")
-	if err := clipboard.WriteAll(text); err != nil {
+	if err := termcap.DefaultClipboard().WriteAll(text); err != nil {
 		a.log.error("Clipboard error: %v", err)
 		a.statusBar.setFlash("Clipboard error: "+err.Error(), flashError)
 	} else {
@@ -1235,7 +1258,7 @@ func (a App) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "y":
 		// Yank (copy) all log entries to system clipboard
 		text := a.log.plainText()
-		if err := clipboard.WriteAll(text); err != nil {
+		if err := termcap.DefaultClipboard().WriteAll(text); err != nil {
 			a.statusBar.setFlash("Clipboard error: "+err.Error(), flashError)
 		} else {
 			a.statusBar.setFlash("Copied log to clipboard", flashInfo)
@@ -1531,7 +1554,7 @@ func (a App) yankCommand() (tea.Model, tea.Cmd) {
 	}
 
 	cmd := l.Command(*c)
-	if err := clipboard.WriteAll(cmd); err != nil {
+	if err := termcap.DefaultClipboard().WriteAll(cmd); err != nil {
 		a.log.error("Clipboard error: %v", err)
 		a.statusBar.setFlash("Clipboard error: "+err.Error(), flashError)
 	} else {

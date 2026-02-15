@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/dr4zz/nexus/internal/config"
+	"github.com/dr4zz/nexus/internal/termcap"
+	"github.com/dr4zz/nexus/internal/theme"
 	"github.com/dr4zz/nexus/internal/tui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,10 +26,33 @@ func main() {
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(
-		tui.NewApp(cfg),
+	// Detect terminal capabilities
+	caps := termcap.Detect()
+
+	// Initialize clipboard based on capabilities
+	termcap.InitClipboard(caps)
+
+	// Apply color profile
+	profileOverride := cfg.Settings.ColorProfileOverride()
+	if profileOverride != "auto" {
+		theme.SetProfile(profileOverride)
+	} else {
+		theme.SetProfile(caps.ColorProfile)
+	}
+
+	// Apply theme from config
+	if cfg.Settings.Theme != "" && cfg.Settings.Theme != "default" {
+		theme.Set(cfg.Settings.Theme)
+	}
+
+	opts := []tea.ProgramOption{
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
+	}
+
+	p := tea.NewProgram(
+		tui.NewApp(cfg),
+		opts...,
 	)
 
 	if _, err := p.Run(); err != nil {

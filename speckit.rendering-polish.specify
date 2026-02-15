@@ -1,0 +1,86 @@
+# Specification
+
+## Requirements
+
+## Nexus Rendering Engine Polish — Terminal Progressive Enhancement
+
+### Overview
+Upgrade Nexus's TUI rendering layer to leverage modern terminal capabilities, delivering flicker-free rendering, universal clipboard support, adaptive color profiles, enhanced keyboard input, and subtle micro-transitions. This is a rendering-layer upgrade that wraps existing views — no core logic rewrites.
+
+### Non-Negotiables
+- Must remain compatible with existing session files (YAML config, SQLite store)
+- Keep the current tech stack foundation (Go, Bubbletea, Lipgloss, Ebiten for GUI)
+- No external service dependencies (everything local)
+- Don't rewrite working core logic (models, Update loops, business logic stay intact)
+- Don't break existing keybindings or user muscle memory
+
+### Feature Requirements
+
+#### R1: Synchronized Output (Mode 2026)
+- Wrap all TUI render cycles in Mode 2026 escape sequences (`CSI ? 2026 h` to begin, `CSI ? 2026 l` to end)
+- Detect terminal support via DECRPM query (`CSI ? 2026 $ p`) at startup
+- If terminal supports Mode 2026, enable synchronized output automatically
+- If terminal does not support it, fall back gracefully to current rendering behavior
+- This eliminates micro-flicker on every frame, especially noticeable over SSH connections
+- Must work correctly inside tmux (tmux supports Mode 2026 since 3.3a)
+
+#### R2: OSC 52 Clipboard
+- Implement OSC 52 escape sequence for clipboard read/write in the TUI
+- Replace dependency on `github.com/atotto/clipboard` for TUI-side clipboard operations (yank commands, copy connection details, etc.)
+- OSC 52 works over SSH, inside tmux, and in screen — no X11/Wayland required
+- Detect OSC 52 support at startup; fall back to `atotto/clipboard` if not supported (e.g., very old terminals)
+- The GUI side (Ebiten-based RDP/VNC) retains its current clipboard implementation unchanged
+- Maximum clipboard payload: 100KB base64-encoded (per terminal convention)
+
+#### R3: Adaptive Color Profiles
+- Detect terminal color capability at startup: true color (24-bit) → 256 color → 16 color → monochrome
+- Detect background luminance (light vs dark) via OSC 11 query where supported
+- Auto-downsample the active theme's colors to the best available profile
+- Existing theme system (TokyoNight Storm default, 8 built-in themes) remains unchanged — adaptive rendering is a presentation layer below the theme
+- Users on a 256-color SSH session automatically get the closest-match rendering without manual configuration
+- Add a config option `color_profile: auto | truecolor | 256 | 16 | mono` to override auto-detection
+- Light/dark adaptive colors for themes that support it (existing themes are dark-only, but the infrastructure should support future light themes)
+
+#### R4: Kitty Keyboard Protocol
+- Detect Kitty keyboard protocol support at startup via progressive enhancement query
+- When supported, enable enhanced key reporting to resolve ambiguous sequences:
+  - Distinguish Escape key from Alt+key sequences (eliminates the mode-switch delay hack)
+  - Enable Shift+Enter, Ctrl+Period, and other modified key combinations
+  - Support key release events (useful for future hold-to-peek patterns)
+- When not supported, fall back to current key handling (no regression)
+- Do NOT change any existing keybindings — this only improves detection accuracy of existing bindings
+- Expose new unambiguous key events to the existing keymap system so future keybindings can leverage them
+
+#### R5: Micro-Transitions
+- Subtle fade effect on view transitions (e.g., switching from list view to detail view): 5-8 frames via tea.Tick at ~16ms intervals (~80-130ms total)
+- Smooth flash message appearance and auto-dismiss: fade in over 3 frames, hold, fade out over 5 frames
+- Loading spinner during health checks and connection attempts with contextual status text
+- All animations must be:
+  - Under 200ms total duration (terminal users expect snappy, not cinematic)
+  - Skippable — any keypress during animation jumps to the final state immediately
+  - Disableable — config option `animations: true | false` (default true)
+  - Implemented without blocking the Update loop (use tea.Cmd/tea.Tick)
+- Do NOT animate frequently-repeated actions (scrolling, filtering) — only state transitions
+
+### Technical Constraints
+- All capability detection must use timeout-based queries (send escape sequence, wait ≤100ms for response, fall back to safe default if no response)
+- Terminal capability detection runs once at startup and caches results
+- Must not break rendering in terminals that don't support any of these features (PuTTY, basic xterm, Windows Console)
+- Must work correctly over SSH (all features degrade gracefully)
+- Must work correctly inside tmux and screen (tmux supports most of these; screen may not)
+- Performance: capability detection must complete in under 500ms total at startup
+
+
+## User Stories
+
+As a sysadmin SSHing into a remote bastion, I want Nexus to render without flicker so that the interface feels solid and professional even over high-latency connections.
+
+As a user running Nexus inside tmux over SSH, I want clipboard yank commands to actually reach my local clipboard so that I can copy connection details without leaving the terminal.
+
+As a user with a 256-color terminal profile, I want Nexus to automatically render the best possible colors for my terminal so that I don't have to manually configure a degraded theme.
+
+As a neovim user, I want Escape to register instantly without the ambiguity delay so that mode switching feels as fast as in my editor.
+
+As a user navigating between views, I want subtle visual transitions so that context switches feel smooth rather than jarring, but I never want to feel like I'm waiting for an animation.
+
+As a user on a minimal terminal (PuTTY, basic xterm), I want Nexus to work exactly as it does today so that none of these enhancements break my existing workflow.
