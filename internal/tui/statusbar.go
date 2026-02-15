@@ -176,14 +176,19 @@ func (s statusBarModel) View() string {
 	if s.flash != nil {
 		elapsed := time.Since(s.flash.at)
 		if elapsed < 5*time.Second {
-			flashStyle := lipgloss.NewStyle().
-				Foreground(t.Success).
-				Background(t.Highlight)
+			fg := t.Success
 			if s.flash.kind == flashError {
-				flashStyle = lipgloss.NewStyle().
-					Foreground(t.Error).
-					Background(t.Highlight)
+				fg = t.Error
+			} else if s.flash.kind == flashWarn {
+				fg = t.Warning
 			}
+			// Fade the flash text during the last 1.5 seconds
+			if elapsed > 3500*time.Millisecond {
+				fg = t.Muted
+			}
+			flashStyle := lipgloss.NewStyle().
+				Foreground(fg).
+				Background(t.Highlight)
 			flashText = flashStyle.Render(s.flash.text)
 		}
 	}

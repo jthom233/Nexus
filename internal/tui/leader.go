@@ -160,17 +160,23 @@ func leaderGroups() []LeaderGroup {
 			Items: []LeaderItem{
 				{Key: "c", Label: "Connect selected", Action: "connect-selected"},
 				{Key: "q", Label: "Quick connect", Action: "quick-connect"},
+				{Key: "a", Label: "Add connection", Action: "add-connection"},
+				{Key: "e", Label: "Edit connection", Action: "edit-connection"},
+				{Key: "d", Label: "Delete connection", Action: "delete-connection"},
 			},
 		},
 		{
 			Key:   "f",
-			Label: "Find / Favorites",
+			Label: "Find",
 			Items: []LeaderItem{
 				{Key: "f", Label: "Fuzzy find", Action: "fuzzy-find"},
 				{Key: "s", Label: "Sessions", Action: "find-sessions"},
 				{Key: "t", Label: "By tag", Action: "find-by-tag"},
 				{Key: "g", Label: "By group", Action: "find-by-group"},
 				{Key: "r", Label: "Recent", Action: "find-recent"},
+				{Key: "q", Label: "Frequent", Action: "show-frequent"},
+				{Key: "b", Label: "Favorites", Action: "show-favorites"},
+				{Key: "a", Label: "All", Action: "show-all"},
 				{Key: "v", Label: "Toggle favorite", Action: "toggle-favorite"},
 			},
 		},
@@ -187,7 +193,9 @@ func leaderGroups() []LeaderGroup {
 			Key:   "g",
 			Label: "Groups",
 			Items: []LeaderItem{
-				{Key: "l", Label: "List groups", Action: "list-groups"},
+				{Key: "c", Label: "Create group", Action: "create-group"},
+				{Key: "d", Label: "Delete group", Action: "delete-group"},
+				{Key: "m", Label: "Move to group", Action: "move-to-group"},
 				{Key: "f", Label: "Filter by group", Action: "filter-by-group"},
 			},
 		},
@@ -222,7 +230,6 @@ func leaderGroups() []LeaderGroup {
 			Key:   "v",
 			Label: "View",
 			Items: []LeaderItem{
-				{Key: "t", Label: "Tree view", Action: "view-tree"},
 				{Key: "l", Label: "Table view", Action: "view-table"},
 				{Key: "d", Label: "Detail panel", Action: "view-detail"},
 				{Key: "w", Label: "Wide mode", Action: "view-wide"},
@@ -247,7 +254,6 @@ func leaderGroups() []LeaderGroup {
 			Label: "Health",
 			Items: []LeaderItem{
 				{Key: "a", Label: "Check all", Action: "check-all"},
-				{Key: "s", Label: "Check selected", Action: "check-selected"},
 				{Key: "p", Label: "Pulse dashboard", Action: "pulse-view"},
 			},
 		},
@@ -260,10 +266,17 @@ func leaderGroups() []LeaderGroup {
 			},
 		},
 		{
+			Key:   "d",
+			Label: "Data",
+			Items: []LeaderItem{
+				{Key: "n", Label: "Set note", Action: "set-note"},
+				{Key: "f", Label: "Manage fields", Action: "manage-fields"},
+			},
+		},
+		{
 			Key:   "o",
 			Label: "Options",
 			Items: []LeaderItem{
-				{Key: "t", Label: "Theme", Action: "theme"},
 				{Key: "k", Label: "Keybindings", Action: "keybindings"},
 			},
 		},

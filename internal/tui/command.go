@@ -36,7 +36,6 @@ type CommandDef struct {
 func defaultCommands() []CommandDef {
 	return []CommandDef{
 		{Name: "connect", Aliases: nil, Description: "Connect to a host", ArgSpec: "<name|user@host>"},
-		{Name: "disconnect", Aliases: []string{"dc"}, Description: "Disconnect active session", ArgSpec: "[session-id]"},
 		{Name: "quit", Aliases: []string{"q"}, Description: "Quit Nexus", ArgSpec: ""},
 		{Name: "add", Aliases: nil, Description: "Add a new connection", ArgSpec: ""},
 		{Name: "edit", Aliases: nil, Description: "Edit a connection", ArgSpec: "<name>"},
@@ -45,7 +44,6 @@ func defaultCommands() []CommandDef {
 		{Name: "filter", Aliases: nil, Description: "Filter connections", ArgSpec: "[-t tag] [-g group] [pattern]"},
 		{Name: "tag", Aliases: nil, Description: "Manage tags", ArgSpec: "<add|remove> <tag>"},
 		{Name: "group", Aliases: nil, Description: "Filter by group", ArgSpec: "[name]"},
-		{Name: "theme", Aliases: nil, Description: "Switch theme", ArgSpec: "<name>"},
 		{Name: "help", Aliases: nil, Description: "Show help", ArgSpec: ""},
 		{Name: "export", Aliases: nil, Description: "Export connections", ArgSpec: "[file]"},
 		{Name: "import", Aliases: nil, Description: "Import connections", ArgSpec: "[file]"},
@@ -56,20 +54,13 @@ func defaultCommands() []CommandDef {
 		{Name: "pulse", Aliases: nil, Description: "Health pulse check", ArgSpec: ""},
 		{Name: "log", Aliases: []string{"logs", "audit"}, Description: "Show audit log", ArgSpec: ""},
 		{Name: "sessions", Aliases: nil, Description: "Manage sessions", ArgSpec: ""},
-		{Name: "version", Aliases: []string{"ver"}, Description: "Show version", ArgSpec: ""},
-		{Name: "marks", Aliases: nil, Description: "Show marks", ArgSpec: ""},
-		{Name: "template", Aliases: []string{"tpl"}, Description: "Manage templates", ArgSpec: "<name>"},
-		{Name: "settings", Aliases: []string{"set"}, Description: "Open settings", ArgSpec: ""},
-		{Name: "recordings", Aliases: []string{"rec"}, Description: "Session recordings", ArgSpec: ""},
 		{Name: "mkdir", Aliases: nil, Description: "Create group", ArgSpec: "<name>"},
 		{Name: "rmdir", Aliases: nil, Description: "Remove group", ArgSpec: "<name>"},
 		{Name: "mv", Aliases: nil, Description: "Move connection to group", ArgSpec: "<conn> <group>"},
 		{Name: "note", Aliases: nil, Description: "Set note on current connection", ArgSpec: "<text>"},
 		{Name: "field", Aliases: nil, Description: "Manage custom fields", ArgSpec: "set <key> <value> | remove <key>"},
 		{Name: "all", Aliases: nil, Description: "Show all connections", ArgSpec: ""},
-		{Name: "health", Aliases: nil, Description: "Health check connections", ArgSpec: ""},
 		{Name: "move", Aliases: nil, Description: "Move to group", ArgSpec: "<group>"},
-		{Name: "vault", Aliases: nil, Description: "List vault credentials", ArgSpec: ""},
 	}
 }
 

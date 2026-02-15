@@ -46,9 +46,21 @@ type Theme struct {
 }
 
 var (
-	current *Theme
-	themes  map[string]*Theme
+	current      *Theme
+	themes       map[string]*Theme
+	colorProfile string = "truecolor" // default
 )
+
+// SetProfile configures the color rendering profile.
+// Values: "truecolor", "256", "16", "mono"
+func SetProfile(profile string) {
+	colorProfile = profile
+}
+
+// Profile returns the current color profile.
+func Profile() string {
+	return colorProfile
+}
 
 func init() {
 	themes = map[string]*Theme{

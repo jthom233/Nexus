@@ -1,0 +1,119 @@
+# Technical Plan: Rendering Engine Polish
+
+## Source Spec
+./speckit.rendering-polish.specify
+
+## Current State Analysis
+
+- **Bubbletea v1.3.10**, Lipgloss v1.1.0, Bubbles v1.0.0 (all v1 API)
+- No terminal capability detection — app assumes TrueColor support
+- No synchronized output — standard bubbletea v1 rendering (flicker-prone over SSH)
+- Clipboard uses `atotto/clipboard` directly (requires X11/Wayland, fails over SSH)
+- No color profile detection — `charmbracelet/colorprofile` v0.4.1 is an indirect dep but never used
+- Theme system has 28 color fields, 5 built-in themes, `Settings.Theme` config field exists but is never read at startup
+- Key handling uses `charmbracelet/bubbles/key` — standard v1 API, no Kitty protocol
+- No animation infrastructure — no tick-driven transitions, no motion settings
+- Config `Settings` struct has `Theme` field but no `ColorProfile` or `Animations` fields
+
+## Architecture Decisions
+
+### AD1: New `internal/termcap/` Package
+Create a dedicated terminal capabilities package responsible for:
+- Probing terminal features at startup (Mode 2026, OSC 52, OSC 11, Kitty keyboard)
+- Caching results in a `Capabilities` struct
+- Providing predicate methods (`caps.HasSyncOutput()`, `caps.HasOSC52()`, etc.)
+- All probes use timeout-based detection (write query, read response with 100ms timeout)
+- The tea.Program's input/output (os.Stdin/os.Stdout) must be used for probing BEFORE the tea.Program starts (probes use raw terminal mode)
+
+### AD2: Synchronized Output via Bubbletea Options
+Bubbletea v1.3.x already supports `tea.WithSynchronizedOutput()` — this is an option passed to `tea.NewProgram()`. No manual escape sequence wrapping needed. Simply enable it when `caps.HasSyncOutput()` is true. This is the simplest possible implementation.
+
+### AD3: OSC 52 Clipboard as a Wrapper
+Create `internal/termcap/clipboard.go` with a `Clipboard` interface:
+```go
+type Clipboard interface {
+    WriteAll(text string) error
+    ReadAll() (string, error)
+}
+```
+- `OSC52Clipboard` implementation: writes `\x1b]52;c;{base64}\x07` to stdout
+- `SystemClipboard` implementation: wraps `atotto/clipboard` (existing behavior)
+- Factory function selects based on `caps.HasOSC52()`
+- TUI code calls `termcap.GetClipboard().WriteAll()` instead of `clipboard.WriteAll()`
+- GUI code (internal/gui/) unchanged
+
+### AD4: Color Profile Detection via charmbracelet/colorprofile
+The `charmbracelet/colorprofile` package (already an indirect dep) provides `colorprofile.Detect()` which returns `TrueColor | ANSI256 | ANSI | Ascii`. Use this directly:
+- Detect at startup, store in capabilities
+- Pass to theme system: `theme.SetProfile(profile)`
+- Theme rendering downsamples colors via lipgloss's `ColorProfile` support
+- Add `color_profile` to Settings for manual override
+- Add background luminance detection via OSC 11 (query `\x1b]11;?\x07`, parse RGB response)
+
+### AD5: Kitty Keyboard Protocol — Deferred to BubbleTea v2
+Bubbletea v1 does NOT support the Kitty keyboard protocol. Adding it manually would require:
+- Custom raw terminal input handling bypassing bubbletea's input reader
+- Maintaining a parallel key event parser
+This is not practical. **Recommendation: Implement R1-R3 and R5 now. Defer R4 (Kitty Keyboard) to a future BubbleTea v2 migration.** The Escape/Alt ambiguity can be partially mitigated by reducing the escape sequence timeout (already configurable in some terminals).
+
+### AD6: Micro-Transitions via tea.Tick
+Create `internal/tui/animation.go`:
+- `FadeTransition` model: renders content with progressively changing opacity (using lipgloss style alpha simulation via color interpolation toward background)
+- `FlashMessage` enhancement: existing flash system gets fade-in/fade-out frames
+- All transitions driven by `tea.Tick` at 16ms intervals
+- Global `animationsEnabled` flag read from config
+- Any keypress during transition calls `Skip()` which jumps to final frame
+
+### AD7: Config Additions
+Add to `Settings` struct:
+```go
+ColorProfile string `yaml:"color_profile,omitempty"` // auto|truecolor|256|16|mono
+Animations   *bool  `yaml:"animations,omitempty"`     // default true
+```
+
+### AD8: Fix Theme Application from Config
+While implementing color profiles, also fix the existing bug where `Settings.Theme` is never read at startup. In `cmd/nexus/main.go`, after loading config, call `theme.Set(cfg.Settings.Theme)`.
+
+## Implementation Phases
+
+### Phase 1: Terminal Capabilities Foundation (internal/termcap/)
+1. Create `internal/termcap/termcap.go` — Capabilities struct, probe orchestration
+2. Create `internal/termcap/probe.go` — Individual probe functions (Mode 2026, OSC 52, OSC 11, color profile)
+3. Create `internal/termcap/clipboard.go` — Clipboard interface with OSC52 and System implementations
+4. Add config fields to Settings struct
+5. Wire capabilities detection into cmd/nexus/main.go (before tea.Program creation)
+
+### Phase 2: Synchronized Output + Color Profiles
+1. Pass `tea.WithSynchronizedOutput()` conditionally in main.go
+2. Detect color profile and pass to theme system
+3. Add `theme.SetProfile()` that configures lipgloss color downsampling
+4. Fix theme application from config (Settings.Theme → theme.Set())
+5. Add OSC 11 background detection for light/dark awareness
+
+### Phase 3: OSC 52 Clipboard
+1. Replace `atotto/clipboard` calls in internal/tui/app.go with termcap.GetClipboard()
+2. Implement OSC52Clipboard.WriteAll()
+3. Implement OSC52Clipboard.ReadAll() (if terminal supports it)
+4. Fallback chain: OSC 52 → atotto/clipboard → error flash message
+5. GUI clipboard (internal/gui/clipboard.go) unchanged
+
+### Phase 4: Micro-Transitions
+1. Create internal/tui/animation.go — transition infrastructure
+2. Add fade-out/fade-in to view switches (viewStack push/pop)
+3. Enhance flash message system with fade
+4. Add loading spinners for health checks and connection attempts
+5. Add `animations` config option and respect it everywhere
+6. Ensure all animations are skippable via keypress
+
+## Testing Strategy
+- Unit tests for termcap probe parsing (mock terminal responses)
+- Unit tests for color downsampling (given profile X, theme Y, verify output colors)
+- Unit tests for OSC 52 encoding/decoding
+- Integration test: build and run in various terminal emulators (Ghostty, Kitty, Alacritty, tmux, PuTTY)
+- Manual verification: visual inspection of flicker reduction, clipboard over SSH, color degradation
+
+## Risk Mitigation
+- All capability probes have 100ms timeouts — worst case adds 400ms to startup
+- All features have explicit fallbacks — if detection fails, behavior is identical to current
+- OSC 52 has a 100KB payload limit — large clipboard contents fall back to system clipboard
+- Package-level style variables in tui/styles.go (frozen at init) need to be converted to functions if runtime theme switching is desired — this is a known existing bug, not introduced by this work

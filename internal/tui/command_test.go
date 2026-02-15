@@ -272,12 +272,12 @@ func TestFindCommand(t *testing.T) {
 	}
 
 	// Find by alias
-	def = ce.FindCommand("dc")
+	def = ce.FindCommand("del")
 	if def == nil {
-		t.Fatal("expected to find 'dc' alias")
+		t.Fatal("expected to find 'del' alias")
 	}
-	if def.Name != "disconnect" {
-		t.Errorf("expected Name='disconnect' for alias 'dc', got %q", def.Name)
+	if def.Name != "delete" {
+		t.Errorf("expected Name='delete' for alias 'del', got %q", def.Name)
 	}
 
 	// Not found

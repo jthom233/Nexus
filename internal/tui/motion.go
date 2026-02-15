@@ -13,7 +13,6 @@ const (
 	OpNone   Operator = iota
 	OpDelete          // d
 	OpYank            // y
-	OpChange          // c
 )
 
 func (o Operator) String() string {
@@ -22,8 +21,6 @@ func (o Operator) String() string {
 		return "d"
 	case OpYank:
 		return "y"
-	case OpChange:
-		return "c"
 	default:
 		return ""
 	}
@@ -114,18 +111,6 @@ func (m *MotionEngine) HandleKey(key tea.KeyMsg, cursor, total, pageSize int) *M
 		}
 		if m.operator == OpNone {
 			m.operator = OpYank
-			return nil // waiting for motion
-		}
-	case "c":
-		if m.operator == OpChange {
-			// cc -- change current line(s)
-			result := &MotionResult{Action: ActionOpLine, Target: cursor, From: cursor, To: cursor, Count: count}
-			result.To = min(cursor+count-1, total-1)
-			m.Reset()
-			return result
-		}
-		if m.operator == OpNone {
-			m.operator = OpChange
 			return nil // waiting for motion
 		}
 	}
