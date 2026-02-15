@@ -54,7 +54,6 @@ type App struct {
 	log          *logModel
 	sessions     *SessionManager
 	sessionsView sessionsViewModel
-	tree         *TreeModel
 	tplStore     *template.TemplateStore
 	quickConnect *QuickConnect
 	pulse        *PulseModel
@@ -65,10 +64,6 @@ type App struct {
 
 	// View stack
 	viewStack []viewKind
-
-	// Marks + Jump list
-	marks       *MarkManager
-	markPending rune // 0=none, 'm'=set-mark, 0x27=jump-to-mark, 0x60=backtick
 
 	// Undo/Redo
 	undoStack *UndoStack
@@ -81,8 +76,6 @@ type App struct {
 	mode        Mode
 	visualState VisualState
 	ready          bool
-	viewMode       string // "table" or "tree"
-	treeFoldPending bool  // true when "z" was pressed in tree mode
 	bracketPending rune     // 0=none, ']'=next, '['=prev
 	bracketNav     *BracketNav
 	tagManager     *TagManager
@@ -129,15 +122,12 @@ func NewApp(cfg *config.Config) App {
 		log:          l,
 		sessions:     NewSessionManager(),
 		sessionsView: newSessionsView(),
-		tree:         NewTreeModel(cfg.Connections),
 		quickConnect: NewQuickConnect(),
 		pulse:        NewPulseModel(),
 		auditLogView: NewLogViewModel(),
 		auditLog:     al,
 		finder:       finder,
 		viewStack:    []viewKind{viewList},
-		viewMode:     "table",
-		marks:        NewMarkManager(),
 		undoStack:    NewUndoStack(),
 		bracketNav:   NewBracketNav(),
 		tagManager:   NewTagManager(),
@@ -589,162 +579,8 @@ func (a *App) confirmQuit() {
 	a.confirm.height = a.height
 }
 
-// handleTreeKey handles key input when the tree view is active.
-func (a App) handleTreeKey(msg tea.KeyMsg, k string) (tea.Model, tea.Cmd) {
-	// Handle fold pending state (z prefix).
-	if a.treeFoldPending {
-		a.treeFoldPending = false
-		switch k {
-		case "a":
-			a.tree.Toggle(a.tree.Cursor())
-		case "o":
-			a.tree.Expand(a.tree.Cursor())
-		case "c":
-			a.tree.Collapse(a.tree.Cursor())
-		case "R":
-			a.tree.ExpandAll()
-		case "M":
-			a.tree.CollapseAll()
-		}
-		return a, nil
-	}
-
-	switch k {
-	case "j", "down":
-		a.tree.CursorDown()
-		a.syncCursorPosition()
-		return a, nil
-	case "k", "up":
-		a.tree.CursorUp()
-		a.syncCursorPosition()
-		return a, nil
-	case "G":
-		a.tree.MoveCursor(a.tree.RowCount() - 1)
-		a.syncCursorPosition()
-		return a, nil
-	case "g":
-		a.tree.MoveCursor(0)
-		a.syncCursorPosition()
-		return a, nil
-	case "z":
-		a.treeFoldPending = true
-		return a, nil
-	case "enter":
-		if connID, ok := a.tree.SelectedConnection(); ok {
-			return a.connectByID(connID)
-		} else if _, ok := a.tree.SelectedFolder(); ok {
-			a.tree.Toggle(a.tree.Cursor())
-		}
-		return a, nil
-	case " ": // Space = leader key
-		if !a.leader.active {
-			cmd := a.leader.activate()
-			return a, cmd
-		}
-	case "q":
-		a.confirmQuit()
-		return a, nil
-	case "D":
-		if connID, ok := a.tree.SelectedConnection(); ok {
-			c := a.cfg.FindConnection(connID)
-			if c != nil {
-				st := a.list.statuses[c.ID]
-				latStr := ""
-				if st.status == health.Online || st.status == health.Degraded {
-					latStr = st.latency.String()
-				}
-				a.detail.setConnection(c, st.status, latStr)
-				a.detail.setSize(a.width, a.contentHeight())
-				a.pushView(viewDetail)
-				a.help.view = "detail"
-				return a, nil
-			}
-		}
-		return a, nil
-	}
-
-	return a, nil
-}
-
 func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
-
-	// Tree mode key handling — delegate to tree-specific handler.
-	if a.viewMode == "tree" {
-		return a.handleTreeKey(msg, k)
-	}
-
-	// --- Mark pending state handling (two-key sequences: m+letter, \x27+letter, `+`) ---
-	if a.markPending != 0 {
-		defer func() { a.markPending = 0 }()
-		switch a.markPending {
-		case 'm':
-			// m + a-z: set mark at current position
-			if len(k) == 1 && k[0] >= 'a' && k[0] <= 'z' {
-				a.marks.SetMark(rune(k[0]), a.viewName(), a.currentCursor())
-				a.statusBar.setFlash(fmt.Sprintf("Mark '%s' set", k), flashInfo)
-				return a, scheduleFlashClear()
-			}
-			// Invalid follow-up key — cancel silently
-			return a, nil
-		case 0x27: // apostrophe (')
-			// ' + a-z: jump to mark
-			if len(k) == 1 && k[0] >= 'a' && k[0] <= 'z' {
-				mk, ok := a.marks.GetMark(rune(k[0]))
-				if !ok {
-					a.statusBar.setFlash(fmt.Sprintf("Mark '%s' not set", k), flashError)
-					return a, scheduleFlashClear()
-				}
-				// Push current position before jumping
-				a.marks.PushJump(a.viewName(), a.currentCursor())
-				a.navigateToMark(mk)
-				a.statusBar.setFlash(fmt.Sprintf("Jumped to mark '%s'", k), flashInfo)
-				return a, scheduleFlashClear()
-			}
-			return a, nil
-		case 0x60: // backtick (`)
-			// ` + `: jump to last position
-			if k == "`" {
-				mk, ok := a.marks.LastJump()
-				if !ok {
-					a.statusBar.setFlash("No previous jump", flashError)
-					return a, scheduleFlashClear()
-				}
-				a.marks.PushJump(a.viewName(), a.currentCursor())
-				a.navigateToMark(mk)
-				return a, nil
-			}
-			return a, nil
-		}
-		return a, nil
-	}
-
-	// --- Marks: initiate two-key sequences ---
-	switch k {
-	case "m":
-		a.markPending = 'm'
-		return a, nil
-	case "'":
-		a.markPending = 0x27 // apostrophe
-		return a, nil
-	case "`":
-		a.markPending = 0x60 // backtick
-		return a, nil
-	case "ctrl+o":
-		mk, ok := a.marks.JumpBack()
-		if !ok {
-			return a, nil
-		}
-		a.navigateToMark(mk)
-		return a, nil
-	case "ctrl+i":
-		mk, ok := a.marks.JumpForward()
-		if !ok {
-			return a, nil
-		}
-		a.navigateToMark(mk)
-		return a, nil
-	}
 
 	// --- Bracket-pending state handling (two-key sequences: ]x / [x) ---
 	if a.bracketPending != 0 {
@@ -850,8 +686,6 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case "D":
 		if c := a.list.selectedConnection(); c != nil {
-			// Record position before view change
-			a.marks.PushJump(a.viewName(), a.currentCursor())
 			st := a.list.statuses[c.ID]
 			latStr := ""
 			if st.status == health.Online || st.status == health.Degraded {
@@ -871,8 +705,6 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			scheduleFlashClear(),
 		)
 	case "s":
-		// Record position before view change
-		a.marks.PushJump(a.viewName(), a.currentCursor())
 		a.sessionsView.setSessions(a.sessions.All())
 		a.sessionsView.setSize(a.width, a.contentHeight())
 		a.pushView(viewSessions)
@@ -1697,6 +1529,77 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		return a.handleImportCommand(msg.Args)
 	case "export":
 		return a.handleExportCommand(msg.Args)
+	case "mkdir":
+		if msg.Args == "" {
+			a.statusBar.setFlash("Usage: :mkdir <name>", flashError)
+			return a, scheduleFlashClear()
+		}
+		if err := a.cfg.AddGroup(msg.Args); err != nil {
+			a.statusBar.setFlash(err.Error(), flashError)
+			return a, scheduleFlashClear()
+		}
+		a.log.info("Group created: %s", msg.Args)
+		a.statusBar.setFlash("Group created: "+msg.Args, flashInfo)
+		return a, scheduleFlashClear()
+	case "rmdir":
+		if msg.Args == "" {
+			a.statusBar.setFlash("Usage: :rmdir <name>", flashError)
+			return a, scheduleFlashClear()
+		}
+		if err := a.cfg.DeleteGroup(msg.Args); err != nil {
+			a.statusBar.setFlash(err.Error(), flashError)
+			return a, scheduleFlashClear()
+		}
+		a.log.info("Group deleted: %s", msg.Args)
+		a.statusBar.setFlash("Group deleted: "+msg.Args, flashInfo)
+		return a, scheduleFlashClear()
+	case "mv", "move":
+		args := strings.TrimSpace(msg.Args)
+		if args == "" {
+			a.statusBar.setFlash("Usage: :mv [connection] <group>", flashError)
+			return a, scheduleFlashClear()
+		}
+		var conn *config.Connection
+		var targetGroup string
+		// Try to interpret the first word as a connection identifier.
+		// If it matches, the remainder is the group name.
+		// Otherwise treat the entire string as a group name for the selected connection.
+		parts := strings.SplitN(args, " ", 2)
+		if len(parts) == 2 {
+			if c := a.cfg.FindConnection(parts[0]); c != nil {
+				conn = c
+				targetGroup = strings.TrimSpace(parts[1])
+			}
+		}
+		if conn == nil {
+			// No connection identifier matched — use selected connection, entire arg is the group.
+			conn = a.list.selectedConnection()
+			if conn == nil {
+				a.statusBar.setFlash("No connection selected", flashError)
+				return a, scheduleFlashClear()
+			}
+			targetGroup = args
+		}
+		before := *conn
+		if err := a.cfg.MoveConnection(conn.ID, targetGroup); err != nil {
+			a.statusBar.setFlash(err.Error(), flashError)
+			return a, scheduleFlashClear()
+		}
+		after := *conn
+		a.undoStack.Push(Operation{
+			Type:   UndoOpEdit,
+			ConnID: conn.ID,
+			Name:   conn.Name,
+			Before: before,
+			After:  after,
+		})
+		a.list.filtered = a.list.groupFilteredConns()
+		a.list.rebuildTable()
+		a.syncHeaderView()
+		a.syncCursorPosition()
+		a.log.info("Moved %s to group %s", conn.Name, targetGroup)
+		a.statusBar.setFlash("Moved "+conn.Name+" to group "+targetGroup, flashInfo)
+		return a, scheduleFlashClear()
 	default:
 		a.log.warn("Unknown command: %s", msg.Name)
 		a.statusBar.setFlash("Unknown command: "+msg.Name, flashError)
@@ -1947,6 +1850,35 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		a.mode = ModeInsert
 		a.statusBar.mode = ModeInsert
 		return a, a.quickConnect.input.Focus()
+	case "add-connection":
+		a.form.startAdd(a.cfg.GroupNames())
+		a.form.width = a.width
+		a.form.height = a.contentHeight()
+		a.pushView(viewForm)
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
+		return a, a.form.form.Init()
+	case "edit-connection":
+		if c := a.list.selectedConnection(); c != nil {
+			a.form.startEdit(*c, a.cfg.GroupNames())
+			a.form.width = a.width
+			a.form.height = a.contentHeight()
+			a.pushView(viewForm)
+			a.mode = ModeInsert
+			a.statusBar.mode = ModeInsert
+			return a, a.form.form.Init()
+		}
+		a.statusBar.setFlash("No connection selected", flashError)
+		return a, scheduleFlashClear()
+	case "delete-connection":
+		if c := a.list.selectedConnection(); c != nil {
+			a.confirm.show("Delete connection '"+c.Name+"'?", "delete", c.ID)
+			a.confirm.width = a.width
+			a.confirm.height = a.height
+			return a, nil
+		}
+		a.statusBar.setFlash("No connection selected", flashError)
+		return a, scheduleFlashClear()
 
 	// Find
 	case "fuzzy-find":
@@ -1982,6 +1914,27 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		a.mode = ModeInsert
 		a.statusBar.mode = ModeInsert
 		return a, a.finder.prompt.Focus()
+	case "show-frequent":
+		a.list.setViewMode(listViewFrequent)
+		a.syncHeaderView()
+		a.syncCursorPosition()
+		a.log.info("View: frequent")
+		a.statusBar.setFlash("Sorted by frequency", flashInfo)
+		return a, scheduleFlashClear()
+	case "show-favorites":
+		a.list.setViewMode(listViewFavorites)
+		a.syncHeaderView()
+		a.syncCursorPosition()
+		a.log.info("View: favorites")
+		a.statusBar.setFlash("Showing favorites", flashInfo)
+		return a, scheduleFlashClear()
+	case "show-all":
+		a.list.groupFilter = ""
+		a.list.setViewMode(listViewDefault)
+		a.syncHeaderView()
+		a.syncCursorPosition()
+		a.statusBar.setFlash("Showing all connections", flashInfo)
+		return a, scheduleFlashClear()
 
 	// Sessions
 	case "sessions":
@@ -1991,7 +1944,24 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		a.help.view = "sessions"
 		return a, nil
 	case "kill-session-prompt":
-		a.statusBar.setFlash("Kill session: open sessions view first", flashInfo)
+		if c := a.list.selectedConnection(); c != nil {
+			// Check if there's an active session for this connection
+			for _, sess := range a.sessions.All() {
+				if sess.ConnID == c.ID {
+					sess.Kill()
+					a.sessions.Remove(sess.ID)
+					a.updateSessionCount()
+					a.statusBar.setFlash("Killed session for "+c.Name, flashInfo)
+					if a.currentView() == viewSessions {
+						a.sessionsView.setSessions(a.sessions.All())
+					}
+					return a, scheduleFlashClear()
+				}
+			}
+			a.statusBar.setFlash("No active session for "+c.Name, flashInfo)
+			return a, scheduleFlashClear()
+		}
+		a.statusBar.setFlash("No connection selected", flashError)
 		return a, scheduleFlashClear()
 	case "kill-all-sessions":
 		all := a.sessions.All()
@@ -2012,12 +1982,33 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		return a, scheduleFlashClear()
 
 	// Groups
-	case "list-groups":
-		a.statusBar.setFlash("List groups not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+	case "create-group":
+		a.command.activate()
+		a.command.input.SetValue("mkdir ")
+		a.command.input.SetCursor(6)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
+	case "delete-group":
+		a.command.activate()
+		a.command.input.SetValue("rmdir ")
+		a.command.input.SetCursor(6)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
+	case "move-to-group":
+		a.command.activate()
+		a.command.input.SetValue("mv ")
+		a.command.input.SetCursor(3)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
 	case "filter-by-group":
-		a.statusBar.setFlash("Filter by group not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
+		a.finder.SetSize(a.width, a.height)
+		a.finder.Activate(PickerGroups, a.cfg.Connections)
+		a.mode = ModeInsert
+		a.statusBar.mode = ModeInsert
+		return a, a.finder.prompt.Focus()
 
 	// Import
 	case "import-ssh":
@@ -2084,9 +2075,6 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		return a, a.command.input.Focus()
 
 	// View
-	case "view-tree":
-		a.statusBar.setFlash("Tree view not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
 	case "view-table":
 		// Already in table view if on list — just ensure we're there
 		if a.currentView() != viewList {
@@ -2173,10 +2161,6 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 			a.checker.CheckAll(a.list.healthTargets()),
 			scheduleFlashClear(),
 		)
-	case "check-selected":
-		a.statusBar.setFlash("Check selected not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
-
 	case "pulse-view":
 		a.pulse.SetSize(a.width, a.contentHeight())
 		a.pulse.Refresh(a.list.filtered, a.list.statuses, a.sessions.Count())
@@ -2194,13 +2178,38 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 	case "copy-password":
-		a.statusBar.setFlash("Copy password not yet implemented", flashInfo)
+		if c := a.list.selectedConnection(); c != nil {
+			if c.Password != "" {
+				if err := termcap.DefaultClipboard().WriteAll(c.Password); err != nil {
+					a.statusBar.setFlash("Failed to copy: "+err.Error(), flashError)
+					return a, scheduleFlashClear()
+				}
+				a.statusBar.setFlash("Password copied to clipboard", flashInfo)
+				return a, scheduleFlashClear()
+			}
+			a.statusBar.setFlash("No password set for "+c.Name, flashInfo)
+			return a, scheduleFlashClear()
+		}
+		a.statusBar.setFlash("No connection selected", flashError)
 		return a, scheduleFlashClear()
 
+	// Data
+	case "set-note":
+		a.command.activate()
+		a.command.input.SetValue("note ")
+		a.command.input.SetCursor(5)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
+	case "manage-fields":
+		a.command.activate()
+		a.command.input.SetValue("field ")
+		a.command.input.SetCursor(6)
+		a.mode = ModeCommand
+		a.statusBar.mode = ModeCommand
+		return a, a.command.input.Focus()
+
 	// Options
-	case "theme":
-		a.statusBar.setFlash("Theme picker not yet implemented", flashInfo)
-		return a, scheduleFlashClear()
 	case "keybindings":
 		a.statusBar.setFlash("Keybinding editor not yet implemented", flashInfo)
 		return a, scheduleFlashClear()
@@ -2441,8 +2450,6 @@ func (a App) searchNextMatch(sameDirection bool) (tea.Model, tea.Cmd) {
 
 	target := a.search.nextMatch(cursor, forward)
 	if target >= 0 {
-		// Record position before search jump
-		a.marks.PushJump(a.viewName(), cursor)
 		a.list.table.MoveCursor(target)
 		a.search.matchIdx = target
 		a.syncCursorPosition()
@@ -2468,8 +2475,6 @@ func (a App) searchUnderCursor(mode SearchMode) (tea.Model, tea.Cmd) {
 	forward := mode == SearchForward
 	target := a.search.nextMatch(cursor, forward)
 	if target >= 0 && target != cursor {
-		// Record position before search-under-cursor jump
-		a.marks.PushJump(a.viewName(), cursor)
 		a.list.table.MoveCursor(target)
 		a.search.matchIdx = target
 	}
@@ -2589,84 +2594,6 @@ func (a App) contentHeight() int {
 	}
 	return h
 }
-
-// viewName returns a string name for the current view (used by the mark system).
-func (a App) viewName() string {
-	switch a.currentView() {
-	case viewList:
-		return "list"
-	case viewDetail:
-		return "detail"
-	case viewForm:
-		return "form"
-	case viewLog:
-		return "log"
-	case viewSessions:
-		return "sessions"
-	case viewPulse:
-		return "pulse"
-	case viewAuditLog:
-		return "audit"
-	default:
-		return "list"
-	}
-}
-
-// currentCursor returns the cursor position for the current view.
-func (a App) currentCursor() int {
-	switch a.currentView() {
-	case viewList:
-		return a.list.table.Cursor()
-	case viewSessions:
-		return a.sessionsView.table.Cursor()
-	default:
-		return 0
-	}
-}
-
-// navigateToMark jumps to the view and cursor recorded in a Mark.
-func (a *App) navigateToMark(mk Mark) {
-	// Switch view if needed
-	target := viewList
-	switch mk.View {
-	case "list":
-		target = viewList
-	case "detail":
-		target = viewDetail
-	case "sessions":
-		target = viewSessions
-	case "pulse":
-		target = viewPulse
-	case "audit":
-		target = viewAuditLog
-	case "log":
-		target = viewLog
-	default:
-		target = viewList
-	}
-
-	if a.currentView() != target {
-		// Pop back to list first, then push target if not list
-		for len(a.viewStack) > 1 {
-			a.viewStack = a.viewStack[:len(a.viewStack)-1]
-		}
-		if target != viewList {
-			a.pushView(target)
-		}
-		a.syncHeaderView()
-		a.syncStatusBarView()
-	}
-
-	// Set cursor
-	switch target {
-	case viewList:
-		a.list.table.SetCursor(mk.Cursor)
-	case viewSessions:
-		a.sessionsView.table.SetCursor(mk.Cursor)
-	}
-	a.syncCursorPosition()
-}
-
 
 // performUndo undoes the most recent destructive operation.
 func (a App) performUndo() (tea.Model, tea.Cmd) {
@@ -3101,7 +3028,7 @@ func (a App) handleSortCommand(args string) (tea.Model, tea.Cmd) {
 		a.statusBar.setFlash(fmt.Sprintf("Sorted by %s", field), flashInfo)
 		return a, scheduleFlashClear()
 	}
-	a.statusBar.setFlash("Sort command not yet implemented", flashInfo)
+	a.statusBar.setFlash("Unknown sort field: "+field, flashError)
 	return a, scheduleFlashClear()
 }
 

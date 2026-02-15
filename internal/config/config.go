@@ -1,6 +1,8 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -300,6 +302,69 @@ func (cfg *Config) GroupColor(name string) string {
 		}
 	}
 	return ""
+}
+
+// FindGroup returns a pointer to the group with the given name, or nil if not found.
+func (cfg *Config) FindGroup(name string) *Group {
+	for i, g := range cfg.Groups {
+		if g.Name == name {
+			return &cfg.Groups[i]
+		}
+	}
+	return nil
+}
+
+// HasConnectionsInGroup returns true if any connection belongs to the given group.
+func (cfg *Config) HasConnectionsInGroup(name string) bool {
+	for _, c := range cfg.Connections {
+		if c.Group == name {
+			return true
+		}
+	}
+	return false
+}
+
+// AddGroup creates a new named group. Returns an error if the name is empty or already exists.
+func (cfg *Config) AddGroup(name string) error {
+	if name == "" {
+		return errors.New("group name cannot be empty")
+	}
+	if cfg.FindGroup(name) != nil {
+		return fmt.Errorf("group %q already exists", name)
+	}
+	cfg.Groups = append(cfg.Groups, Group{Name: name})
+	return Save(cfg)
+}
+
+// DeleteGroup removes a group by name. Returns an error if not found or has connections.
+func (cfg *Config) DeleteGroup(name string) error {
+	if cfg.FindGroup(name) == nil {
+		return fmt.Errorf("group %q not found", name)
+	}
+	if cfg.HasConnectionsInGroup(name) {
+		return fmt.Errorf("group %q has connections assigned to it", name)
+	}
+	for i, g := range cfg.Groups {
+		if g.Name == name {
+			cfg.Groups = append(cfg.Groups[:i], cfg.Groups[i+1:]...)
+			return Save(cfg)
+		}
+	}
+	return nil
+}
+
+// MoveConnection moves a connection to a different group. Auto-creates the target group if needed.
+func (cfg *Config) MoveConnection(connID string, targetGroup string) error {
+	conn := cfg.FindConnection(connID)
+	if conn == nil {
+		return fmt.Errorf("connection %q not found", connID)
+	}
+	// Auto-create target group if it doesn't exist
+	if targetGroup != "" && cfg.FindGroup(targetGroup) == nil {
+		cfg.Groups = append(cfg.Groups, Group{Name: targetGroup})
+	}
+	conn.Group = targetGroup
+	return Save(cfg)
 }
 
 func defaultConfig() *Config {

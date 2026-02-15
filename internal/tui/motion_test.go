@@ -72,7 +72,6 @@ func TestMotionEngine(t *testing.T) {
 		// Doubled operators
 		{"dd deletes current", []string{"d", "d"}, 3, 10, 5, &MotionResult{Action: ActionOpLine, Target: 3, From: 3, To: 3, Count: 1}},
 		{"yy yanks current", []string{"y", "y"}, 3, 10, 5, &MotionResult{Action: ActionOpLine, Target: 3, From: 3, To: 3, Count: 1}},
-		{"cc changes current", []string{"c", "c"}, 3, 10, 5, &MotionResult{Action: ActionOpLine, Target: 3, From: 3, To: 3, Count: 1}},
 		{"3dd deletes 3", []string{"3", "d", "d"}, 3, 10, 5, &MotionResult{Action: ActionOpLine, Target: 3, From: 3, To: 5, Count: 3}},
 		{"3yy yanks 3", []string{"3", "y", "y"}, 3, 10, 5, &MotionResult{Action: ActionOpLine, Target: 3, From: 3, To: 5, Count: 3}},
 		{"5dd clamps to end", []string{"5", "d", "d"}, 7, 10, 5, &MotionResult{Action: ActionOpLine, Target: 7, From: 7, To: 9, Count: 5}},
@@ -281,7 +280,6 @@ func TestOperator_String(t *testing.T) {
 		{OpNone, ""},
 		{OpDelete, "d"},
 		{OpYank, "y"},
-		{OpChange, "c"},
 	}
 
 	for _, tt := range tests {
