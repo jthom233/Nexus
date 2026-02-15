@@ -10,6 +10,7 @@ const (
 	UndoOpDelete                  // A connection was deleted
 	UndoOpEdit                    // A connection was edited
 	UndoOpTagChange               // Tags were changed on a connection
+	UndoOpBatch                   // Batch operation containing multiple child operations
 )
 
 // Operation records a single undoable action.
@@ -18,8 +19,9 @@ type Operation struct {
 	ConnID string            // The connection ID this operation relates to
 	Name   string            // Human-readable name (for flash messages)
 	Index  int               // Original index in cfg.Connections (used for UndoOpDelete reinsertion)
-	Before config.Connection // Snapshot before the operation (UndoOpDelete, UndoOpEdit, UndoOpTagChange)
-	After  config.Connection // Snapshot after the operation (UndoOpAdd, UndoOpEdit, UndoOpTagChange)
+	Before   config.Connection // Snapshot before the operation (UndoOpDelete, UndoOpEdit, UndoOpTagChange)
+	After    config.Connection // Snapshot after the operation (UndoOpAdd, UndoOpEdit, UndoOpTagChange)
+	Children []Operation       // Child operations for batch (nil for non-batch)
 }
 
 const maxUndoDepth = 50
@@ -45,6 +47,15 @@ func (u *UndoStack) Push(op Operation) {
 	}
 	// Any new operation invalidates the redo history.
 	u.redoStack = nil
+}
+
+// PushBatch records a batch of operations as a single undo entry.
+func (u *UndoStack) PushBatch(name string, children []Operation) {
+	u.Push(Operation{
+		Type:     UndoOpBatch,
+		Name:     name,
+		Children: children,
+	})
 }
 
 // Undo pops the most recent operation from the undo stack,
