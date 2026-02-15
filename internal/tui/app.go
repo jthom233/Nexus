@@ -1559,6 +1559,60 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 			a.statusBar.setFlash("Usage: :mv [connection] <group>", flashError)
 			return a, scheduleFlashClear()
 		}
+
+		// Bulk move: if visual mode is active, move all selected connections.
+		if a.visualState.Active() {
+			targetGroup := args
+			ids := ResolveVisualIDs(&a.visualState, a.list.table.rows)
+			if len(ids) == 0 {
+				a.statusBar.setFlash("No connections selected", flashError)
+				return a, scheduleFlashClear()
+			}
+			// Auto-create target group if it doesn't exist.
+			if targetGroup != "" && a.cfg.FindGroup(targetGroup) == nil {
+				_ = a.cfg.AddGroup(targetGroup)
+			}
+			// Snapshot before, execute bulk move, snapshot after.
+			var children []Operation
+			total := len(ids)
+			for _, id := range ids {
+				c := a.cfg.FindConnection(id)
+				if c == nil || c.Group == targetGroup {
+					continue
+				}
+				before := *c
+				c.Group = targetGroup
+				_ = a.cfg.UpdateConnection(*c)
+				after := *c
+				children = append(children, Operation{
+					Type:   UndoOpEdit,
+					ConnID: c.ID,
+					Name:   c.Name,
+					Before: before,
+					After:  after,
+				})
+			}
+			moved := len(children)
+			if moved > 0 {
+				a.undoStack.PushBatch("bulk move to "+targetGroup, children)
+				_ = config.Save(a.cfg)
+			}
+			a.visualState.Exit()
+			a.list.filtered = a.list.groupFilteredConns()
+			a.list.rebuildTable()
+			a.syncHeaderView()
+			a.syncCursorPosition()
+			if moved == total {
+				a.log.info("Moved %d connections to group %s", moved, targetGroup)
+				a.statusBar.setFlash(fmt.Sprintf("Moved %d connections to %s", moved, targetGroup), flashInfo)
+			} else {
+				a.log.info("Moved %d of %d connections to group %s", moved, total, targetGroup)
+				a.statusBar.setFlash(fmt.Sprintf("Moved %d of %d connections to %s", moved, total, targetGroup), flashInfo)
+			}
+			return a, scheduleFlashClear()
+		}
+
+		// Single-connection move (existing behavior).
 		var conn *config.Connection
 		var targetGroup string
 		// Try to interpret the first word as a connection identifier.
@@ -1759,46 +1813,40 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 		// Delete multiple connections from visual selection
 		idStr := msg.ID
 		ids := strings.Split(idStr, ",")
-		deleted := 0
+		var children []Operation
 		for _, id := range ids {
 			conn := a.cfg.FindConnection(id)
-			name := id
-			if conn != nil {
-				name = conn.Name
-				// Capture snapshot and index for undo before deleting.
-				snapshot := *conn
-				idx := -1
-				for i, c := range a.cfg.Connections {
-					if c.ID == id {
-						idx = i
-						break
-					}
-				}
-				if err := a.cfg.DeleteConnection(id); err != nil {
-					a.log.error("Delete failed for %s: %v", name, err)
-				} else {
-					if idx >= 0 {
-						a.undoStack.Push(Operation{
-							Type:   UndoOpDelete,
-							ConnID: id,
-							Name:   name,
-							Index:  idx,
-							Before: snapshot,
-						})
-					}
-					a.log.info("Deleted connection: %s", name)
-					deleted++
-				}
-			} else {
-				if err := a.cfg.DeleteConnection(id); err != nil {
-					a.log.error("Delete failed for %s: %v", name, err)
-				} else {
-					a.log.info("Deleted connection: %s", name)
-					deleted++
+			if conn == nil {
+				// Connection already gone — try deleting anyway.
+				_ = a.cfg.DeleteConnection(id)
+				continue
+			}
+			name := conn.Name
+			snapshot := *conn
+			idx := -1
+			for i, c := range a.cfg.Connections {
+				if c.ID == id {
+					idx = i
+					break
 				}
 			}
+			if err := a.cfg.DeleteConnection(id); err != nil {
+				a.log.error("Delete failed for %s: %v", name, err)
+			} else {
+				children = append(children, Operation{
+					Type:   UndoOpDelete,
+					ConnID: id,
+					Name:   name,
+					Index:  idx,
+					Before: snapshot,
+				})
+				a.log.info("Deleted connection: %s", name)
+			}
 		}
-		a.statusBar.setFlash(fmt.Sprintf("Deleted %d connections", deleted), flashInfo)
+		if len(children) > 0 {
+			a.undoStack.PushBatch("bulk delete", children)
+		}
+		a.statusBar.setFlash(fmt.Sprintf("Deleted %d connections", len(children)), flashInfo)
 
 		// Exit visual mode
 		a.exitVisualMode()
@@ -2640,6 +2688,15 @@ func (a App) performUndo() (tea.Model, tea.Cmd) {
 			return a, scheduleFlashClear()
 		}
 		flashMsg = fmt.Sprintf("Undo: restored tags on '%s'", op.Name)
+
+	case UndoOpBatch:
+		// Undo batch = undo all children in reverse order.
+		for i := len(op.Children) - 1; i >= 0; i-- {
+			if err := a.undoSingleOp(op.Children[i]); err != nil {
+				a.log.error("Undo batch child failed: %v", err)
+			}
+		}
+		flashMsg = fmt.Sprintf("Undo: %s (%d items)", op.Name, len(op.Children))
 	}
 
 	a.log.info("%s", flashMsg)
@@ -2657,6 +2714,32 @@ func (a App) performUndo() (tea.Model, tea.Cmd) {
 		a.checker.CheckAll(a.list.healthTargets()),
 		scheduleFlashClear(),
 	)
+}
+
+// undoSingleOp applies undo logic for a single (non-batch) operation.
+func (a *App) undoSingleOp(op Operation) error {
+	switch op.Type {
+	case UndoOpAdd:
+		return a.cfg.DeleteConnection(op.After.ID)
+	case UndoOpDelete:
+		return a.cfg.InsertConnectionAt(op.Before, op.Index)
+	case UndoOpEdit, UndoOpTagChange:
+		return a.cfg.UpdateConnection(op.Before)
+	}
+	return nil
+}
+
+// redoSingleOp applies redo logic for a single (non-batch) operation.
+func (a *App) redoSingleOp(op Operation) error {
+	switch op.Type {
+	case UndoOpAdd:
+		return a.cfg.AddConnection(op.After)
+	case UndoOpDelete:
+		return a.cfg.DeleteConnection(op.Before.ID)
+	case UndoOpEdit, UndoOpTagChange:
+		return a.cfg.UpdateConnection(op.After)
+	}
+	return nil
 }
 
 // performRedo re-applies the most recently undone operation.
@@ -2704,6 +2787,15 @@ func (a App) performRedo() (tea.Model, tea.Cmd) {
 			return a, scheduleFlashClear()
 		}
 		flashMsg = fmt.Sprintf("Redo: re-applied tags on '%s'", op.Name)
+
+	case UndoOpBatch:
+		// Redo batch = redo all children in forward order.
+		for _, child := range op.Children {
+			if err := a.redoSingleOp(child); err != nil {
+				a.log.error("Redo batch child failed: %v", err)
+			}
+		}
+		flashMsg = fmt.Sprintf("Redo: %s (%d items)", op.Name, len(op.Children))
 	}
 
 	a.log.info("%s", flashMsg)
@@ -2880,52 +2972,58 @@ func (a App) handleTagCommand(args string) (tea.Model, tea.Cmd) {
 // tagAddVisual adds a tag to all visually selected connections.
 func (a App) tagAddVisual(tag string) (tea.Model, tea.Cmd) {
 	indices := a.visualState.SelectedIndices()
-	added := 0
+	var children []Operation
 	for _, idx := range indices {
 		if idx >= 0 && idx < len(a.list.filtered) {
 			c := &a.list.filtered[idx]
 			before := *c
 			if a.tagManager.AddTag(c, tag) {
 				_ = a.cfg.UpdateConnection(*c)
-				a.undoStack.Push(Operation{
+				children = append(children, Operation{
 					Type:   UndoOpTagChange,
 					ConnID: c.ID,
 					Name:   c.Name,
 					Before: before,
 					After:  *c,
 				})
-				added++
 			}
 		}
 	}
+	if len(children) > 0 {
+		a.undoStack.PushBatch("bulk tag add "+tag, children)
+	}
+	a.visualState.Exit()
 	a.list.rebuildTable()
-	a.statusBar.setFlash(fmt.Sprintf("Added tag '%s' to %d connection(s)", tag, added), flashInfo)
+	a.statusBar.setFlash(fmt.Sprintf("Added tag '%s' to %d connection(s)", tag, len(children)), flashInfo)
 	return a, scheduleFlashClear()
 }
 
 // tagRemoveVisual removes a tag from all visually selected connections.
 func (a App) tagRemoveVisual(tag string) (tea.Model, tea.Cmd) {
 	indices := a.visualState.SelectedIndices()
-	removed := 0
+	var children []Operation
 	for _, idx := range indices {
 		if idx >= 0 && idx < len(a.list.filtered) {
 			c := &a.list.filtered[idx]
 			before := *c
 			if a.tagManager.RemoveTag(c, tag) {
 				_ = a.cfg.UpdateConnection(*c)
-				a.undoStack.Push(Operation{
+				children = append(children, Operation{
 					Type:   UndoOpTagChange,
 					ConnID: c.ID,
 					Name:   c.Name,
 					Before: before,
 					After:  *c,
 				})
-				removed++
 			}
 		}
 	}
+	if len(children) > 0 {
+		a.undoStack.PushBatch("bulk tag remove "+tag, children)
+	}
+	a.visualState.Exit()
 	a.list.rebuildTable()
-	a.statusBar.setFlash(fmt.Sprintf("Removed tag '%s' from %d connection(s)", tag, removed), flashInfo)
+	a.statusBar.setFlash(fmt.Sprintf("Removed tag '%s' from %d connection(s)", tag, len(children)), flashInfo)
 	return a, scheduleFlashClear()
 }
 
