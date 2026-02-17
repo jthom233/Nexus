@@ -30,6 +30,7 @@ const (
 	viewSessions
 	viewPulse
 	viewAuditLog
+	viewPaneLayout
 )
 
 // App is the root bubbletea model.
@@ -61,6 +62,7 @@ type App struct {
 	auditLogView *LogViewModel
 	finder       *FinderModel
 	checker      *health.Checker
+	paneLayout   *PaneLayoutModel
 
 	// View stack
 	viewStack []viewKind
@@ -127,6 +129,7 @@ func NewApp(cfg *config.Config) App {
 		auditLogView: NewLogViewModel(),
 		auditLog:     al,
 		finder:       finder,
+		paneLayout:   NewPaneLayoutModel(),
 		viewStack:    []viewKind{viewList},
 		undoStack:    NewUndoStack(),
 		bracketNav:   NewBracketNav(),
@@ -186,6 +189,8 @@ func (a *App) syncStatusBarView() {
 		a.statusBar.view = "pulse"
 	case viewAuditLog:
 		a.statusBar.view = "audit"
+	case viewPaneLayout:
+		a.statusBar.view = "panes"
 	}
 }
 
@@ -225,6 +230,9 @@ func (a *App) syncHeaderView() {
 	case viewAuditLog:
 		a.header.setView("Audit Log", 5)
 		a.header.setItemCount(0)
+	case viewPaneLayout:
+		a.header.setView("Panes", 6)
+		a.header.setItemCount(a.paneLayout.PaneCount())
 	}
 }
 
@@ -498,6 +506,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusBar.clearFlash()
 		return a, nil
 
+	case broadcastFlashMsg:
+		a.statusBar.setFlash(msg.text, flashInfo)
+		return a, scheduleFlashClear()
+
 	case transitionTickMsg:
 		if a.animationsEnabled {
 			return a, a.viewTransition.advance()
@@ -524,6 +536,40 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ModeChangedMsg:
 		a.statusBar.mode = msg.To
 		return a, nil
+
+	case AllPanesClosedMsg:
+		if a.currentView() == viewPaneLayout {
+			a.popView()
+		}
+		return a, nil
+
+	case PaneOutputMsg:
+		updated, cmd := a.paneLayout.Update(msg)
+		a.paneLayout = &updated
+		return a, cmd
+
+	case PaneConnectedMsg:
+		updated, cmd := a.paneLayout.Update(msg)
+		a.paneLayout = &updated
+		a.syncHeaderView()
+		return a, cmd
+
+	case PaneDisconnectedMsg:
+		updated, cmd := a.paneLayout.Update(msg)
+		a.paneLayout = &updated
+		a.syncHeaderView()
+		return a, cmd
+
+	case panePickerMsg:
+		updated, cmd := a.paneLayout.Update(msg)
+		a.paneLayout = &updated
+		return a, cmd
+
+	case paneSessionStartedMsg:
+		updated, cmd := a.paneLayout.Update(msg)
+		a.paneLayout = &updated
+		a.syncHeaderView()
+		return a, cmd
 	}
 
 	// Pass through to active view
@@ -551,6 +597,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case viewAuditLog:
 		cmd := a.auditLogView.Update(msg)
 		cmds = append(cmds, cmd)
+	case viewPaneLayout:
+		updated, cmd := a.paneLayout.Update(msg)
+		a.paneLayout = &updated
+		cmds = append(cmds, cmd)
 	}
 
 	// Start any pending view transition (queued by pushView/popView).
@@ -569,6 +619,8 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a.handleDetailKey(msg)
 	case viewSessions:
 		return a.handleSessionsKey(msg)
+	case viewPaneLayout:
+		return a.handlePaneLayoutKey(msg)
 	}
 	return a, nil
 }
@@ -1079,6 +1131,248 @@ func (a App) handleSessionsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+// handlePaneLayoutKey routes key events when the pane layout view is active.
+// In Normal mode, Space triggers the leader key menu.
+// In Insert mode, all key input is forwarded as raw bytes to the active pane.
+func (a App) handlePaneLayoutKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	k := msg.String()
+
+	if a.mode == ModeInsert {
+		// ESC (or alt+esc due to terminal escape-sequence timing ambiguity)
+		// exits insert mode without forwarding to the session.
+		// Check msg.Type directly to catch both "esc" and "alt+esc" variants.
+		// Do not pre-set a.mode here — let setMode() perform the transition so
+		// that a ModeChangedMsg is properly emitted for any listeners.
+		if msg.Type == tea.KeyEsc {
+			a.statusBar.mode = ModeNormal
+			return a, a.setMode(ModeNormal)
+		}
+		// Forward input as raw bytes to the active pane's session.
+		data := keyMsgToBytes(msg)
+		if len(data) > 0 {
+			a.paneLayout.RouteInput(data)
+		}
+		return a, nil
+	}
+
+	// When the active pane has an open connection picker, route picker keys
+	// before the normal mode handler so j/k/Enter/Esc go to the picker.
+	if active := a.paneLayout.ActivePane(); active != nil && active.Picker != nil && active.Picker.Active {
+		switch k {
+		case "j", "down":
+			active.Picker.MoveDown()
+			return a, nil
+		case "k", "up":
+			active.Picker.MoveUp()
+			return a, nil
+		case "enter":
+			conn := active.Picker.Confirm()
+			if conn != nil {
+				// Deliver the selection as a message so PaneLayoutModel.Update
+				// can start the background session and transition the pane state.
+				pickerPaneID := active.ID
+				capturedConn := *conn
+				return a, func() tea.Msg {
+					return panePickerMsg{PaneID: pickerPaneID, Connection: capturedConn}
+				}
+			}
+			// No connections available — just close the picker.
+			active.Picker = nil
+			return a, nil
+		case "esc":
+			active.Picker.Cancel()
+			active.Picker = nil
+			return a, nil
+		}
+		return a, nil
+	}
+
+	// Normal mode key handling
+	switch k {
+	case " ": // Space = leader key
+		if !a.leader.active {
+			cmd := a.leader.activate()
+			return a, cmd
+		}
+	case "esc":
+		// Pop the pane layout view (return to connection list)
+		a.popView()
+		return a, nil
+	case "q":
+		a.confirmQuit()
+		return a, nil
+	case "i":
+		// Enter insert mode to send input to the active pane.
+		// Do not pre-set a.mode — let setMode() perform the transition so that
+		// a ModeChangedMsg is properly emitted for any listeners.
+		a.statusBar.mode = ModeInsert
+		return a, a.setMode(ModeInsert)
+	case "enter":
+		active := a.paneLayout.ActivePane()
+		if active == nil {
+			return a, nil
+		}
+		switch active.State {
+		case PaneEmpty:
+			// Open the connection picker so the user can select a connection.
+			a.paneLayout.OpenPickerForPane(active.ID, a.cfg.Connections)
+		case PaneDisconnected:
+			// Attempt to reconnect using the previously selected connection.
+			if active.Connection != nil {
+				capturedConn := *active.Connection
+				capturedPaneID := active.ID
+				return a, func() tea.Msg {
+					return panePickerMsg{PaneID: capturedPaneID, Connection: capturedConn}
+				}
+			}
+			// No stored connection — re-open the picker to let the user choose.
+			a.paneLayout.OpenPickerForPane(active.ID, a.cfg.Connections)
+		}
+		return a, nil
+	}
+
+	return a, nil
+}
+
+// keyMsgToBytes converts a bubbletea KeyMsg to the raw bytes that a terminal
+// program expects. Printable runes are encoded as UTF-8; special keys are
+// mapped to their ANSI/VT100 escape sequences.
+func keyMsgToBytes(msg tea.KeyMsg) []byte {
+	k := msg.String()
+
+	// Printable runes — encode as UTF-8
+	if msg.Type == tea.KeyRunes {
+		s := string(msg.Runes)
+		return []byte(s)
+	}
+
+	switch k {
+	case "enter":
+		return []byte{'\r'}
+	case "tab":
+		return []byte{'\t'}
+	case "backspace":
+		return []byte{0x7f}
+	case "space":
+		return []byte{' '}
+
+	// Common control keys
+	case "ctrl+a":
+		return []byte{0x01}
+	case "ctrl+b":
+		return []byte{0x02}
+	case "ctrl+c":
+		return []byte{0x03}
+	case "ctrl+d":
+		return []byte{0x04}
+	case "ctrl+e":
+		return []byte{0x05}
+	case "ctrl+f":
+		return []byte{0x06}
+	case "ctrl+g":
+		return []byte{0x07}
+	case "ctrl+h":
+		return []byte{0x08}
+	case "ctrl+i":
+		return []byte{0x09}
+	case "ctrl+j":
+		return []byte{0x0a}
+	case "ctrl+k":
+		return []byte{0x0b}
+	case "ctrl+l":
+		return []byte{0x0c}
+	case "ctrl+m":
+		return []byte{0x0d}
+	case "ctrl+n":
+		return []byte{0x0e}
+	case "ctrl+o":
+		return []byte{0x0f}
+	case "ctrl+p":
+		return []byte{0x10}
+	case "ctrl+q":
+		return []byte{0x11}
+	case "ctrl+r":
+		return []byte{0x12}
+	case "ctrl+s":
+		return []byte{0x13}
+	case "ctrl+t":
+		return []byte{0x14}
+	case "ctrl+u":
+		return []byte{0x15}
+	case "ctrl+v":
+		return []byte{0x16}
+	case "ctrl+w":
+		return []byte{0x17}
+	case "ctrl+x":
+		return []byte{0x18}
+	case "ctrl+y":
+		return []byte{0x19}
+	case "ctrl+z":
+		return []byte{0x1a}
+
+	// Escape
+	case "esc":
+		return []byte{0x1b}
+
+	// Arrow keys (ANSI)
+	case "up":
+		return []byte{0x1b, '[', 'A'}
+	case "down":
+		return []byte{0x1b, '[', 'B'}
+	case "right":
+		return []byte{0x1b, '[', 'C'}
+	case "left":
+		return []byte{0x1b, '[', 'D'}
+
+	// Navigation keys
+	case "home":
+		return []byte{0x1b, '[', 'H'}
+	case "end":
+		return []byte{0x1b, '[', 'F'}
+	case "pgup":
+		return []byte{0x1b, '[', '5', '~'}
+	case "pgdown":
+		return []byte{0x1b, '[', '6', '~'}
+	case "delete":
+		return []byte{0x1b, '[', '3', '~'}
+	case "insert":
+		return []byte{0x1b, '[', '2', '~'}
+
+	// Function keys
+	case "f1":
+		return []byte{0x1b, 'O', 'P'}
+	case "f2":
+		return []byte{0x1b, 'O', 'Q'}
+	case "f3":
+		return []byte{0x1b, 'O', 'R'}
+	case "f4":
+		return []byte{0x1b, 'O', 'S'}
+	case "f5":
+		return []byte{0x1b, '[', '1', '5', '~'}
+	case "f6":
+		return []byte{0x1b, '[', '1', '7', '~'}
+	case "f7":
+		return []byte{0x1b, '[', '1', '8', '~'}
+	case "f8":
+		return []byte{0x1b, '[', '1', '9', '~'}
+	case "f9":
+		return []byte{0x1b, '[', '2', '0', '~'}
+	case "f10":
+		return []byte{0x1b, '[', '2', '1', '~'}
+	case "f11":
+		return []byte{0x1b, '[', '2', '3', '~'}
+	case "f12":
+		return []byte{0x1b, '[', '2', '4', '~'}
+	}
+
+	// Single printable ASCII character
+	if len(k) == 1 {
+		return []byte(k)
+	}
+
+	return nil
+}
+
 func (a App) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":
@@ -1553,6 +1847,17 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		a.log.info("Group deleted: %s", msg.Args)
 		a.statusBar.setFlash("Group deleted: "+msg.Args, flashInfo)
 		return a, scheduleFlashClear()
+	case "layout":
+		name := strings.TrimSpace(msg.Args)
+		if name == "" {
+			a.statusBar.setFlash("Usage: :layout <2h|2v|3v|2x2|main-side>", flashError)
+			return a, scheduleFlashClear()
+		}
+		if !IsValidPreset(name) {
+			a.statusBar.setFlash(fmt.Sprintf("Unknown layout: %q — supported: 2h, 2v, 3v, 2x2, main-side", name), flashError)
+			return a, scheduleFlashClear()
+		}
+		return a.applyPresetAction(name)
 	case "mv", "move":
 		args := strings.TrimSpace(msg.Args)
 		if args == "" {
@@ -2268,10 +2573,102 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		a.help.toggle()
 		return a, nil
 
+	// Window / pane layout actions
+	case "split-vertical":
+		if a.currentView() != viewPaneLayout {
+			a.paneLayout.SetSize(a.width, a.contentHeight())
+			a.pushView(viewPaneLayout)
+		}
+		cmd := a.paneLayout.SplitVertical()
+		// Open the connection picker on the newly created pane so the user
+		// can immediately pick a connection without an extra Enter.
+		if newID := a.paneLayout.LastCreatedPaneID; newID != "" {
+			a.paneLayout.OpenPickerForPane(newID, a.cfg.Connections)
+		}
+		return a, cmd
+	case "split-horizontal":
+		if a.currentView() != viewPaneLayout {
+			a.paneLayout.SetSize(a.width, a.contentHeight())
+			a.pushView(viewPaneLayout)
+		}
+		cmd := a.paneLayout.SplitHorizontal()
+		// Open the connection picker on the newly created pane.
+		if newID := a.paneLayout.LastCreatedPaneID; newID != "" {
+			a.paneLayout.OpenPickerForPane(newID, a.cfg.Connections)
+		}
+		return a, cmd
+	case "focus-left":
+		a.paneLayout.FocusDirection(DirLeft)
+		return a, nil
+	case "focus-right":
+		a.paneLayout.FocusDirection(DirRight)
+		return a, nil
+	case "focus-up":
+		a.paneLayout.FocusDirection(DirUp)
+		return a, nil
+	case "focus-down":
+		a.paneLayout.FocusDirection(DirDown)
+		return a, nil
+	case "close-pane":
+		cmd := a.paneLayout.ClosePane()
+		return a, cmd
+	case "broadcast-toggle":
+		cmd := a.paneLayout.ToggleBroadcast()
+		a.statusBar.broadcasting = a.paneLayout.IsBroadcasting()
+		return a, cmd
+	case "equalize-panes":
+		a.paneLayout.EqualizeAll()
+		return a, nil
+	case "zoom-pane":
+		a.paneLayout.ZoomToggle()
+		return a, nil
+	case "resize-right":
+		a.paneLayout.ResizeActive(DirRight, 0.05)
+		return a, nil
+	case "resize-left":
+		a.paneLayout.ResizeActive(DirLeft, 0.05)
+		return a, nil
+	case "resize-down":
+		a.paneLayout.ResizeActive(DirDown, 0.05)
+		return a, nil
+	case "resize-up":
+		a.paneLayout.ResizeActive(DirUp, 0.05)
+		return a, nil
+
+	// Preset layout actions
+	case "preset-2h":
+		return a.applyPresetAction("2h")
+	case "preset-2v":
+		return a.applyPresetAction("2v")
+	case "preset-3v":
+		return a.applyPresetAction("3v")
+	case "preset-2x2":
+		return a.applyPresetAction("2x2")
+	case "preset-main-side":
+		return a.applyPresetAction("main-side")
+
 	default:
 		a.statusBar.setFlash(fmt.Sprintf("Action: %s", action.Command), flashInfo)
 		return a, scheduleFlashClear()
 	}
+}
+
+// applyPresetAction switches to viewPaneLayout (if not already there) and
+// applies a named pane layout preset, then opens a connection picker on every
+// new empty pane.
+func (a App) applyPresetAction(presetName string) (tea.Model, tea.Cmd) {
+	if a.currentView() != viewPaneLayout {
+		a.paneLayout.SetSize(a.width, a.contentHeight())
+		a.pushView(viewPaneLayout)
+	}
+	cmd := a.paneLayout.ApplyPreset(presetName)
+	// Open the connection picker on every new empty pane.
+	for _, p := range a.paneLayout.AllPanes() {
+		if p.State == PaneEmpty {
+			a.paneLayout.OpenPickerForPane(p.ID, a.cfg.Connections)
+		}
+	}
+	return a, cmd
 }
 
 // handleSearchInput processes key events while the search bar is active.
@@ -2577,6 +2974,8 @@ func (a App) View() string {
 		contentView = a.pulse.View()
 	case viewAuditLog:
 		contentView = a.auditLogView.View()
+	case viewPaneLayout:
+		contentView = a.paneLayout.View()
 	}
 
 	// Calculate available height for content and pad/truncate to fill
@@ -2623,6 +3022,9 @@ func (a *App) layout() {
 	a.sessionsView.setSize(a.width, ch)
 	a.pulse.SetSize(a.width, ch)
 	a.auditLogView.SetSize(a.width, ch)
+	if a.currentView() == viewPaneLayout {
+		a.paneLayout.SetSize(a.width, ch)
+	}
 
 	total, online, offline := a.list.countsByStatus()
 	a.statusBar.total = total

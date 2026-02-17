@@ -36,8 +36,9 @@ type statusBarModel struct {
 	flash        *flash
 	view         string
 	mode         Mode
-	visualCount  int // number of selected items in visual mode
+	visualCount  int  // number of selected items in visual mode
 	width        int
+	broadcasting bool // true when pane broadcast mode is active
 }
 
 func newStatusBar() statusBarModel {
@@ -160,6 +161,14 @@ func (s statusBarModel) View() string {
 	}
 	if s.sessionCount > 0 {
 		left += statsStyle.Render(fmt.Sprintf(" | ~ %d sessions", s.sessionCount))
+	}
+	if s.broadcasting {
+		broadcastStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#ffffff")).
+			Background(t.Warning).
+			Bold(true).
+			Padding(0, 1)
+		left += " " + broadcastStyle.Render("BROADCAST")
 	}
 
 	// Position indicator (right side)

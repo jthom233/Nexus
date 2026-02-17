@@ -20,6 +20,9 @@ import (
 	"golang.org/x/term"
 )
 
+// errNilStdin is returned by WriteInput when no SSH stdin pipe is available.
+var errNilStdin = errors.New("session: ssh stdin not available")
+
 // ErrDetached is returned from Run() when the user presses Ctrl+\ to detach.
 var ErrDetached = errors.New("session detached")
 
@@ -224,6 +227,14 @@ type ManagedSession struct {
 
 	// Track whether we've already connected
 	connected bool
+
+	// Background / pane mode (T010)
+	OutputCh       chan []byte  // buffered channel for pane output in BackgroundMode
+	BackgroundMode bool        // true when running without terminal attachment
+	PaneWidth      int         // current pane width for SSH WindowChange
+	PaneHeight     int         // current pane height for SSH WindowChange
+	resizeTimer    *time.Timer // debounce timer for SetPaneSize
+	resizeMu       sync.Mutex  // protects resizeTimer
 }
 
 // NewManagedSession creates a new managed session ready to connect.
@@ -245,6 +256,7 @@ func NewManagedSession(id, name, connID, protocol, host string, port int, userna
 		replayBuf:    newReplayBuffer(256 * 1024), // 256KB session history
 		doneCh:       make(chan struct{}),
 		status:       StatusConnecting,
+		OutputCh:     make(chan []byte, 256),
 	}
 }
 
@@ -290,7 +302,11 @@ func (m *ManagedSession) SetStderr(w io.Writer) { m.stderr = w }
 
 // Run connects (on first call) and enters the attach loop.
 // Returns ErrDetached on Ctrl+\, or the session error when SSH exits.
+// Panics if StartBackground() was called first — the two modes are mutually exclusive.
 func (m *ManagedSession) Run() error {
+	if m.BackgroundMode {
+		panic("session: Run() called on a session already started with StartBackground()")
+	}
 	if !m.connected {
 		// Run pre-connect hooks
 		if err := m.runHooksForEvent(hooks.PreConnect); err != nil {
@@ -546,14 +562,26 @@ func (m *ManagedSession) startShell() error {
 // readOutput continuously reads SSH stdout into both the incremental buffer
 // (for ticker-based passthrough) and the replay buffer (for reattach history).
 // Runs for the lifetime of the SSH connection — never stopped on detach.
+// When BackgroundMode is true, data is sent to OutputCh instead of outputBuf.
 func (m *ManagedSession) readOutput() {
 	buf := make([]byte, 32*1024)
 	for {
 		n, err := m.sshStdout.Read(buf)
 		if n > 0 {
 			data := buf[:n]
-			m.outputBuf.Write(data)  // incremental: drained by ticker while attached
-			m.replayBuf.Write(data)  // history: replayed on reattach to restore terminal
+			if m.BackgroundMode {
+				// Route to channel for pane consumers; copy because buf is reused.
+				dataCopy := make([]byte, len(data))
+				copy(dataCopy, data)
+				select {
+				case m.OutputCh <- dataCopy:
+				default:
+					// Channel full — drop the chunk to avoid blocking the reader.
+				}
+			} else {
+				m.outputBuf.Write(data) // incremental: drained by ticker while attached
+			}
+			m.replayBuf.Write(data) // history: replayed on reattach to restore terminal
 		}
 		if err != nil {
 			return
@@ -588,6 +616,11 @@ func (m *ManagedSession) waitDone() {
 	m.runHooksForEvent(hooks.PostDisconnect)
 
 	close(m.doneCh)
+
+	// Signal pane consumers that no more output will arrive.
+	if m.BackgroundMode {
+		close(m.OutputCh)
+	}
 
 	// Stop port forwards
 	if m.pfManager != nil {
@@ -719,8 +752,10 @@ func (m *ManagedSession) attachLoop() error {
 	// Channel to stop the resize watcher
 	stopResize := make(chan struct{})
 
-	// Start resize watcher
-	if hasTerminal {
+	// Start resize watcher.
+	// Skip when BackgroundMode is true — pane resize is handled via SetPaneSize()
+	// which sends a debounced WindowChange directly, so polling is unnecessary.
+	if hasTerminal && !m.BackgroundMode {
 		go func() {
 			prevW, prevH, _ := term.GetSize(fd)
 			for {
@@ -869,4 +904,100 @@ func (m *ManagedSession) PortForwardList() []ActiveForward {
 		return nil
 	}
 	return m.pfManager.List()
+}
+
+// StartBackground connects the session (if not already connected) and launches
+// the background I/O goroutines without entering an interactive attach loop.
+// Output is routed to OutputCh instead of a terminal writer.
+// It is idempotent: a second call on an already-connected session returns nil.
+// StartBackground and Run are mutually exclusive — calling Run after
+// StartBackground panics. (T011)
+func (m *ManagedSession) StartBackground() error {
+	if m.connected {
+		return nil
+	}
+	if err := m.runHooksForEvent(hooks.PreConnect); err != nil {
+		m.setStatus(StatusClosed)
+		return fmt.Errorf("pre-connect hook: %w", err)
+	}
+	if err := m.connect(); err != nil {
+		m.setStatus(StatusClosed)
+		return err
+	}
+	if err := m.startShell(); err != nil {
+		m.client.Close()
+		m.setStatus(StatusClosed)
+		return err
+	}
+
+	m.BackgroundMode = true
+	m.connected = true
+	m.ConnectedAt = time.Now()
+	m.setStatus(StatusConnected)
+
+	// Run post-connect hooks (best-effort)
+	m.runHooksForEvent(hooks.PostConnect)
+
+	// Start port forwards
+	if len(m.PortForwards) > 0 {
+		m.pfManager = NewPortForwardManager()
+		for _, pf := range m.PortForwards {
+			if err := m.startPortForward(pf); err != nil {
+				msg := fmt.Sprintf("port forward %s: %v\n", pf.String(), err)
+				m.stderrBuf.Write([]byte(msg))
+			}
+		}
+	}
+
+	// Launch lifetime goroutines — output goes to OutputCh (BackgroundMode=true).
+	go m.readOutput()
+	go m.readStderr()
+	go m.waitDone()
+
+	return nil
+}
+
+// WriteInput writes data directly to the SSH stdin pipe.
+// Returns an error if the session has not been connected yet. (T012)
+func (m *ManagedSession) WriteInput(data []byte) error {
+	if m.sshStdin == nil {
+		return errNilStdin
+	}
+	_, err := m.sshStdin.Write(data)
+	return err
+}
+
+// SetPaneSize updates the recorded pane dimensions and schedules a debounced
+// SSH WindowChange request (fires after 100 ms of inactivity). (T013)
+func (m *ManagedSession) SetPaneSize(width, height int) {
+	m.resizeMu.Lock()
+	defer m.resizeMu.Unlock()
+
+	// Write dimensions inside the lock so the timer callback reads them safely.
+	m.PaneWidth = width
+	m.PaneHeight = height
+
+	if m.resizeTimer != nil {
+		m.resizeTimer.Reset(100 * time.Millisecond)
+		return
+	}
+
+	m.resizeTimer = time.AfterFunc(100*time.Millisecond, func() {
+		m.resizeMu.Lock()
+		w := m.PaneWidth
+		h := m.PaneHeight
+		m.resizeTimer = nil
+		m.resizeMu.Unlock()
+
+		if m.session != nil {
+			_ = m.session.WindowChange(h, w)
+		}
+	})
+}
+
+// OutputChan returns the read-only end of the output channel.
+// The channel is closed when the SSH session ends.
+// Only valid when the session was started with StartBackground(). (T014)
+func (m *ManagedSession) OutputChan() <-chan []byte {
+	return m.OutputCh
 }
