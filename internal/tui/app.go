@@ -374,14 +374,42 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.statusBar.mode = ModeNormal
 				return a, a.setMode(ModeNormal)
 			case "enter":
-				if c := a.finder.SelectedConnection(); c != nil {
-					a.finder.Deactivate()
-					a.mode = ModeNormal
-					a.statusBar.mode = ModeNormal
-					if c.Protocol == config.ProtoSSH {
-						return a.connectManaged(*c)
+				switch a.finder.picker {
+				case PickerGroups:
+					if len(a.finder.results) > 0 && a.finder.cursor >= 0 && a.finder.cursor < len(a.finder.results) {
+						group := a.finder.results[a.finder.cursor].Display
+						a.finder.Deactivate()
+						a.mode = ModeNormal
+						a.statusBar.mode = ModeNormal
+						a.list.groupFilter = group
+						a.list.applyGroupFilter()
+						a.syncHeaderView()
+						a.syncCursorPosition()
+						a.statusBar.setFlash("Filtered by group: "+group, flashInfo)
+						return a, scheduleFlashClear()
 					}
-					return a.connectByID(c.ID)
+				case PickerTags:
+					if len(a.finder.results) > 0 && a.finder.cursor >= 0 && a.finder.cursor < len(a.finder.results) {
+						tag := a.finder.results[a.finder.cursor].Display
+						a.finder.Deactivate()
+						a.mode = ModeNormal
+						a.statusBar.mode = ModeNormal
+						a.applyTagFilter(tag)
+						a.syncHeaderView()
+						a.syncCursorPosition()
+						a.statusBar.setFlash("Filtered by tag: "+tag, flashInfo)
+						return a, scheduleFlashClear()
+					}
+				default:
+					if c := a.finder.SelectedConnection(); c != nil {
+						a.finder.Deactivate()
+						a.mode = ModeNormal
+						a.statusBar.mode = ModeNormal
+						if c.Protocol == config.ProtoSSH {
+							return a.connectManaged(*c)
+						}
+						return a.connectByID(c.ID)
+					}
 				}
 				return a, nil
 			default:

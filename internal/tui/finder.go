@@ -87,12 +87,49 @@ func (f *FinderModel) Activate(picker FinderPicker, connections []config.Connect
 	f.prompt.SetValue("")
 	f.prompt.Focus()
 
-	// Build entries from connections
-	f.entries = make([]FinderEntry, len(connections))
-	for i, c := range connections {
-		f.entries[i] = FinderEntry{
-			Display:    c.Name,
-			Connection: c,
+	switch picker {
+	case PickerGroups:
+		// Build deduplicated group entries
+		seen := make(map[string]bool)
+		f.entries = nil
+		for _, c := range connections {
+			if c.Group != "" && !seen[c.Group] {
+				seen[c.Group] = true
+				f.entries = append(f.entries, FinderEntry{
+					Display:    c.Group,
+					Connection: c,
+				})
+			}
+		}
+		sort.Slice(f.entries, func(i, j int) bool {
+			return f.entries[i].Display < f.entries[j].Display
+		})
+	case PickerTags:
+		// Build deduplicated tag entries
+		seen := make(map[string]bool)
+		f.entries = nil
+		for _, c := range connections {
+			for _, tag := range c.Tags {
+				if !seen[tag] {
+					seen[tag] = true
+					f.entries = append(f.entries, FinderEntry{
+						Display:    tag,
+						Connection: c,
+					})
+				}
+			}
+		}
+		sort.Slice(f.entries, func(i, j int) bool {
+			return f.entries[i].Display < f.entries[j].Display
+		})
+	default:
+		// Build entries from connections
+		f.entries = make([]FinderEntry, len(connections))
+		for i, c := range connections {
+			f.entries[i] = FinderEntry{
+				Display:    c.Name,
+				Connection: c,
+			}
 		}
 	}
 	f.filterResults()
