@@ -526,16 +526,12 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	// Handle fullscreen option (queue for main thread, use stored dimensions)
+	// Handle fullscreen option (queue for main thread)
 	if options != nil {
 		if fs, ok := options["fullscreen"].(bool); ok && fs {
 			a.pendingFullscreen.Store(true)
-			// Use current window dimensions as resolution estimate
-			// (actual fullscreen resolution applied on next Update tick)
-			if options == nil {
-				options = make(map[string]interface{})
-			}
-			options["resolution"] = fmt.Sprintf("%dx%d", a.width, a.height)
+			// Don't override user's resolution — it will be used as-is.
+			// The window will go fullscreen on the next Update tick.
 		}
 	}
 
