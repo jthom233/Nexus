@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
-	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -23,9 +24,22 @@ import (
 	"github.com/tomatome/grdp/protocol/x224"
 )
 
+// rdpLog is a dedicated logger that writes to %TEMP%/nexus-rdp-debug.log.
+var rdpLog *log.Logger
+
 func init() {
-	glog.SetLogger(log.New(io.Discard, "", 0))
-	glog.SetLevel(glog.NONE)
+	logPath := os.TempDir() + "/nexus-rdp-debug.log"
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		rdpLog = log.New(os.Stderr, "[rdp] ", log.LstdFlags|log.Lmicroseconds)
+	} else {
+		rdpLog = log.New(f, "[rdp] ", log.LstdFlags|log.Lmicroseconds)
+	}
+	rdpLog.Printf("RDP diagnostics started — log: %s", logPath)
+
+	// ERROR level only — avoids logging credentials that appear at DEBUG/INFO.
+	glog.SetLogger(log.New(f, "[gordp] ", log.LstdFlags|log.Lmicroseconds))
+	glog.SetLevel(glog.ERROR)
 }
 
 // RDPSession manages an RDP connection and renders its framebuffer.
@@ -56,6 +70,18 @@ type RDPSession struct {
 
 	lastMouseX int
 	lastMouseY int
+
+	// asyncErr receives the first protocol-level error after Connect() returns
+	// (e.g. NLA auth failure). Buffered so the sender never blocks.
+	asyncErr chan error
+	// doneCh is closed when the session ends (Close() or server-initiated close).
+	doneCh   chan struct{}
+	doneOnce sync.Once
+
+	// diagnostics
+	bitmapCallbacks atomic.Int64 // total "update" events received
+	bitmapDecoded   atomic.Int64 // bitmaps successfully decoded
+	bitmapDropped   atomic.Int64 // bitmaps dropped (nil data or decode failure)
 }
 
 // NewRDPSession creates a new RDP session.
@@ -76,18 +102,26 @@ func NewRDPSession(host string, port int, username, password, domain string, opt
 		width:    w,
 		height:   h,
 		fb:       image.NewRGBA(image.Rect(0, 0, w, h)),
+		asyncErr: make(chan error, 1),
+		doneCh:   make(chan struct{}),
 	}
 }
 
 // Connect establishes the RDP connection using grdp protocol layers.
 func (r *RDPSession) Connect() error {
 	addr := fmt.Sprintf("%s:%d", r.host, r.port)
+	rdpLog.Printf("CONNECT start — target=%s resolution=%dx%d", addr, r.width, r.height)
+
+	start := time.Now()
 	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
 	if err != nil {
+		rdpLog.Printf("CONNECT tcp-dial FAILED after %v: %v", time.Since(start), err)
 		return fmt.Errorf("rdp dial: %w", err)
 	}
+	rdpLog.Printf("CONNECT tcp-dial OK in %v — local=%s remote=%s", time.Since(start), conn.LocalAddr(), conn.RemoteAddr())
 
 	domain, user := splitDomainUser(r.domain, r.username)
+	rdpLog.Printf("CONNECT auth — domain=%q user=%q hasPassword=%v", domain, user, r.password != "")
 
 	r.tpktLayer = tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2(domain, user, r.password))
 	r.x224Layer = x224.New(r.tpktLayer)
@@ -109,24 +143,54 @@ func (r *RDPSession) Connect() error {
 	r.clipboard = newClipboardChannel()
 	r.channels.Register(r.clipboard)
 
-	// Register bitmap update callback
+	// "update" is emitted with one arg: []pdu.BitmapData
 	r.pduLayer.On("update", func(data interface{}) {
+		n := r.bitmapCallbacks.Add(1)
 		bitmaps, ok := data.([]pdu.BitmapData)
 		if !ok {
+			rdpLog.Printf("UPDATE event #%d — unexpected type %T", n, data)
 			return
 		}
+		rdpLog.Printf("UPDATE event #%d — %d bitmap(s)", n, len(bitmaps))
 		r.handleBitmapUpdate(bitmaps)
 	})
 
-	r.pduLayer.On("close", func(data interface{}) {
+	// "close" is emitted with zero args — must use func() not func(interface{})
+	r.pduLayer.On("close", func() {
+		rdpLog.Printf("SESSION closed by server — callbacks=%d decoded=%d dropped=%d",
+			r.bitmapCallbacks.Load(), r.bitmapDecoded.Load(), r.bitmapDropped.Load())
 		r.mu.Lock()
 		r.closed = true
 		r.mu.Unlock()
+		r.doneOnce.Do(func() { close(r.doneCh) })
 	})
 
+	// "error" is emitted with one arg: the error value
+	r.pduLayer.On("error", func(data interface{}) {
+		var err error
+		switch v := data.(type) {
+		case error:
+			err = v
+		case string:
+			err = fmt.Errorf("%s", v)
+		default:
+			err = fmt.Errorf("rdp protocol error: %v", data)
+		}
+		rdpLog.Printf("PDU error event — %v (callbacks=%d decoded=%d dropped=%d)",
+			err, r.bitmapCallbacks.Load(), r.bitmapDecoded.Load(), r.bitmapDropped.Load())
+		select {
+		case r.asyncErr <- err:
+		default:
+		}
+	})
+
+	rdpLog.Printf("CONNECT handshake starting...")
+	hsStart := time.Now()
 	if err := r.x224Layer.Connect(); err != nil {
+		rdpLog.Printf("CONNECT handshake FAILED after %v: %v", time.Since(hsStart), err)
 		return fmt.Errorf("rdp connect: %w", err)
 	}
+	rdpLog.Printf("CONNECT handshake OK in %v — NLA auth completes asynchronously", time.Since(hsStart))
 
 	return nil
 }
@@ -141,23 +205,46 @@ func (r *RDPSession) handleBitmapUpdate(bitmaps []pdu.BitmapData) {
 	}
 	decoded := make([]decodedBmp, 0, len(bitmaps))
 
-	for _, bmp := range bitmaps {
+	for i, bmp := range bitmaps {
 		data := bmp.BitmapDataStream
 		if bmp.IsCompress() {
-			data = core.Decompress(data, int(bmp.Width), int(bmp.Height), bppToBytes(bmp.BitsPerPixel))
+			bpp := bppToBytes(bmp.BitsPerPixel)
+			if bpp == 0 {
+				rdpLog.Printf("  DECODE[%d] SKIP — unsupported bpp=%d (bppToBytes=0)", i, bmp.BitsPerPixel)
+				r.bitmapDropped.Add(1)
+				continue
+			}
+			data = core.Decompress(data, int(bmp.Width), int(bmp.Height), bpp)
+			if data == nil {
+				rdpLog.Printf("  DECODE[%d] SKIP — Decompress returned nil (bpp=%d w=%d h=%d srcLen=%d)",
+					i, bmp.BitsPerPixel, bmp.Width, bmp.Height, len(bmp.BitmapDataStream))
+				r.bitmapDropped.Add(1)
+				continue
+			}
+			rdpLog.Printf("  DECODE[%d] decompress OK — bpp=%d w=%d h=%d srcLen=%d dstLen=%d",
+				i, bmp.BitsPerPixel, bmp.Width, bmp.Height, len(bmp.BitmapDataStream), len(data))
 		}
 		if data == nil {
+			rdpLog.Printf("  DECODE[%d] SKIP — nil data (uncompressed, bpp=%d)", i, bmp.BitsPerPixel)
+			r.bitmapDropped.Add(1)
 			continue
 		}
 		img := decodeBitmapData(data, int(bmp.Width), int(bmp.Height), int(bmp.BitsPerPixel), !bmp.IsCompress())
 		if img == nil {
+			rdpLog.Printf("  DECODE[%d] SKIP — decodeBitmapData returned nil (bpp=%d w=%d h=%d)",
+				i, bmp.BitsPerPixel, bmp.Width, bmp.Height)
+			r.bitmapDropped.Add(1)
 			continue
 		}
 		destRect := image.Rect(int(bmp.DestLeft), int(bmp.DestTop), int(bmp.DestRight)+1, int(bmp.DestBottom)+1)
+		rdpLog.Printf("  DECODE[%d] OK — blit to %v", i, destRect)
+		r.bitmapDecoded.Add(1)
 		decoded = append(decoded, decodedBmp{img: img, rect: destRect})
 	}
 
 	if len(decoded) == 0 {
+		rdpLog.Printf("  handleBitmapUpdate: all %d bitmap(s) dropped (total dropped=%d)",
+			len(bitmaps), r.bitmapDropped.Load())
 		return
 	}
 
@@ -174,6 +261,7 @@ func (r *RDPSession) handleBitmapUpdate(bitmaps []pdu.BitmapData) {
 		}
 	}
 	r.dirty = true
+	rdpLog.Printf("  framebuffer updated — %d rect(s) blitted, dirtyRect=%v", len(decoded), r.dirtyRect)
 }
 
 // Update processes pending framebuffer changes.
@@ -182,6 +270,7 @@ func (r *RDPSession) Update() {
 	defer r.mu.Unlock()
 
 	if r.ebiImg == nil {
+		rdpLog.Printf("UPDATE ebiImg created — %dx%d", r.width, r.height)
 		r.ebiImg = ebiten.NewImage(r.width, r.height)
 	}
 
@@ -191,6 +280,7 @@ func (r *RDPSession) Update() {
 
 	// Clamp dirty rect to framebuffer bounds.
 	rect := r.dirtyRect.Intersect(image.Rect(0, 0, r.width, r.height))
+	rdpLog.Printf("UPDATE WritePixels — dirtyRect=%v clampedRect=%v", r.dirtyRect, rect)
 	if !rect.Empty() {
 		w := rect.Dx()
 		h := rect.Dy()
@@ -202,6 +292,9 @@ func (r *RDPSession) Update() {
 		}
 		sub := r.ebiImg.SubImage(rect).(*ebiten.Image)
 		sub.WritePixels(buf)
+		rdpLog.Printf("UPDATE WritePixels OK — %d bytes to rect=%v", len(buf), rect)
+	} else {
+		rdpLog.Printf("UPDATE WritePixels SKIP — clamped rect is empty (fb=%dx%d dirtyRect=%v)", r.width, r.height, r.dirtyRect)
 	}
 
 	r.dirty = false
@@ -407,8 +500,9 @@ func (r *RDPSession) SendCtrlShiftEsc() {
 // Close terminates the RDP session.
 func (r *RDPSession) Close() {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.closed = true
+	r.mu.Unlock()
+	r.doneOnce.Do(func() { close(r.doneCh) })
 	if r.clipboard != nil {
 		r.clipboard.stop()
 	}
@@ -417,19 +511,26 @@ func (r *RDPSession) Close() {
 	}
 }
 
+// done returns a channel that is closed when the session ends.
+func (r *RDPSession) done() <-chan struct{} {
+	return r.doneCh
+}
+
 func splitDomainUser(domain, user string) (string, string) {
-	if domain != "" {
-		return domain, user
+	// Strip any embedded domain prefix from the username regardless of source,
+	// since NTLMv2 wants domain and bare username as separate fields.
+	if idx := strings.Index(user, "\\"); idx >= 0 {
+		if domain == "" {
+			domain = user[:idx]
+		}
+		user = user[idx+1:]
+	} else if idx := strings.Index(user, "/"); idx >= 0 {
+		if domain == "" {
+			domain = user[:idx]
+		}
+		user = user[idx+1:]
 	}
-	if strings.Contains(user, "\\") {
-		parts := strings.SplitN(user, "\\", 2)
-		return parts[0], parts[1]
-	}
-	if strings.Contains(user, "/") {
-		parts := strings.SplitN(user, "/", 2)
-		return parts[0], parts[1]
-	}
-	return "", user
+	return domain, user
 }
 
 func bppToBytes(bpp uint16) int {

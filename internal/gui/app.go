@@ -928,7 +928,7 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 	}
 	a.tabs.Add(tab)
 
-	// Connect in background
+	// Connect in background, then watch for async protocol errors (e.g. NLA auth failure).
 	go func() {
 		if err := sess.Connect(); err != nil {
 			tab.Error = err
@@ -944,6 +944,25 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 		tab.Status = "connected"
 		if reply != nil {
 			reply(ipc.MsgTabOpened, &ipc.TabOpenedEvent{ConnID: connID})
+		}
+
+		// gordp's Connect() returns before NLA completes. Watch for async
+		// protocol errors (auth failures, server-initiated disconnects, etc.)
+		// that arrive via the "error" PDU event after the handshake returns.
+		if rdpSess, ok := sess.(*RDPSession); ok {
+			select {
+			case asyncErr := <-rdpSess.asyncErr:
+				tab.Error = asyncErr
+				tab.Status = "error"
+				if reply != nil {
+					reply(ipc.MsgTabError, &ipc.TabErrorEvent{
+						ConnID: connID,
+						Error:  asyncErr.Error(),
+					})
+				}
+			case <-rdpSess.done():
+				// Session closed normally — nothing to do.
+			}
 		}
 	}()
 
