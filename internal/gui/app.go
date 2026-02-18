@@ -272,8 +272,16 @@ func (a *App) Draw(screen *ebiten.Image) {
 // The session framebuffer fills the entire screen from y=0.
 // The overlay bar is drawn on top when visible.
 func (a *App) drawFullscreen(screen *ebiten.Image) {
+	// Guard against zero dimensions during the minimize→restore transition.
+	// Layout() may not have fired yet, leaving a.width/a.height at 0.
+	if a.width <= 0 || a.height <= 0 {
+		return
+	}
+
 	activeTab := a.tabs.Active()
 	if activeTab == nil {
+		// No active tab — draw overlay only (dark background already filled by Draw).
+		a.drawOverlay(screen)
 		return
 	}
 
@@ -489,6 +497,12 @@ func (a *App) handleOverlay() {
 func (a *App) drawOverlay(screen *ebiten.Image) {
 	ox, oy, ow, _ := a.overlayRect()
 
+	// Guard: ow can be 0 if a.width is 0 during the minimize→restore transition.
+	// ebiten.NewImage panics on zero dimensions.
+	if ow <= 0 {
+		return
+	}
+
 	// Always draw the thin grab handle as a subtle hint strip.
 	handleImg := ebiten.NewImage(ow, overlayHandleH)
 	handleImg.Fill(color.RGBA{R: 100, G: 100, B: 140, A: 120})
@@ -584,6 +598,11 @@ func (a *App) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func (a *App) drawTabBar(screen *ebiten.Image) {
+	// Guard against zero dimensions during window restore transitions.
+	if a.width <= 0 || a.height <= 0 {
+		return
+	}
+
 	tabs := a.tabs.All()
 
 	activeID := ""
@@ -663,6 +682,11 @@ func (a *App) drawTabBar(screen *ebiten.Image) {
 }
 
 func (a *App) drawToolbar(screen *ebiten.Image) {
+	// Guard against zero dimensions during window restore transitions.
+	if a.width <= 0 || a.height <= 0 {
+		return
+	}
+
 	// Toolbar background
 	tbImg := ebiten.NewImage(a.width, toolbarHeight)
 	tbImg.Fill(color.RGBA{R: 39, G: 39, B: 55, A: 255})
