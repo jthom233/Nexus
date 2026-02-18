@@ -1,6 +1,13 @@
-# Nexus
+<p align="center">
+  <img src="assets/nexus.png" alt="Nexus" width="400">
+</p>
 
-A production-grade terminal UI for managing and connecting to remote servers. Neovim-native modal controls, k9s-inspired visual design, and deep feature set rivaling Devolutions Remote Desktop Manager — all in a single Go binary.
+<p align="center">
+  <em>Production-grade terminal UI for managing and connecting to remote servers.</em><br>
+  Neovim-native modal controls · k9s-inspired visual design · Single Go binary
+</p>
+
+---
 
 ## Features
 

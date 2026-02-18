@@ -1,0 +1,27 @@
+// Windows Terminal Profile Fragment for Nexus
+// Add this to your Windows Terminal settings.json under "profiles" → "list"
+// to get the Nexus-branded terminal background.
+//
+// Steps:
+//   1. Open Windows Terminal Settings (Ctrl+,) → Open JSON file
+//   2. Under "profiles" → "list", add this profile object
+//   3. Update "backgroundImage" path to your actual nexus-background.png location
+//   4. Launch Nexus from this profile for the full branded experience
+{
+    "name": "Nexus",
+    "commandline": "nexus",
+    "icon": null,
+    "backgroundImage": "%USERPROFILE%\\Pictures\\nexus-background.png",
+    "backgroundImageStretchMode": "uniformToFill",
+    "backgroundImageAlignment": "center",
+    "backgroundImageOpacity": 0.15,
+    "useAcrylic": true,
+    "acrylicOpacity": 0.85,
+    "colorScheme": "One Half Dark",
+    "font": {
+        "face": "CaskaydiaCove Nerd Font",
+        "size": 11
+    },
+    "padding": "8",
+    "cursorShape": "filledBox"
+}
