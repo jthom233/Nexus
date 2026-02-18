@@ -28,8 +28,11 @@ const (
 	cbResponseFail = 0x0002
 )
 
-// Clipboard format.
-const cfUnicodeText = 13
+// Clipboard format IDs.
+const (
+	cfUnicodeText = 13
+	cfDIB         = uint32(8)
+)
 
 // Capability flags.
 const (
@@ -85,11 +88,13 @@ func isTextContent(s string) bool {
 // channel. It synchronises the local system clipboard with the remote RDP
 // session using CF_UNICODETEXT.
 type clipboardChannel struct {
-	sender      core.ChannelSender
-	mu          sync.Mutex
-	lastContent string
-	stopPoll    chan struct{}
-	ready       bool
+	sender             core.ChannelSender
+	mu                 sync.Mutex
+	lastContent        string
+	stopPoll           chan struct{}
+	ready              bool
+	lastImageAvailable bool
+	pendingFormat      uint32
 }
 
 // newClipboardChannel returns an initialised clipboardChannel.
@@ -157,15 +162,16 @@ func (c *clipboardChannel) Process(s []byte) {
 // ---------------------------------------------------------------------------
 
 // processFormatList handles cbFormatList from the server (the server's
-// clipboard content changed). If CF_UNICODETEXT is among the advertised
-// formats we immediately request the data.
+// clipboard content changed). If CF_DIB is among the advertised formats it is
+// preferred; otherwise CF_UNICODETEXT is requested when available.
 func (c *clipboardChannel) processFormatList(data []byte) {
 	// Acknowledge the format list immediately.
 	c.sendPDU(cbFormatListResponse, cbResponseOK, nil)
 
-	// Check whether CF_UNICODETEXT is available.
+	// Scan for CF_DIB and CF_UNICODETEXT in the server's format list.
 	r := bytes.NewReader(data)
 	hasText := false
+	hasImage := false
 	for r.Len() >= 4 {
 		fmtID, err := core.ReadUInt32LE(r)
 		if err != nil {
@@ -173,6 +179,9 @@ func (c *clipboardChannel) processFormatList(data []byte) {
 		}
 		if fmtID == cfUnicodeText {
 			hasText = true
+		}
+		if fmtID == cfDIB {
+			hasImage = true
 		}
 		// Skip the format name (null-terminated UTF-16LE string).
 		for r.Len() >= 2 {
@@ -182,7 +191,16 @@ func (c *clipboardChannel) processFormatList(data []byte) {
 			}
 		}
 	}
-	if hasText {
+	// Prefer CF_DIB (higher-value format) when the server advertises it.
+	if hasImage {
+		c.mu.Lock()
+		c.pendingFormat = cfDIB
+		c.mu.Unlock()
+		c.sendFormatDataRequest(cfDIB)
+	} else if hasText {
+		c.mu.Lock()
+		c.pendingFormat = cfUnicodeText
+		c.mu.Unlock()
 		c.sendFormatDataRequest(cfUnicodeText)
 	}
 }
@@ -193,6 +211,34 @@ func (c *clipboardChannel) processFormatDataResponse(flags uint16, data []byte) 
 	if flags&cbResponseFail != 0 || len(data) == 0 {
 		return
 	}
+
+	c.mu.Lock()
+	pending := c.pendingFormat
+	c.pendingFormat = 0
+	c.mu.Unlock()
+
+	if pending == cfDIB {
+		if len(data) > maxImageTransferSize+dibHeaderSize {
+			log.Printf("cliprdr: server image too large (%d bytes), discarding", len(data))
+			return
+		}
+		pngBytes, err := dibToPNG(data)
+		if err != nil {
+			log.Printf("cliprdr: DIB→PNG conversion failed: %v", err)
+			return
+		}
+		if err := writeImageClipboard(pngBytes); err != nil {
+			log.Printf("cliprdr: writeImageClipboard failed: %v", err)
+		}
+		return
+	}
+
+	if pending != cfUnicodeText {
+		log.Printf("cliprdr: unexpected format data response (pending=%d), discarding", pending)
+		return
+	}
+
+	// CF_UNICODETEXT path.
 	// Remove the UTF-16LE null terminator if present.
 	if len(data) >= 2 && data[len(data)-1] == 0 && data[len(data)-2] == 0 {
 		data = data[:len(data)-2]
@@ -216,23 +262,47 @@ func (c *clipboardChannel) processFormatDataRequest(data []byte) {
 	}
 	r := bytes.NewReader(data)
 	fmtID, _ := core.ReadUInt32LE(r)
-	if fmtID != cfUnicodeText {
+
+	switch fmtID {
+	case cfDIB:
+		pngBytes, err := readImageClipboard()
+		if err != nil {
+			log.Printf("cliprdr: readImageClipboard failed: %v", err)
+			c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
+			return
+		}
+		if len(pngBytes) > maxImageTransferSize {
+			log.Printf("cliprdr: local image too large (%d bytes), skipping transfer", len(pngBytes))
+			c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
+			return
+		}
+		dibBytes, err := pngToDIB(pngBytes)
+		if err != nil {
+			log.Printf("cliprdr: PNG→DIB conversion failed: %v", err)
+			c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
+			return
+		}
+		c.sendFormatDataResponse(dibBytes)
+
+	case cfUnicodeText:
+		text, err := clipboard.ReadAll()
+		if err != nil {
+			log.Printf("cliprdr: clipboard.ReadAll failed: %v", err)
+			c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
+			return
+		}
+		if !isTextContent(text) {
+			c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
+			return
+		}
+		encoded := core.UnicodeEncode(text)
+		// Append UTF-16LE null terminator.
+		encoded = append(encoded, 0, 0)
+		c.sendFormatDataResponse(encoded)
+
+	default:
 		c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
-		return
 	}
-	text, err := clipboard.ReadAll()
-	if err != nil {
-		c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
-		return
-	}
-	if !isTextContent(text) {
-		c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
-		return
-	}
-	encoded := core.UnicodeEncode(text)
-	// Append UTF-16LE null terminator.
-	encoded = append(encoded, 0, 0)
-	c.sendFormatDataResponse(encoded)
 }
 
 // ---------------------------------------------------------------------------
@@ -265,12 +335,27 @@ func (c *clipboardChannel) sendCapabilities() {
 	c.sendPDU(cbClipCaps, 0, buf.Bytes())
 }
 
-// sendFormatList advertises CF_UNICODETEXT as the only available format.
+// sendFormatList advertises the currently available clipboard formats to the
+// server. CF_UNICODETEXT is included when text is available; CF_DIB is
+// included when an image is available. Both may appear in a single PDU.
 func (c *clipboardChannel) sendFormatList() {
+	c.mu.Lock()
+	hasText := c.lastContent != "" && isTextContent(c.lastContent)
+	hasImage := c.lastImageAvailable
+	c.mu.Unlock()
+
 	buf := &bytes.Buffer{}
-	core.WriteUInt32LE(cfUnicodeText, buf) // format ID
-	// Long format name: empty null-terminated UTF-16LE string (just 2 zero bytes).
-	core.WriteUInt16LE(0, buf)
+	if hasText {
+		core.WriteUInt32LE(cfUnicodeText, buf)
+		// Long format name: empty null-terminated UTF-16LE string (just 2 zero bytes).
+		core.WriteUInt16LE(0, buf)
+	}
+	if hasImage {
+		core.WriteUInt32LE(cfDIB, buf)
+		// Long format name: empty null-terminated UTF-16LE string (just 2 zero bytes).
+		core.WriteUInt16LE(0, buf)
+	}
+	// If neither is available, send an empty format list.
 	c.sendPDU(cbFormatList, 0, buf.Bytes())
 }
 
@@ -297,6 +382,7 @@ func (c *clipboardChannel) sendFormatDataResponse(data []byte) {
 func (c *clipboardChannel) pollClipboard() {
 	c.mu.Lock()
 	c.lastContent, _ = clipboard.ReadAll()
+	c.lastImageAvailable = detectImageClipboard()
 	c.mu.Unlock()
 
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -306,17 +392,21 @@ func (c *clipboardChannel) pollClipboard() {
 		case <-c.stopPoll:
 			return
 		case <-ticker.C:
-			content, err := clipboard.ReadAll()
-			if err != nil {
-				continue
-			}
+			content, _ := clipboard.ReadAll()
+			imageAvailable := detectImageClipboard()
+
 			c.mu.Lock()
-			changed := content != c.lastContent
-			if changed {
+			textChanged := content != c.lastContent
+			if textChanged {
 				c.lastContent = content
 			}
+			imageChanged := imageAvailable != c.lastImageAvailable
+			if imageChanged {
+				c.lastImageAvailable = imageAvailable
+			}
 			c.mu.Unlock()
-			if changed && isTextContent(content) {
+
+			if textChanged || imageChanged {
 				c.sendFormatList()
 			}
 		}
