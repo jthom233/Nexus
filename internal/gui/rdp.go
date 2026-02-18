@@ -50,6 +50,7 @@ type RDPSession struct {
 	password string
 	domain   string
 	options  map[string]interface{}
+	security string
 
 	tpktLayer *tpkt.TPKT
 	x224Layer *x224.X224
@@ -87,9 +88,13 @@ type RDPSession struct {
 // NewRDPSession creates a new RDP session.
 func NewRDPSession(host string, port int, username, password, domain string, options map[string]interface{}) *RDPSession {
 	w, h := 1024, 768
+	security := ""
 	if options != nil {
 		if res, ok := options["resolution"].(string); ok && res != "" {
 			fmt.Sscanf(res, "%dx%d", &w, &h)
+		}
+		if s, ok := options["security"].(string); ok {
+			security = strings.ToLower(strings.TrimSpace(s))
 		}
 	}
 	return &RDPSession{
@@ -99,6 +104,7 @@ func NewRDPSession(host string, port int, username, password, domain string, opt
 		password: password,
 		domain:   domain,
 		options:  options,
+		security: security,
 		width:    w,
 		height:   h,
 		fb:       image.NewRGBA(image.Rect(0, 0, w, h)),
@@ -125,6 +131,23 @@ func (r *RDPSession) Connect() error {
 
 	r.tpktLayer = tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2(domain, user, r.password))
 	r.x224Layer = x224.New(r.tpktLayer)
+
+	// Set X224 security protocol based on connection setting.
+	switch r.security {
+	case "rdp":
+		rdpLog.Printf("CONNECT security=rdp — Standard RDP Security (no TLS/NLA)")
+		r.x224Layer.SetRequestedProtocol(x224.PROTOCOL_RDP)
+	case "tls":
+		rdpLog.Printf("CONNECT security=tls — TLS only")
+		r.x224Layer.SetRequestedProtocol(x224.PROTOCOL_SSL)
+	case "nla":
+		rdpLog.Printf("CONNECT security=nla — NLA/CredSSP only")
+		r.x224Layer.SetRequestedProtocol(x224.PROTOCOL_HYBRID)
+	default:
+		rdpLog.Printf("CONNECT security=auto — NLA+TLS+RDP (default)")
+		// gordp default: PROTOCOL_RDP | PROTOCOL_SSL | PROTOCOL_HYBRID
+	}
+
 	r.mcsLayer = t125.NewMCSClient(r.x224Layer)
 	r.secLayer = sec.NewClient(r.mcsLayer)
 	r.pduLayer = pdu.NewClient(r.secLayer)
