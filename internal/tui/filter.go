@@ -2,16 +2,24 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
+// filterDebounceMsg signals that the debounce period has elapsed and the filter
+// should be applied. The seq field prevents stale ticks from triggering a filter.
+type filterDebounceMsg struct{ seq int }
+
+const filterDebounceInterval = 30 * time.Millisecond
+
 type filterModel struct {
-	input  textinput.Model
-	active bool
-	width  int
+	input      textinput.Model
+	active     bool
+	width      int
+	debounceSeq int // incremented on each keystroke; only the latest tick fires
 }
 
 func newFilter() filterModel {

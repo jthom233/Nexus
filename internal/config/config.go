@@ -209,16 +209,23 @@ func Save(cfg *Config) error {
 	copy(saveCfg.Connections, cfg.Connections)
 
 	if len(cfg.EncryptionKey) > 0 {
+		// Derive the AES key once for this save operation (scrypt is slow).
+		salt, err := crypto.GenerateSalt()
+		if err != nil {
+			return err
+		}
+		derivedKey := crypto.DeriveKey(string(cfg.EncryptionKey), salt)
+
 		for i := range saveCfg.Connections {
 			if saveCfg.Connections[i].Password != "" {
-				enc, err := crypto.Encrypt(saveCfg.Connections[i].Password, cfg.EncryptionKey)
+				enc, err := crypto.EncryptWithDerivedKey(saveCfg.Connections[i].Password, derivedKey, salt)
 				if err != nil {
 					return err
 				}
 				saveCfg.Connections[i].Password = enc
 			}
 			if saveCfg.Connections[i].VNCPassword != "" {
-				enc, err := crypto.Encrypt(saveCfg.Connections[i].VNCPassword, cfg.EncryptionKey)
+				enc, err := crypto.EncryptWithDerivedKey(saveCfg.Connections[i].VNCPassword, derivedKey, salt)
 				if err != nil {
 					return err
 				}
@@ -266,13 +273,19 @@ func (cfg *Config) UpdateConnection(conn Connection) error {
 
 // DeleteConnection removes a connection by ID and saves.
 func (cfg *Config) DeleteConnection(id string) error {
+	cfg.DeleteConnectionNoSave(id)
+	return Save(cfg)
+}
+
+// DeleteConnectionNoSave removes a connection by ID without saving.
+// Use for batch operations where a single Save is called after all mutations.
+func (cfg *Config) DeleteConnectionNoSave(id string) {
 	for i, c := range cfg.Connections {
 		if c.ID == id {
 			cfg.Connections = append(cfg.Connections[:i], cfg.Connections[i+1:]...)
-			return Save(cfg)
+			return
 		}
 	}
-	return nil
 }
 
 // FindConnection returns a connection by ID.
@@ -355,16 +368,24 @@ func (cfg *Config) DeleteGroup(name string) error {
 
 // MoveConnection moves a connection to a different group. Auto-creates the target group if needed.
 func (cfg *Config) MoveConnection(connID string, targetGroup string) error {
+	if err := cfg.MoveConnectionNoSave(connID, targetGroup); err != nil {
+		return err
+	}
+	return Save(cfg)
+}
+
+// MoveConnectionNoSave moves a connection to a different group without saving.
+// Use for batch operations where a single Save is called after all mutations.
+func (cfg *Config) MoveConnectionNoSave(connID string, targetGroup string) error {
 	conn := cfg.FindConnection(connID)
 	if conn == nil {
 		return fmt.Errorf("connection %q not found", connID)
 	}
-	// Auto-create target group if it doesn't exist
 	if targetGroup != "" && cfg.FindGroup(targetGroup) == nil {
 		cfg.Groups = append(cfg.Groups, Group{Name: targetGroup})
 	}
 	conn.Group = targetGroup
-	return Save(cfg)
+	return nil
 }
 
 func defaultConfig() *Config {

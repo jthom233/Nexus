@@ -90,6 +90,49 @@ func TestPlaintextPassthrough(t *testing.T) {
 	}
 }
 
+func TestEncryptWithDerivedKeyRoundTrip(t *testing.T) {
+	key := []byte("test-master-password")
+	plaintext := "my-secret-password"
+
+	salt, err := GenerateSalt()
+	if err != nil {
+		t.Fatalf("GenerateSalt failed: %v", err)
+	}
+	derivedKey := DeriveKey(string(key), salt)
+
+	encrypted, err := EncryptWithDerivedKey(plaintext, derivedKey, salt)
+	if err != nil {
+		t.Fatalf("EncryptWithDerivedKey failed: %v", err)
+	}
+
+	if !IsEncrypted(encrypted) {
+		t.Fatalf("expected ENC: prefix, got %q", encrypted)
+	}
+
+	// Decrypt uses the original key bytes (re-derives internally via scrypt)
+	decrypted, err := Decrypt(encrypted, key)
+	if err != nil {
+		t.Fatalf("Decrypt failed: %v", err)
+	}
+
+	if decrypted != plaintext {
+		t.Fatalf("round-trip mismatch: got %q, want %q", decrypted, plaintext)
+	}
+}
+
+func TestEncryptWithDerivedKeyEmpty(t *testing.T) {
+	derivedKey := make([]byte, 32)
+	salt := make([]byte, 16)
+
+	encrypted, err := EncryptWithDerivedKey("", derivedKey, salt)
+	if err != nil {
+		t.Fatalf("EncryptWithDerivedKey empty failed: %v", err)
+	}
+	if encrypted != "" {
+		t.Fatalf("expected empty string for empty input, got %q", encrypted)
+	}
+}
+
 func TestUniqueEncryptions(t *testing.T) {
 	key := []byte("password")
 	plaintext := "same-password"
