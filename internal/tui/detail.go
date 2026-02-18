@@ -150,6 +150,11 @@ func (d *detailModel) updateContent() {
 		}
 		row("Fullscreen:", fmt.Sprintf("%v", c.RDPOptions.Fullscreen))
 		row("Dynamic Res:", fmt.Sprintf("%v", c.RDPOptions.DynamicResolution))
+		sec := c.RDPOptions.Security
+		if sec == "" {
+			sec = "rdp"
+		}
+		row("Security:", sec)
 	}
 	if c.Protocol == config.ProtoVNC && c.VNCPassword != "" {
 		b.WriteString("\n")

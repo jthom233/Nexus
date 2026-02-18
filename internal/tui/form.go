@@ -91,7 +91,7 @@ func (f *formModel) startAdd(groups []string) {
 	f.resolution = "1920x1080"
 	f.fullscreen = false
 	f.dynamicRes = true
-	f.security = "auto"
+	f.security = "rdp"
 	f.vncPassword = ""
 	f.hookPreConnect = ""
 	f.hookPostConnect = ""
@@ -130,7 +130,7 @@ func (f *formModel) startEdit(conn config.Connection, groups []string) {
 	f.dynamicRes = conn.RDPOptions.DynamicResolution
 	f.security = conn.RDPOptions.Security
 	if f.security == "" {
-		f.security = "auto"
+		f.security = "rdp"
 	}
 	f.groups = groups
 
@@ -296,10 +296,10 @@ func (f *formModel) buildForm() {
 			huh.NewSelect[string]().
 				Title("Security Protocol").
 				Options(
-					huh.NewOption("Auto-negotiate (recommended)", "auto"),
+					huh.NewOption("Standard RDP (default)", "rdp"),
+					huh.NewOption("Auto-negotiate", "auto"),
 					huh.NewOption("NLA / CredSSP", "nla"),
 					huh.NewOption("TLS only", "tls"),
-					huh.NewOption("Standard RDP (no TLS)", "rdp"),
 				).
 				Value(&f.security),
 		).WithHideFunc(func() bool { return f.protocol != "rdp" }),

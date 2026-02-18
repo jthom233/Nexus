@@ -133,19 +133,20 @@ func (r *RDPSession) Connect() error {
 	r.x224Layer = x224.New(r.tpktLayer)
 
 	// Set X224 security protocol based on connection setting.
+	// Default to Standard RDP Security ("rdp") for broadest compatibility.
 	switch r.security {
-	case "rdp":
-		rdpLog.Printf("CONNECT security=rdp — Standard RDP Security (no TLS/NLA)")
-		r.x224Layer.SetRequestedProtocol(x224.PROTOCOL_RDP)
+	case "auto":
+		rdpLog.Printf("CONNECT security=auto — NLA+TLS+RDP")
+		// gordp default: PROTOCOL_RDP | PROTOCOL_SSL | PROTOCOL_HYBRID
 	case "tls":
 		rdpLog.Printf("CONNECT security=tls — TLS only")
 		r.x224Layer.SetRequestedProtocol(x224.PROTOCOL_SSL)
 	case "nla":
 		rdpLog.Printf("CONNECT security=nla — NLA/CredSSP only")
 		r.x224Layer.SetRequestedProtocol(x224.PROTOCOL_HYBRID)
-	default:
-		rdpLog.Printf("CONNECT security=auto — NLA+TLS+RDP (default)")
-		// gordp default: PROTOCOL_RDP | PROTOCOL_SSL | PROTOCOL_HYBRID
+	default: // "rdp" or ""
+		rdpLog.Printf("CONNECT security=rdp — Standard RDP Security (no TLS/NLA)")
+		r.x224Layer.SetRequestedProtocol(x224.PROTOCOL_RDP)
 	}
 
 	r.mcsLayer = t125.NewMCSClient(r.x224Layer)
