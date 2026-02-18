@@ -106,7 +106,6 @@ type App struct {
 	pendingFullscreen      atomic.Bool // enter fullscreen
 	pendingExitFullscreen  atomic.Bool // exit fullscreen (windowed restore)
 	pendingMinimize        atomic.Bool // minimize (only fires when not in fullscreen)
-	pendingExitThenMinimize atomic.Bool // two-tick: exit fullscreen this tick, minimize next tick
 
 	// Fullscreen overlay state.
 	overlayVisible bool    // whether the expanded overlay bar is showing
@@ -146,19 +145,10 @@ func (a *App) Update() error {
 	if a.pendingExitFullscreen.CompareAndSwap(true, false) {
 		ebiten.SetFullscreen(false)
 	}
-	// pendingMinimize is checked BEFORE pendingExitThenMinimize so that the
-	// two-tick sequence works correctly: tick 1 (pendingExitThenMinimize) exits
-	// fullscreen and stores pendingMinimize=true; tick 2 (pendingMinimize) runs
-	// MinimizeWindow() after the fullscreen state has settled in Ebiten's
-	// internal frame pipeline.
 	if a.pendingMinimize.CompareAndSwap(true, false) {
 		if !ebiten.IsFullscreen() && !isWayland() {
 			ebiten.MinimizeWindow()
 		}
-	}
-	if a.pendingExitThenMinimize.CompareAndSwap(true, false) {
-		ebiten.SetFullscreen(false)
-		a.pendingMinimize.Store(true)
 	}
 
 	a.mu.RLock()
@@ -272,8 +262,16 @@ func (a *App) Draw(screen *ebiten.Image) {
 // The session framebuffer fills the entire screen from y=0.
 // The overlay bar is drawn on top when visible.
 func (a *App) drawFullscreen(screen *ebiten.Image) {
+	// Guard against zero dimensions during the minimize→restore transition.
+	// Layout() may not have fired yet, leaving a.width/a.height at 0.
+	if a.width <= 0 || a.height <= 0 {
+		return
+	}
+
 	activeTab := a.tabs.Active()
 	if activeTab == nil {
+		// No active tab — draw overlay only (dark background already filled by Draw).
+		a.drawOverlay(screen)
 		return
 	}
 
@@ -459,12 +457,12 @@ func (a *App) handleOverlay() {
 		}
 		return
 	}
-	// Minimize — defer all window-state changes; never call ebiten window
-	// functions directly inside a click handler while mu.RLock is held.
+	// Minimize — exits fullscreen to windowed mode (same as Restore).
+	// Minimizing to the taskbar only happens via OS-level actions.
 	if mx >= minBtnX && mx < minBtnX+btnW && my >= btnY && my < btnY+btnH {
 		a.overlayVisible = false
 		a.overlayPinned = false
-		a.pendingExitThenMinimize.Store(true)
+		a.pendingExitFullscreen.Store(true)
 		return
 	}
 	// Restore (exit fullscreen) — same deferral rule.
@@ -488,6 +486,12 @@ func (a *App) handleOverlay() {
 // is near the top edge or when pinned.
 func (a *App) drawOverlay(screen *ebiten.Image) {
 	ox, oy, ow, _ := a.overlayRect()
+
+	// Guard: ow can be 0 if a.width is 0 during the minimize→restore transition.
+	// ebiten.NewImage panics on zero dimensions.
+	if ow <= 0 {
+		return
+	}
 
 	// Always draw the thin grab handle as a subtle hint strip.
 	handleImg := ebiten.NewImage(ow, overlayHandleH)
@@ -560,17 +564,25 @@ func (a *App) drawOverlay(screen *ebiten.Image) {
 
 	// Connection label in the center
 	activeTab := a.tabs.Active()
-	if activeTab != nil {
+	if activeTab != nil && activeTab.Label != "" {
 		label := activeTab.Label
 		maxChars := (ow - 6*(btnW+btnPad)) / 6
-		if maxChars < 1 {
-			maxChars = 1
+		if maxChars > 0 && len(label) > maxChars {
+			// Need at least 3 chars to produce "x.." safely; clamp to maxChars
+			// characters when the space is too narrow for an ellipsis suffix.
+			if maxChars <= 2 {
+				label = label[:maxChars]
+			} else {
+				label = label[:maxChars-2] + ".."
+			}
+		} else if maxChars <= 0 {
+			// No room for the label at all — skip drawing it.
+			label = ""
 		}
-		if len(label) > maxChars {
-			label = label[:maxChars-2] + ".."
+		if label != "" {
+			labelX := ox + ow/2 - len(label)*3
+			ebitenutil.DebugPrintAt(screen, label, labelX, btnTop+6)
 		}
-		labelX := ox + ow/2 - len(label)*3
-		ebitenutil.DebugPrintAt(screen, label, labelX, btnTop+6)
 	}
 }
 
@@ -584,6 +596,11 @@ func (a *App) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func (a *App) drawTabBar(screen *ebiten.Image) {
+	// Guard against zero dimensions during window restore transitions.
+	if a.width <= 0 || a.height <= 0 {
+		return
+	}
+
 	tabs := a.tabs.All()
 
 	activeID := ""
@@ -663,6 +680,11 @@ func (a *App) drawTabBar(screen *ebiten.Image) {
 }
 
 func (a *App) drawToolbar(screen *ebiten.Image) {
+	// Guard against zero dimensions during window restore transitions.
+	if a.width <= 0 || a.height <= 0 {
+		return
+	}
+
 	// Toolbar background
 	tbImg := ebiten.NewImage(a.width, toolbarHeight)
 	tbImg.Fill(color.RGBA{R: 39, G: 39, B: 55, A: 255})
