@@ -340,7 +340,7 @@ func (c *clipboardChannel) sendCapabilities() {
 // included when an image is available. Both may appear in a single PDU.
 func (c *clipboardChannel) sendFormatList() {
 	c.mu.Lock()
-	hasText := c.lastContent != ""
+	hasText := c.lastContent != "" && isTextContent(c.lastContent)
 	hasImage := c.lastImageAvailable
 	c.mu.Unlock()
 
@@ -406,7 +406,7 @@ func (c *clipboardChannel) pollClipboard() {
 			}
 			c.mu.Unlock()
 
-			if (textChanged && isTextContent(content)) || imageChanged {
+			if textChanged || imageChanged {
 				c.sendFormatList()
 			}
 		}
