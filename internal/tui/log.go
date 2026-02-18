@@ -18,39 +18,76 @@ const (
 	logError
 )
 
+type logType int
+
+const (
+	logTypeEvent logType = iota // TUI events
+	logTypeAudit                // Audit trail
+	logTypeDebug                // GUI subprocess
+)
+
 type logEntry struct {
 	time    time.Time
 	level   logLevel
+	lt      logType
 	message string
 }
 
-type logModel struct {
-	entries  []logEntry
-	viewport viewport.Model
-	ready    bool
-	width    int
-	height   int
+type logsModel struct {
+	entries    []logEntry
+	viewport   viewport.Model
+	ready      bool
+	width      int
+	height     int
+	activeType int // 0=All, 1=Events, 2=Audit, 3=Debug
+	dirty      bool
+	maxEntries int
+	evictBatch int
 }
 
-func newLog() *logModel {
-	return &logModel{}
+func newLogsModel() *logsModel {
+	return &logsModel{
+		maxEntries: 10000,
+		evictBatch: 1000,
+	}
 }
 
-func (l *logModel) add(level logLevel, format string, args ...any) {
-	msg := fmt.Sprintf(format, args...)
+func (l *logsModel) add(lt logType, level logLevel, msg string) {
 	l.entries = append(l.entries, logEntry{
 		time:    time.Now(),
 		level:   level,
+		lt:      lt,
 		message: msg,
 	})
-	l.updateContent()
+	if len(l.entries) > l.maxEntries {
+		l.entries = l.entries[l.evictBatch:]
+	}
+	l.dirty = true
 }
 
-func (l *logModel) info(format string, args ...any)  { l.add(logInfo, format, args...) }
-func (l *logModel) warn(format string, args ...any)  { l.add(logWarn, format, args...) }
-func (l *logModel) error(format string, args ...any) { l.add(logError, format, args...) }
+func (l *logsModel) addEvent(level logLevel, format string, args ...interface{}) {
+	l.add(logTypeEvent, level, fmt.Sprintf(format, args...))
+}
 
-func (l *logModel) setSize(width, height int) {
+func (l *logsModel) addAudit(level logLevel, msg string) {
+	l.add(logTypeAudit, level, msg)
+}
+
+func (l *logsModel) addDebug(level logLevel, msg string) {
+	l.add(logTypeDebug, level, msg)
+}
+
+// Backward-compatible aliases that map to addEvent.
+func (l *logsModel) info(format string, args ...any)  { l.addEvent(logInfo, format, args...) }
+func (l *logsModel) warn(format string, args ...any)  { l.addEvent(logWarn, format, args...) }
+func (l *logsModel) error(format string, args ...any) { l.addEvent(logError, format, args...) }
+
+func (l *logsModel) nextType() {
+	l.activeType = (l.activeType + 1) % 4
+	l.dirty = true
+}
+
+func (l *logsModel) setSize(width, height int) {
 	l.width = width
 	l.height = height
 	if !l.ready {
@@ -60,16 +97,33 @@ func (l *logModel) setSize(width, height int) {
 		l.viewport.Width = width
 		l.viewport.Height = height
 	}
-	l.updateContent()
+	l.dirty = true
 }
 
-func (l *logModel) updateContent() {
-	if !l.ready {
-		return
+func (l *logsModel) rebuildContent() {
+	// Filter entries according to activeType.
+	var filtered []logEntry
+	for _, e := range l.entries {
+		switch l.activeType {
+		case 0: // All
+			filtered = append(filtered, e)
+		case 1: // Events
+			if e.lt == logTypeEvent {
+				filtered = append(filtered, e)
+			}
+		case 2: // Audit
+			if e.lt == logTypeAudit {
+				filtered = append(filtered, e)
+			}
+		case 3: // Debug
+			if e.lt == logTypeDebug {
+				filtered = append(filtered, e)
+			}
+		}
 	}
 
 	var b strings.Builder
-	for _, e := range l.entries {
+	for _, e := range filtered {
 		ts := e.time.Format("15:04:05")
 
 		var levelStyle lipgloss.Style
@@ -86,12 +140,23 @@ func (l *logModel) updateContent() {
 			levelTag = "ERR "
 		}
 
+		// Type tag prefix
+		var typeTag string
+		switch e.lt {
+		case logTypeAudit:
+			typeTag = lipgloss.NewStyle().Foreground(ColorYellow).Render("[AUD]") + " "
+		case logTypeDebug:
+			typeTag = lipgloss.NewStyle().Foreground(ColorSubtle).Render("[DBG]") + " "
+		default:
+			typeTag = ""
+		}
+
 		timeStr := lipgloss.NewStyle().Foreground(ColorSubtle).Render(ts)
 		tag := levelStyle.Render(levelTag)
 
-		// For multi-line messages, indent continuation lines
+		// For multi-line messages, indent continuation lines.
 		lines := strings.Split(e.message, "\n")
-		first := fmt.Sprintf("%s %s %s", timeStr, tag, lines[0])
+		first := fmt.Sprintf("%s %s %s%s", timeStr, tag, typeTag, lines[0])
 		b.WriteString(first + "\n")
 		for _, line := range lines[1:] {
 			if strings.TrimSpace(line) != "" {
@@ -101,17 +166,23 @@ func (l *logModel) updateContent() {
 		}
 	}
 
-	if len(l.entries) == 0 {
-		b.WriteString(lipgloss.NewStyle().Foreground(ColorSubtle).Render("  No log entries yet."))
+	if len(filtered) == 0 {
+		emptyMessages := [4]string{
+			"No log entries yet.",
+			"No event messages yet.",
+			"No audit entries yet.",
+			"No debug messages yet.",
+		}
+		b.WriteString(lipgloss.NewStyle().Foreground(ColorSubtle).Render("  " + emptyMessages[l.activeType]))
 	}
 
 	l.viewport.SetContent(b.String())
-	// Auto-scroll to bottom
 	l.viewport.GotoBottom()
+	l.dirty = false
 }
 
 // plainText returns all log entries as unformatted text for clipboard copy.
-func (l *logModel) plainText() string {
+func (l *logsModel) plainText() string {
 	var b strings.Builder
 	for _, e := range l.entries {
 		ts := e.time.Format("15:04:05")
@@ -129,19 +200,24 @@ func (l *logModel) plainText() string {
 	return b.String()
 }
 
-func (l *logModel) Update(msg tea.Msg) tea.Cmd {
+func (l *logsModel) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	l.viewport, cmd = l.viewport.Update(msg)
 	return cmd
 }
 
-func (l *logModel) View() string {
+func (l *logsModel) View() string {
 	if !l.ready {
 		return ""
 	}
-	title := HelpTitleStyle.Render("Event Log")
+	if l.dirty {
+		l.rebuildContent()
+	}
+
+	typeNames := [4]string{"All", "Events", "Audit", "Debug"}
+	title := HelpTitleStyle.Render(fmt.Sprintf("Logs [%s]", typeNames[l.activeType]))
 	scrollHint := lipgloss.NewStyle().Foreground(ColorSubtle).Render(
-		fmt.Sprintf(" %d entries  j/k scroll  y copy  esc close", len(l.entries)),
+		fmt.Sprintf(" %d entries  tab next-filter  j/k scroll  y copy  esc close", l.viewport.TotalLineCount()),
 	)
 	header := lipgloss.JoinHorizontal(lipgloss.Center, title, scrollHint)
 	return lipgloss.JoinVertical(lipgloss.Left, header, "", l.viewport.View())

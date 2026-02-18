@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 )
 
 // SocketPath returns the Unix domain socket path for IPC.
@@ -35,6 +36,7 @@ const (
 	MsgTabClosed = "tab-closed"
 	MsgTabError  = "tab-error"
 	MsgGUIReady  = "gui-ready"
+	MsgLogLine   = "log-line"
 )
 
 // Envelope wraps all IPC messages with a type discriminator.
@@ -83,6 +85,13 @@ type TabErrorEvent struct {
 
 // GUIReadyEvent is sent by the GUI when it's ready to accept commands.
 type GUIReadyEvent struct{}
+
+// LogLineEvent is sent by the GUI to stream a structured log message to the TUI.
+type LogLineEvent struct {
+	Level     string    `json:"level"`
+	Message   string    `json:"message"`
+	Timestamp time.Time `json:"timestamp"`
+}
 
 // Encode wraps a payload in an Envelope and marshals to JSON.
 func Encode(msgType string, payload interface{}) ([]byte, error) {

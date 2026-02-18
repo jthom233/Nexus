@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/dr4zz/nexus/internal/config"
+	"github.com/dr4zz/nexus/internal/launcher"
 	"github.com/dr4zz/nexus/internal/termcap"
 	"github.com/dr4zz/nexus/internal/theme"
 	"github.com/dr4zz/nexus/internal/tui"
@@ -54,6 +55,10 @@ func main() {
 		tui.NewApp(cfg),
 		opts...,
 	)
+
+	// Wire the program reference into the launcher package so that the
+	// RDPLauncher can forward GUI log lines into the Bubbletea event loop.
+	launcher.SetProgram(p)
 
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

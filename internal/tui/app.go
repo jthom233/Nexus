@@ -29,7 +29,6 @@ const (
 	viewLog
 	viewSessions
 	viewPulse
-	viewAuditLog
 	viewPaneLayout
 )
 
@@ -52,14 +51,13 @@ type App struct {
 	help         helpModel
 	confirm      confirmModel
 	leader       leaderModel
-	log          *logModel
+	log          *logsModel
 	sessions     *SessionManager
 	sessionsView sessionsViewModel
 	tplStore     *template.TemplateStore
 	quickConnect *QuickConnect
 	pulse        *PulseModel
 	auditLog     *audit.AuditLog
-	auditLogView *LogViewModel
 	finder       *FinderModel
 	checker      *health.Checker
 	paneLayout   *PaneLayoutModel
@@ -85,7 +83,7 @@ type App struct {
 
 // NewApp creates the root application model.
 func NewApp(cfg *config.Config) App {
-	l := newLog()
+	l := newLogsModel()
 	l.info("Nexus started")
 	l.info("Loaded %d connections from config", len(cfg.Connections))
 
@@ -126,7 +124,6 @@ func NewApp(cfg *config.Config) App {
 		sessionsView: newSessionsView(),
 		quickConnect: NewQuickConnect(),
 		pulse:        NewPulseModel(),
-		auditLogView: NewLogViewModel(),
 		auditLog:     al,
 		finder:       finder,
 		paneLayout:   NewPaneLayoutModel(),
@@ -187,8 +184,6 @@ func (a *App) syncStatusBarView() {
 		a.statusBar.view = "sessions"
 	case viewPulse:
 		a.statusBar.view = "pulse"
-	case viewAuditLog:
-		a.statusBar.view = "audit"
 	case viewPaneLayout:
 		a.statusBar.view = "panes"
 	}
@@ -219,7 +214,7 @@ func (a *App) syncHeaderView() {
 		a.header.setView(name, 1)
 		a.header.setItemCount(0)
 	case viewLog:
-		a.header.setView("Event Log", 3)
+		a.header.setView("Logs", 3)
 		a.header.setItemCount(0)
 	case viewSessions:
 		a.header.setView("Sessions", 2)
@@ -227,11 +222,8 @@ func (a *App) syncHeaderView() {
 	case viewPulse:
 		a.header.setView("Pulse", 4)
 		a.header.setItemCount(0)
-	case viewAuditLog:
-		a.header.setView("Audit Log", 5)
-		a.header.setItemCount(0)
 	case viewPaneLayout:
-		a.header.setView("Panes", 6)
+		a.header.setView("Panes", 5)
 		a.header.setItemCount(a.paneLayout.PaneCount())
 	}
 }
@@ -544,6 +536,17 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
+	case launcher.GUILogLineMsg:
+		level := logInfo
+		switch msg.Level {
+		case "warn":
+			level = logWarn
+		case "error":
+			level = logError
+		}
+		a.log.addDebug(level, msg.Message)
+		return a, nil
+
 	case CommandMsg:
 		return a.handleCommand(msg)
 
@@ -622,9 +625,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	case viewPulse:
 		// Pulse has no model update needed
-	case viewAuditLog:
-		cmd := a.auditLogView.Update(msg)
-		cmds = append(cmds, cmd)
 	case viewPaneLayout:
 		updated, cmd := a.paneLayout.Update(msg)
 		a.paneLayout = &updated
@@ -1409,6 +1409,9 @@ func (a App) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		a.popView()
 		return a, nil
+	case "tab":
+		a.log.nextType()
+		return a, nil
 	case "y":
 		// Yank (copy) all log entries to system clipboard
 		text := a.log.plainText()
@@ -1444,34 +1447,6 @@ func (a App) handlePulseKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a App) handleAuditLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "q":
-		a.confirmQuit()
-		return a, nil
-	case "esc":
-		a.popView()
-		return a, nil
-	}
-
-	// Pass scroll keys to viewport
-	cmd := a.auditLogView.Update(msg)
-	return a, cmd
-}
-
-func (a App) openAuditLogView() (tea.Model, tea.Cmd) {
-	if a.auditLog != nil {
-		events, err := a.auditLog.Query(audit.AuditFilter{Limit: 200})
-		if err != nil {
-			a.log.error("Failed to query audit log: %v", err)
-		} else {
-			a.auditLogView.SetEvents(events)
-		}
-	}
-	a.auditLogView.SetSize(a.width, a.contentHeight())
-	a.pushView(viewAuditLog)
-	return a, nil
-}
 
 func (a *App) logAuditEvent(ev audit.AuditEvent) {
 	if a.auditLog == nil {
@@ -1480,6 +1455,16 @@ func (a *App) logAuditEvent(ev audit.AuditEvent) {
 	if err := a.auditLog.Log(ev); err != nil {
 		a.log.warn("Audit log write error: %v", err)
 	}
+	// Mirror audit event into the unified log view.
+	level := logInfo
+	if ev.EventType == audit.EventError {
+		level = logError
+	}
+	msg := fmt.Sprintf("[%s] %s", ev.EventType, ev.ConnectionName)
+	if ev.Details != "" {
+		msg += ": " + ev.Details
+	}
+	a.log.addAudit(level, msg)
 }
 
 // trackConnectionUsage updates LastConnectedAt and increments ConnectCount
@@ -1828,7 +1813,7 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		a.pulse.Refresh(a.list.filtered, a.list.statuses, a.sessions.Count())
 		a.pushView(viewPulse)
 		return a, nil
-	case "logs":
+	case "log":
 		a.log.setSize(a.width, a.contentHeight())
 		a.pushView(viewLog)
 		return a, nil
@@ -3000,8 +2985,6 @@ func (a App) View() string {
 		contentView = a.sessionsView.View()
 	case viewPulse:
 		contentView = a.pulse.View()
-	case viewAuditLog:
-		contentView = a.auditLogView.View()
 	case viewPaneLayout:
 		contentView = a.paneLayout.View()
 	}
@@ -3049,7 +3032,6 @@ func (a *App) layout() {
 	a.log.setSize(a.width, ch)
 	a.sessionsView.setSize(a.width, ch)
 	a.pulse.SetSize(a.width, ch)
-	a.auditLogView.SetSize(a.width, ch)
 	if a.currentView() == viewPaneLayout {
 		a.paneLayout.SetSize(a.width, ch)
 	}
