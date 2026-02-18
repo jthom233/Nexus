@@ -38,6 +38,49 @@ const (
 	cbUseLongFormatNames = 0x00000002
 )
 
+// isTextContent reports whether s looks like plain text rather than binary
+// data. It checks well-known image magic bytes and falls back to a density
+// heuristic: if more than 12.5% of the first 512 bytes are non-printable
+// (excluding common whitespace), the content is treated as binary.
+func isTextContent(s string) bool {
+	if len(s) < 4 {
+		return true
+	}
+	b := []byte(s)
+	// PNG
+	if b[0] == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G' {
+		return false
+	}
+	// JPEG
+	if b[0] == 0xFF && b[1] == 0xD8 {
+		return false
+	}
+	// GIF
+	if b[0] == 'G' && b[1] == 'I' && b[2] == 'F' && b[3] == '8' {
+		return false
+	}
+	// BMP
+	if b[0] == 'B' && b[1] == 'M' {
+		return false
+	}
+	// WebP (RIFF....WEBP)
+	if b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F' {
+		return false
+	}
+	// Generic binary detection: high density of non-printable bytes in first 512.
+	check := 512
+	if check > len(b) {
+		check = len(b)
+	}
+	nonPrint := 0
+	for _, c := range b[:check] {
+		if c < 0x20 && c != '\n' && c != '\r' && c != '\t' {
+			nonPrint++
+		}
+	}
+	return nonPrint < check/8
+}
+
 // clipboardChannel implements plugin.ChannelTransport for the CLIPRDR virtual
 // channel. It synchronises the local system clipboard with the remote RDP
 // session using CF_UNICODETEXT.
@@ -182,6 +225,10 @@ func (c *clipboardChannel) processFormatDataRequest(data []byte) {
 		c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
 		return
 	}
+	if !isTextContent(text) {
+		c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
+		return
+	}
 	encoded := core.UnicodeEncode(text)
 	// Append UTF-16LE null terminator.
 	encoded = append(encoded, 0, 0)
@@ -269,7 +316,7 @@ func (c *clipboardChannel) pollClipboard() {
 				c.lastContent = content
 			}
 			c.mu.Unlock()
-			if changed {
+			if changed && isTextContent(content) {
 				c.sendFormatList()
 			}
 		}
