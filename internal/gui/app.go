@@ -20,11 +20,25 @@ const (
 	chromeHeight  = tabBarHeight + toolbarHeight
 )
 
+// Fullscreen overlay constants.
+const (
+	overlayHeight  = 32 // Height of the expanded overlay bar
+	overlayHandleH = 4  // Height of the thin grab handle at the top
+	overlayWidthPc = 40 // Percentage of screen width for the overlay bar
+	overlayTriggerY = 8 // How many pixels from top trigger overlay show
+)
+
 const (
 	defaultWidth  = 1280
 	defaultHeight = 800
 	targetFPS     = 60
 )
+
+// isWayland returns true if the display server is Wayland.
+// This guards against Wayland's broken GLFW iconify state detection.
+func isWayland() bool {
+	return os.Getenv("WAYLAND_DISPLAY") != "" || os.Getenv("XDG_SESSION_TYPE") == "wayland"
+}
 
 // Tab layout constants.
 const (
@@ -86,8 +100,18 @@ type App struct {
 
 	// Pending actions queued from IPC goroutines for the main thread.
 	// Ebiten window calls must happen on the Update/Draw goroutine.
-	pendingRestore    atomic.Bool
-	pendingFullscreen atomic.Bool
+	// ALL Ebiten window-state calls (SetFullscreen, MinimizeWindow, RestoreWindow)
+	// must be deferred here and executed at the TOP of Update(), before any RLock.
+	pendingRestore         atomic.Bool // restore minimized/maximized → normal
+	pendingFullscreen      atomic.Bool // enter fullscreen
+	pendingExitFullscreen  atomic.Bool // exit fullscreen (windowed restore)
+	pendingMinimize        atomic.Bool // minimize (only fires when not in fullscreen)
+	pendingExitThenMinimize atomic.Bool // two-tick: exit fullscreen this tick, minimize next tick
+
+	// Fullscreen overlay state.
+	overlayVisible bool    // whether the expanded overlay bar is showing
+	overlayPinned  bool    // whether the overlay is pinned open
+	overlayAlpha   float64 // fade animation target (0.0 = hidden, 1.0 = visible)
 }
 
 // NewApp creates a new GUI application.
@@ -108,7 +132,9 @@ func (a *App) SetIPCManager(mgr *IPCManager) {
 
 // Update implements ebiten.Game. Called every tick.
 func (a *App) Update() error {
-	// Process pending window actions (queued from IPC goroutine).
+	// Process pending window actions BEFORE acquiring any lock.
+	// All Ebiten window-state functions must run here, never inside a locked section
+	// or directly inside a click handler, to avoid Ebiten frame-cycle deadlocks.
 	if a.pendingRestore.CompareAndSwap(true, false) {
 		if ebiten.IsWindowMinimized() || ebiten.IsWindowMaximized() {
 			ebiten.RestoreWindow()
@@ -117,18 +143,36 @@ func (a *App) Update() error {
 	if a.pendingFullscreen.CompareAndSwap(true, false) {
 		ebiten.SetFullscreen(true)
 	}
+	if a.pendingExitFullscreen.CompareAndSwap(true, false) {
+		ebiten.SetFullscreen(false)
+	}
+	// pendingMinimize is checked BEFORE pendingExitThenMinimize so that the
+	// two-tick sequence works correctly: tick 1 (pendingExitThenMinimize) exits
+	// fullscreen and stores pendingMinimize=true; tick 2 (pendingMinimize) runs
+	// MinimizeWindow() after the fullscreen state has settled in Ebiten's
+	// internal frame pipeline.
+	if a.pendingMinimize.CompareAndSwap(true, false) {
+		if !ebiten.IsFullscreen() && !isWayland() {
+			ebiten.MinimizeWindow()
+		}
+	}
+	if a.pendingExitThenMinimize.CompareAndSwap(true, false) {
+		ebiten.SetFullscreen(false)
+		a.pendingMinimize.Store(true)
+	}
 
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	// Handle tab bar clicks
-	a.handleTabClicks()
-
-	// Handle toolbar clicks
-	a.handleToolbarClicks()
-
-	// Handle window dragging from tab bar
-	a.handleWindowDrag()
+	if ebiten.IsFullscreen() {
+		// In fullscreen: handle overlay interactions only
+		a.handleOverlay()
+	} else {
+		// In windowed: handle normal chrome interactions
+		a.handleTabClicks()
+		a.handleToolbarClicks()
+		a.handleWindowDrag()
+	}
 
 	// Route input to active session
 	activeTab := a.tabs.Active()
@@ -165,10 +209,13 @@ func (a *App) Update() error {
 func (a *App) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{R: 30, G: 30, B: 46, A: 255}) // Dark background
 
-	// Draw tab bar
-	a.drawTabBar(screen)
+	if ebiten.IsFullscreen() {
+		a.drawFullscreen(screen)
+		return
+	}
 
-	// Draw toolbar
+	// Windowed mode: draw normal chrome
+	a.drawTabBar(screen)
 	a.drawToolbar(screen)
 
 	activeTab := a.tabs.Active()
@@ -221,8 +268,64 @@ func (a *App) Draw(screen *ebiten.Image) {
 	}
 }
 
+// drawFullscreen handles drawing when in fullscreen mode.
+// The session framebuffer fills the entire screen from y=0.
+// The overlay bar is drawn on top when visible.
+func (a *App) drawFullscreen(screen *ebiten.Image) {
+	activeTab := a.tabs.Active()
+	if activeTab == nil {
+		return
+	}
+
+	// Show status messages for non-connected states (centered on full screen)
+	switch activeTab.Status {
+	case "connecting":
+		msg := "Connecting..."
+		cx := a.width/2 - len(msg)*3
+		cy := a.height / 2
+		ebitenutil.DebugPrintAt(screen, msg, cx, cy)
+		a.drawOverlay(screen)
+		return
+	case "error":
+		errMsg := "Connection failed"
+		if activeTab.Error != nil {
+			errMsg = activeTab.Error.Error()
+		}
+		if len(errMsg) > 80 {
+			errMsg = errMsg[:80] + "..."
+		}
+		label := "[!] " + errMsg
+		cx := a.width/2 - len(label)*3
+		cy := a.height / 2
+		ebitenutil.DebugPrintAt(screen, label, cx, cy)
+		a.drawOverlay(screen)
+		return
+	}
+
+	// Draw session framebuffer filling the entire screen (y=0)
+	if activeTab.Session != nil {
+		fb := activeTab.Session.Framebuffer()
+		if fb != nil {
+			nw, nh := activeTab.Session.NativeSize()
+			if nw > 0 && nh > 0 {
+				scaleX := float64(a.width) / float64(nw)
+				scaleY := float64(a.height) / float64(nh)
+				op := &ebiten.DrawImageOptions{}
+				op.GeoM.Scale(scaleX, scaleY)
+				// No Y offset — session fills from y=0
+				op.Filter = ebiten.FilterLinear
+				screen.DrawImage(fb, op)
+			}
+		}
+	}
+
+	// Draw overlay on top of the session
+	a.drawOverlay(screen)
+}
+
 // sessionTransform returns the X/Y scale and offset used to draw the active session.
 // Mouse coordinates need to be reverse-mapped through this transform.
+// In fullscreen mode the session fills the entire screen so offsetY is 0.
 func (a *App) sessionTransform() (scaleX, scaleY, offsetX, offsetY float64, ok bool) {
 	activeTab := a.tabs.Active()
 	if activeTab == nil || activeTab.Session == nil {
@@ -232,13 +335,243 @@ func (a *App) sessionTransform() (scaleX, scaleY, offsetX, offsetY float64, ok b
 	if nw <= 0 || nh <= 0 {
 		return 0, 0, 0, 0, false
 	}
-	availW := float64(a.width)
-	availH := float64(a.height - chromeHeight)
-	scaleX = availW / float64(nw)
-	scaleY = availH / float64(nh)
-	offsetX = 0
-	offsetY = float64(chromeHeight)
+
+	if ebiten.IsFullscreen() {
+		// Session fills the entire screen — no chrome offset
+		scaleX = float64(a.width) / float64(nw)
+		scaleY = float64(a.height) / float64(nh)
+		offsetX = 0
+		offsetY = 0
+	} else {
+		availW := float64(a.width)
+		availH := float64(a.height - chromeHeight)
+		scaleX = availW / float64(nw)
+		scaleY = availH / float64(nh)
+		offsetX = 0
+		offsetY = float64(chromeHeight)
+	}
 	return scaleX, scaleY, offsetX, offsetY, true
+}
+
+// overlayRect returns the bounding box of the overlay bar in its current state.
+// When the overlay is visible (expanded), it is overlayHeight tall.
+// The thin handle is always overlayHandleH tall (used for trigger detection).
+func (a *App) overlayRect() (x, y, w, h int) {
+	w = a.width * overlayWidthPc / 100
+	x = (a.width - w) / 2
+	y = 0
+	if a.overlayVisible || a.overlayPinned {
+		h = overlayHeight
+	} else {
+		h = overlayHandleH
+	}
+	return x, y, w, h
+}
+
+// handleOverlay processes overlay-related mouse interactions each Update() tick.
+// Must only be called when ebiten.IsFullscreen() is true.
+func (a *App) handleOverlay() {
+	mx, my := ebiten.CursorPosition()
+
+	// Advance alpha toward target (simple linear interpolation at 60fps).
+	targetAlpha := 0.0
+	if a.overlayVisible || a.overlayPinned {
+		targetAlpha = 1.0
+	}
+	const alphaStep = 0.12
+	if a.overlayAlpha < targetAlpha {
+		a.overlayAlpha += alphaStep
+		if a.overlayAlpha > 1.0 {
+			a.overlayAlpha = 1.0
+		}
+	} else if a.overlayAlpha > targetAlpha {
+		a.overlayAlpha -= alphaStep
+		if a.overlayAlpha < 0.0 {
+			a.overlayAlpha = 0.0
+		}
+	}
+
+	// Trigger overlay when mouse is near the top edge.
+	if my >= 0 && my < overlayTriggerY {
+		a.overlayVisible = true
+	}
+
+	// Hide overlay when mouse leaves the expanded bar (unless pinned).
+	if !a.overlayPinned && a.overlayVisible {
+		_, _, ow, oh := a.overlayRect()
+		ox := (a.width - ow) / 2
+		if mx < ox || mx >= ox+ow || my < 0 || my >= oh {
+			a.overlayVisible = false
+		}
+	}
+
+	// Handle clicks on overlay buttons.
+	if !inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		return
+	}
+	if !a.overlayVisible && !a.overlayPinned {
+		return
+	}
+
+	ox, _, ow, oh := a.overlayRect()
+	if mx < ox || mx >= ox+ow || my < 0 || my >= oh {
+		return
+	}
+
+	// Button layout within the overlay bar (from left and right edges).
+	// Left side: [Pin] [Ctrl+Alt+Del] [TaskMgr]
+	// Center: connection label (no click)
+	// Right side: [Minimize] [Restore] [X]
+	const btnW = 80
+	const btnPad = 4
+
+	// Left buttons
+	pinBtnX := ox + btnPad
+	cadBtnX := pinBtnX + btnW + btnPad
+	tmBtnX := cadBtnX + btnW + btnPad
+
+	// Right buttons
+	closeBtnX := ox + ow - btnW - btnPad
+	restoreBtnX := closeBtnX - btnW - btnPad
+	minBtnX := restoreBtnX - btnW - btnPad
+
+	btnY := 0
+	btnH := oh
+
+	activeTab := a.tabs.Active()
+
+	// Pin/Unpin
+	if mx >= pinBtnX && mx < pinBtnX+btnW && my >= btnY && my < btnY+btnH {
+		a.overlayPinned = !a.overlayPinned
+		return
+	}
+	// Ctrl+Alt+Del
+	if mx >= cadBtnX && mx < cadBtnX+btnW && my >= btnY && my < btnY+btnH {
+		if activeTab != nil && activeTab.Session != nil {
+			activeTab.Session.SendCtrlAltDel()
+		}
+		return
+	}
+	// Task Manager
+	if mx >= tmBtnX && mx < tmBtnX+btnW && my >= btnY && my < btnY+btnH {
+		if activeTab != nil && activeTab.Session != nil {
+			activeTab.Session.SendCtrlShiftEsc()
+		}
+		return
+	}
+	// Minimize — defer all window-state changes; never call ebiten window
+	// functions directly inside a click handler while mu.RLock is held.
+	if mx >= minBtnX && mx < minBtnX+btnW && my >= btnY && my < btnY+btnH {
+		a.overlayVisible = false
+		a.overlayPinned = false
+		a.pendingExitThenMinimize.Store(true)
+		return
+	}
+	// Restore (exit fullscreen) — same deferral rule.
+	if mx >= restoreBtnX && mx < restoreBtnX+btnW && my >= btnY && my < btnY+btnH {
+		a.overlayVisible = false
+		a.overlayPinned = false
+		a.pendingExitFullscreen.Store(true)
+		return
+	}
+	// Close/Disconnect
+	if mx >= closeBtnX && mx < closeBtnX+btnW && my >= btnY && my < btnY+btnH {
+		if activeTab != nil {
+			a.closeTabFromGUI(activeTab.ConnID)
+		}
+		return
+	}
+}
+
+// drawOverlay draws the fullscreen overlay bar on top of the session.
+// The overlay shows a thin grab handle always, and expands when the mouse
+// is near the top edge or when pinned.
+func (a *App) drawOverlay(screen *ebiten.Image) {
+	ox, oy, ow, _ := a.overlayRect()
+
+	// Always draw the thin grab handle as a subtle hint strip.
+	handleImg := ebiten.NewImage(ow, overlayHandleH)
+	handleImg.Fill(color.RGBA{R: 100, G: 100, B: 140, A: 120})
+	hop := &ebiten.DrawImageOptions{}
+	hop.GeoM.Translate(float64(ox), float64(oy))
+	screen.DrawImage(handleImg, hop)
+
+	// Draw the expanded bar only when visible/pinned (fades with alpha).
+	if a.overlayAlpha <= 0 {
+		return
+	}
+
+	alpha := uint8(a.overlayAlpha * 220) // max ~220/255 opacity
+
+	// Background: semi-transparent dark bar
+	barImg := ebiten.NewImage(ow, overlayHeight)
+	barImg.Fill(color.RGBA{R: 20, G: 20, B: 35, A: alpha})
+	bop := &ebiten.DrawImageOptions{}
+	bop.GeoM.Translate(float64(ox), float64(oy))
+	screen.DrawImage(barImg, bop)
+
+	// Only draw text/buttons if sufficiently visible to avoid clutter.
+	if a.overlayAlpha < 0.3 {
+		return
+	}
+
+	const btnW = 80
+	const btnPad = 4
+	const btnH = overlayHeight - 4
+	btnTop := oy + 2
+
+	// Helper to draw a button background + label.
+	drawBtn := func(bx int, label string, bg color.RGBA) {
+		btnImg := ebiten.NewImage(btnW, btnH)
+		btnImg.Fill(bg)
+		bop2 := &ebiten.DrawImageOptions{}
+		bop2.GeoM.Translate(float64(bx), float64(btnTop))
+		screen.DrawImage(btnImg, bop2)
+		// Center text horizontally (approx 6px per char)
+		textX := bx + (btnW-len(label)*6)/2
+		ebitenutil.DebugPrintAt(screen, label, textX, btnTop+6)
+	}
+
+	normalBg := color.RGBA{R: 50, G: 50, B: 75, A: alpha}
+	pinBg := color.RGBA{R: 70, G: 90, B: 50, A: alpha}
+	dangerBg := color.RGBA{R: 150, G: 40, B: 40, A: alpha}
+
+	// Left buttons
+	pinBtnX := ox + btnPad
+	cadBtnX := pinBtnX + btnW + btnPad
+	tmBtnX := cadBtnX + btnW + btnPad
+
+	if a.overlayPinned {
+		drawBtn(pinBtnX, "[Unpin]", pinBg)
+	} else {
+		drawBtn(pinBtnX, "[Pin]", normalBg)
+	}
+	drawBtn(cadBtnX, "CAD", normalBg)
+	drawBtn(tmBtnX, "TaskMgr", normalBg)
+
+	// Right buttons
+	closeBtnX := ox + ow - btnW - btnPad
+	restoreBtnX := closeBtnX - btnW - btnPad
+	minBtnX := restoreBtnX - btnW - btnPad
+
+	drawBtn(closeBtnX, "[X]", dangerBg)
+	drawBtn(restoreBtnX, "Restore", normalBg)
+	drawBtn(minBtnX, "Min", normalBg)
+
+	// Connection label in the center
+	activeTab := a.tabs.Active()
+	if activeTab != nil {
+		label := activeTab.Label
+		maxChars := (ow - 6*(btnW+btnPad)) / 6
+		if maxChars < 1 {
+			maxChars = 1
+		}
+		if len(label) > maxChars {
+			label = label[:maxChars-2] + ".."
+		}
+		labelX := ox + ow/2 - len(label)*3
+		ebitenutil.DebugPrintAt(screen, label, labelX, btnTop+6)
+	}
 }
 
 // Layout implements ebiten.Game. Returns the logical screen size.
@@ -366,13 +699,14 @@ func (a *App) handleTabClicks() {
 	// Check window control buttons (top-right)
 	btnY := (tabBarHeight - winBtnHeight) / 2
 	if my >= btnY && my < btnY+winBtnHeight {
-		// Maximize/Restore button
+		// Maximize/Restore button — defer window-state change to avoid
+		// calling Ebiten window functions inside mu.RLock during click handling.
 		maxBtnX := a.width - 2*(winBtnWidth+winBtnGap)
 		if mx >= maxBtnX && mx < maxBtnX+winBtnWidth {
 			if ebiten.IsFullscreen() {
-				ebiten.SetFullscreen(false)
+				a.pendingExitFullscreen.Store(true)
 			} else {
-				ebiten.SetFullscreen(true)
+				a.pendingFullscreen.Store(true)
 			}
 			return
 		}
