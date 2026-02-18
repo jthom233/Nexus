@@ -326,11 +326,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			default:
 				var cmd tea.Cmd
 				a.filter, cmd = a.filter.Update(msg)
-				a.list.applyFilter(a.filter.value())
-				a.header.setFilter(a.filter.value())
-				a.header.setItemCount(len(a.list.filtered))
-				a.syncCursorPosition()
-				return a, cmd
+				a.filter.debounceSeq++
+				seq := a.filter.debounceSeq
+				debounce := tea.Tick(filterDebounceInterval, func(time.Time) tea.Msg {
+					return filterDebounceMsg{seq: seq}
+				})
+				return a, tea.Batch(cmd, debounce)
 			}
 		}
 
@@ -435,6 +436,20 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return a.handleKey(msg)
+
+	case saveErrorMsg:
+		a.log.error("Background save failed: %v", msg.err)
+		return a, nil
+
+	case filterDebounceMsg:
+		// Only apply if this tick matches the latest keystroke sequence.
+		if a.filter.active && msg.seq == a.filter.debounceSeq {
+			a.list.applyFilter(a.filter.value())
+			a.header.setFilter(a.filter.value())
+			a.header.setItemCount(len(a.list.filtered))
+			a.syncCursorPosition()
+		}
+		return a, nil
 
 	case health.ResultMsg:
 		a.list.updateHealthResults(msg.Results)
@@ -1468,20 +1483,28 @@ func (a *App) logAuditEvent(ev audit.AuditEvent) {
 }
 
 // trackConnectionUsage updates LastConnectedAt and increments ConnectCount
-// for the connection with the given ID, then saves the config.
-func (a *App) trackConnectionUsage(connID string) {
+// for the connection with the given ID. Returns a tea.Cmd that saves the
+// config in the background so it doesn't block the connection flow.
+func (a *App) trackConnectionUsage(connID string) tea.Cmd {
 	for i := range a.cfg.Connections {
 		if a.cfg.Connections[i].ID == connID {
 			now := time.Now()
 			a.cfg.Connections[i].LastConnectedAt = &now
 			a.cfg.Connections[i].ConnectCount++
-			if err := config.Save(a.cfg); err != nil {
-				a.log.error("Failed to save connection usage: %v", err)
+			cfg := a.cfg
+			return func() tea.Msg {
+				if err := config.Save(cfg); err != nil {
+					return saveErrorMsg{err}
+				}
+				return nil
 			}
-			return
 		}
 	}
+	return nil
 }
+
+// saveErrorMsg is returned when a background save fails.
+type saveErrorMsg struct{ err error }
 
 // toggleFavorite toggles the Favorite flag on the currently selected connection.
 func (a App) toggleFavorite() (tea.Model, tea.Cmd) {
@@ -1527,10 +1550,11 @@ func (a App) connectByID(id string) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
-	a.trackConnectionUsage(c.ID)
+	saveCmd := a.trackConnectionUsage(c.ID)
 
 	if c.Protocol == config.ProtoSSH {
-		return a.connectManaged(*c)
+		m, connectCmd := a.connectManaged(*c)
+		return m, tea.Batch(connectCmd, saveCmd)
 	}
 
 	l, err := launcher.ForProtocol(c.Protocol)
@@ -1544,7 +1568,7 @@ func (a App) connectByID(id string) (tea.Model, tea.Cmd) {
 	a.log.info("Connecting to %s (%s) via %s", c.Name, c.HostPort(), c.Protocol.Label())
 	a.log.info("Command: %s", cmdStr)
 	a.statusBar.setFlash("Connecting to "+c.Name+"...", flashInfo)
-	return a, l.Launch(*c)
+	return a, tea.Batch(l.Launch(*c), saveCmd)
 }
 
 func (a App) connectSelected() (tea.Model, tea.Cmd) {
@@ -1553,12 +1577,13 @@ func (a App) connectSelected() (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
-	// Track connection usage (LastConnectedAt, ConnectCount)
-	a.trackConnectionUsage(c.ID)
+	// Track connection usage (LastConnectedAt, ConnectCount) — save runs in background
+	saveCmd := a.trackConnectionUsage(c.ID)
 
 	// For SSH and Telnet, use managed sessions with detach support
 	if c.Protocol == config.ProtoSSH {
-		return a.connectManaged(*c)
+		m, connectCmd := a.connectManaged(*c)
+		return m, tea.Batch(connectCmd, saveCmd)
 	}
 
 	l, err := launcher.ForProtocol(c.Protocol)
@@ -1572,7 +1597,7 @@ func (a App) connectSelected() (tea.Model, tea.Cmd) {
 	a.log.info("Connecting to %s (%s) via %s", c.Name, c.HostPort(), c.Protocol.Label())
 	a.log.info("Command: %s", cmdStr)
 	a.statusBar.setFlash("Connecting to "+c.Name+"...", flashInfo)
-	return a, l.Launch(*c)
+	return a, tea.Batch(l.Launch(*c), saveCmd)
 }
 
 func (a App) connectManaged(c config.Connection) (tea.Model, tea.Cmd) {
@@ -1886,9 +1911,9 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 				a.statusBar.setFlash("No connections selected", flashError)
 				return a, scheduleFlashClear()
 			}
-			// Auto-create target group if it doesn't exist.
+			// Auto-create target group if it doesn't exist (no save — we save once after all moves).
 			if targetGroup != "" && a.cfg.FindGroup(targetGroup) == nil {
-				_ = a.cfg.AddGroup(targetGroup)
+				a.cfg.Groups = append(a.cfg.Groups, config.Group{Name: targetGroup})
 			}
 			// Snapshot before, execute bulk move, snapshot after.
 			var children []Operation
@@ -1900,7 +1925,6 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 				}
 				before := *c
 				c.Group = targetGroup
-				_ = a.cfg.UpdateConnection(*c)
 				after := *c
 				children = append(children, Operation{
 					Type:   UndoOpEdit,
@@ -2135,8 +2159,7 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 		for _, id := range ids {
 			conn := a.cfg.FindConnection(id)
 			if conn == nil {
-				// Connection already gone — try deleting anyway.
-				_ = a.cfg.DeleteConnection(id)
+				a.cfg.DeleteConnectionNoSave(id)
 				continue
 			}
 			name := conn.Name
@@ -2148,21 +2171,19 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 					break
 				}
 			}
-			if err := a.cfg.DeleteConnection(id); err != nil {
-				a.log.error("Delete failed for %s: %v", name, err)
-			} else {
-				children = append(children, Operation{
-					Type:   UndoOpDelete,
-					ConnID: id,
-					Name:   name,
-					Index:  idx,
-					Before: snapshot,
-				})
-				a.log.info("Deleted connection: %s", name)
-			}
+			a.cfg.DeleteConnectionNoSave(id)
+			children = append(children, Operation{
+				Type:   UndoOpDelete,
+				ConnID: id,
+				Name:   name,
+				Index:  idx,
+				Before: snapshot,
+			})
+			a.log.info("Deleted connection: %s", name)
 		}
 		if len(children) > 0 {
 			a.undoStack.PushBatch("bulk delete", children)
+			_ = config.Save(a.cfg)
 		}
 		a.statusBar.setFlash(fmt.Sprintf("Deleted %d connections", len(children)), flashInfo)
 
