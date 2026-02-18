@@ -545,7 +545,7 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 			options = make(map[string]interface{})
 		}
 		// Only override if not already set by fullscreen or user
-		if _, hasRes := options["resolution"]; !hasRes {
+		if res, _ := options["resolution"].(string); res == "" {
 			availW := a.width
 			availH := a.height - chromeHeight
 			if availW > 0 && availH > 0 {
