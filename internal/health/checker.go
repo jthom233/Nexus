@@ -94,6 +94,13 @@ func NewChecker(opts Options) *Checker {
 	}
 }
 
+// SetEnabled enables or disables health checking at runtime.
+func (c *Checker) SetEnabled(enabled bool) {
+	c.mu.Lock()
+	c.opts.Enabled = enabled
+	c.mu.Unlock()
+}
+
 // job is an internal work item for the worker pool.
 type job struct {
 	id   string

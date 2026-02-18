@@ -2591,6 +2591,23 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		return a, a.command.input.Focus()
 
 	// Options
+	case "toggle-health":
+		enabled := a.cfg.Settings.HealthEnabled()
+		enabled = !enabled
+		a.cfg.Settings.HealthCheckEnabled = &enabled
+		a.checker.SetEnabled(enabled)
+		_ = config.Save(a.cfg)
+		if enabled {
+			a.statusBar.setFlash("Health monitoring enabled", flashInfo)
+			return a, tea.Batch(
+				a.checker.CheckAll(a.list.healthTargets()),
+				health.ScheduleTick(a.cfg.Settings.HealthInterval()),
+				scheduleFlashClear(),
+			)
+		}
+		a.list.clearHealthResults()
+		a.statusBar.setFlash("Health monitoring disabled", flashInfo)
+		return a, scheduleFlashClear()
 	case "keybindings":
 		a.statusBar.setFlash("Keybinding editor not yet implemented", flashInfo)
 		return a, scheduleFlashClear()
