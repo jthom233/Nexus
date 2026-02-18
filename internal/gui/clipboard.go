@@ -392,10 +392,7 @@ func (c *clipboardChannel) pollClipboard() {
 		case <-c.stopPoll:
 			return
 		case <-ticker.C:
-			content, err := clipboard.ReadAll()
-			if err != nil {
-				continue
-			}
+			content, _ := clipboard.ReadAll()
 			imageAvailable := detectImageClipboard()
 
 			c.mu.Lock()
