@@ -4,6 +4,18 @@ import "github.com/charmbracelet/lipgloss"
 
 // --- Header styles ---
 
+func LogoHexStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(current.Info)
+}
+
+func LogoTextStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(current.Header)
+}
+
 func LogoStyle() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Bold(true).

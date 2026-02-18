@@ -50,10 +50,13 @@ func (h headerModel) View() string {
 	t := theme.Current()
 
 	// --- Line 1: Logo (left) + Menu items (right) ---
-	logoStyle := lipgloss.NewStyle().
+	hexStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(t.Info)
-	logo := logoStyle.Render("NEXUS")
+	textStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(t.Header)
+	logo := hexStyle.Render("⬢") + " " + textStyle.Render("NEXUS")
 
 	menu := h.renderMenu(t)
 
