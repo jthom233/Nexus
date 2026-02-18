@@ -183,6 +183,11 @@ func (l *listModel) updateHealthResults(results []health.Result) {
 	l.rebuildTable()
 }
 
+func (l *listModel) clearHealthResults() {
+	l.statuses = make(map[string]connStatus)
+	l.rebuildTable()
+}
+
 func (l *listModel) selectedConnection() *config.Connection {
 	if len(l.filtered) == 0 {
 		return nil

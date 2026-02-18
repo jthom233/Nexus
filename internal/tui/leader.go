@@ -277,6 +277,7 @@ func leaderGroups() []LeaderGroup {
 			Key:   "o",
 			Label: "Options",
 			Items: []LeaderItem{
+				{Key: "h", Label: "Health monitoring", Action: "toggle-health"},
 				{Key: "k", Label: "Keybindings", Action: "keybindings"},
 			},
 		},
