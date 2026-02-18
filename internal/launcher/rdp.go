@@ -16,7 +16,11 @@ import (
 )
 
 // RDPLauncher launches RDP sessions via the GUI process (IPC).
-type RDPLauncher struct{}
+type RDPLauncher struct {
+	// prog is the Bubbletea program reference used to forward GUI log lines.
+	// When nil, log lines received over IPC are silently discarded.
+	prog *tea.Program
+}
 
 func (l *RDPLauncher) Launch(conn config.Connection) tea.Cmd {
 	return func() tea.Msg {
@@ -54,7 +58,7 @@ func (l *RDPLauncher) Launch(conn config.Connection) tea.Cmd {
 			return LaunchFinishedMsg{ID: conn.ID, Err: fmt.Errorf("ipc send: %w", err)}
 		}
 
-		// Wait for response (tab-opened, tab-error, or tab-closed)
+		// Wait for response (tab-opened, tab-error, tab-closed, or log-line).
 		for {
 			env, err := client.Recv()
 			if err != nil {
@@ -76,6 +80,16 @@ func (l *RDPLauncher) Launch(conn config.Connection) tea.Cmd {
 				if evt.ConnID == conn.ID {
 					return LaunchFinishedMsg{ID: conn.ID, Err: fmt.Errorf("%s", evt.Error)}
 				}
+			case ipc.MsgLogLine:
+				var evt ipc.LogLineEvent
+				if err := ipc.DecodePayload(env, &evt); err == nil && l.prog != nil {
+					l.prog.Send(GUILogLineMsg{
+						Level:     evt.Level,
+						Message:   evt.Message,
+						Timestamp: evt.Timestamp,
+					})
+				}
+				continue
 			}
 		}
 	}

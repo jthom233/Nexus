@@ -124,9 +124,11 @@ func NewApp() *App {
 	return a
 }
 
-// SetIPCManager sets the IPC manager for handling commands.
+// SetIPCManager sets the IPC manager for handling commands and upgrades the
+// package-level logger to broadcast log lines over IPC.
 func (a *App) SetIPCManager(mgr *IPCManager) {
 	a.ipcMgr = mgr
+	SetIPCLogger(mgr)
 }
 
 // Update implements ebiten.Game. Called every tick.

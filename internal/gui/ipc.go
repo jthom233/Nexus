@@ -2,6 +2,7 @@ package gui
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/dr4zz/nexus/internal/ipc"
 )
@@ -50,6 +51,15 @@ func (m *IPCManager) SendTabError(connID, errMsg string) {
 	m.server.Broadcast(ipc.MsgTabError, &ipc.TabErrorEvent{
 		ConnID: connID,
 		Error:  errMsg,
+	})
+}
+
+// SendLogLine broadcasts a structured log line event to the TUI.
+func (m *IPCManager) SendLogLine(level, message string) {
+	m.server.Broadcast(ipc.MsgLogLine, ipc.LogLineEvent{
+		Level:     level,
+		Message:   message,
+		Timestamp: time.Now(),
 	})
 }
 

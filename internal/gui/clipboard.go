@@ -2,7 +2,6 @@ package gui
 
 import (
 	"bytes"
-	"log"
 	"sync"
 	"time"
 
@@ -135,9 +134,9 @@ func (c *clipboardChannel) Process(s []byte) {
 
 	switch msgType {
 	case cbClipCaps:
-		log.Println("cliprdr: server capabilities received")
+		guiLog.Info("cliprdr: server capabilities received")
 	case cbMonitorReady:
-		log.Println("cliprdr: server monitor ready")
+		guiLog.Info("cliprdr: server monitor ready")
 		c.mu.Lock()
 		c.ready = true
 		c.mu.Unlock()
@@ -153,7 +152,7 @@ func (c *clipboardChannel) Process(s []byte) {
 	case cbFormatDataResponse:
 		c.processFormatDataResponse(msgFlags, payload)
 	default:
-		log.Printf("cliprdr: unhandled message type 0x%04x", msgType)
+		guiLog.Warn("cliprdr: unhandled message type 0x%04x", msgType)
 	}
 }
 
@@ -219,22 +218,22 @@ func (c *clipboardChannel) processFormatDataResponse(flags uint16, data []byte) 
 
 	if pending == cfDIB {
 		if len(data) > maxImageTransferSize+dibHeaderSize {
-			log.Printf("cliprdr: server image too large (%d bytes), discarding", len(data))
+			guiLog.Warn("cliprdr: server image too large (%d bytes), discarding", len(data))
 			return
 		}
 		pngBytes, err := dibToPNG(data)
 		if err != nil {
-			log.Printf("cliprdr: DIB→PNG conversion failed: %v", err)
+			guiLog.Error("cliprdr: DIB->PNG conversion failed: %v", err)
 			return
 		}
 		if err := writeImageClipboard(pngBytes); err != nil {
-			log.Printf("cliprdr: writeImageClipboard failed: %v", err)
+			guiLog.Error("cliprdr: writeImageClipboard failed: %v", err)
 		}
 		return
 	}
 
 	if pending != cfUnicodeText {
-		log.Printf("cliprdr: unexpected format data response (pending=%d), discarding", pending)
+		guiLog.Warn("cliprdr: unexpected format data response (pending=%d), discarding", pending)
 		return
 	}
 
@@ -267,18 +266,18 @@ func (c *clipboardChannel) processFormatDataRequest(data []byte) {
 	case cfDIB:
 		pngBytes, err := readImageClipboard()
 		if err != nil {
-			log.Printf("cliprdr: readImageClipboard failed: %v", err)
+			guiLog.Error("cliprdr: readImageClipboard failed: %v", err)
 			c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
 			return
 		}
 		if len(pngBytes) > maxImageTransferSize {
-			log.Printf("cliprdr: local image too large (%d bytes), skipping transfer", len(pngBytes))
+			guiLog.Warn("cliprdr: local image too large (%d bytes), skipping transfer", len(pngBytes))
 			c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
 			return
 		}
 		dibBytes, err := pngToDIB(pngBytes)
 		if err != nil {
-			log.Printf("cliprdr: PNG→DIB conversion failed: %v", err)
+			guiLog.Error("cliprdr: PNG->DIB conversion failed: %v", err)
 			c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
 			return
 		}
@@ -287,7 +286,7 @@ func (c *clipboardChannel) processFormatDataRequest(data []byte) {
 	case cfUnicodeText:
 		text, err := clipboard.ReadAll()
 		if err != nil {
-			log.Printf("cliprdr: clipboard.ReadAll failed: %v", err)
+			guiLog.Error("cliprdr: clipboard.ReadAll failed: %v", err)
 			c.sendPDU(cbFormatDataResponse, cbResponseFail, nil)
 			return
 		}

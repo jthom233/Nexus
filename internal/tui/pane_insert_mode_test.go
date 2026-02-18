@@ -15,7 +15,7 @@ func newMinimalPaneApp() App {
 		paneLayout: NewPaneLayoutModel(),
 		leader:     newLeader(),
 		statusBar:  newStatusBar(),
-		log:        newLog(),
+		log:        newLogsModel(),
 	}
 }
 

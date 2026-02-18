@@ -52,7 +52,7 @@ func defaultCommands() []CommandDef {
 		{Name: "recent", Aliases: nil, Description: "Show recent connections", ArgSpec: ""},
 		{Name: "frequent", Aliases: nil, Description: "Show frequently used", ArgSpec: ""},
 		{Name: "pulse", Aliases: nil, Description: "Health pulse check", ArgSpec: ""},
-		{Name: "log", Aliases: []string{"logs", "audit"}, Description: "Show audit log", ArgSpec: ""},
+		{Name: "log", Aliases: []string{"logs", "audit"}, Description: "Show logs", ArgSpec: ""},
 		{Name: "sessions", Aliases: nil, Description: "Manage sessions", ArgSpec: ""},
 		{Name: "mkdir", Aliases: nil, Description: "Create group", ArgSpec: "<name>"},
 		{Name: "rmdir", Aliases: nil, Description: "Remove group", ArgSpec: "<name>"},
