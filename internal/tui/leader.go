@@ -281,6 +281,31 @@ func leaderGroups() []LeaderGroup {
 			},
 		},
 		{
+			Key:   "w",
+			Label: "Window",
+			Items: []LeaderItem{
+				{Key: "v", Label: "Split vertical", Action: "split-vertical"},
+				{Key: "s", Label: "Split horizontal", Action: "split-horizontal"},
+				{Key: "h", Label: "Focus left", Action: "focus-left"},
+				{Key: "j", Label: "Focus down", Action: "focus-down"},
+				{Key: "k", Label: "Focus up", Action: "focus-up"},
+				{Key: "l", Label: "Focus right", Action: "focus-right"},
+				{Key: "c", Label: "Close pane", Action: "close-pane"},
+				{Key: "b", Label: "Broadcast toggle", Action: "broadcast-toggle"},
+				{Key: "=", Label: "Equalize panes", Action: "equalize-panes"},
+				{Key: "z", Label: "Zoom pane", Action: "zoom-pane"},
+				{Key: ">", Label: "Resize right", Action: "resize-right"},
+				{Key: "<", Label: "Resize left", Action: "resize-left"},
+				{Key: "+", Label: "Resize down", Action: "resize-down"},
+				{Key: "-", Label: "Resize up", Action: "resize-up"},
+				// Preset layouts
+				{Key: "2", Label: "Layout 2 columns", Action: "preset-2v"},
+				{Key: "3", Label: "Layout 3 columns", Action: "preset-3v"},
+				{Key: "4", Label: "Layout 2x2 grid", Action: "preset-2x2"},
+				{Key: "m", Label: "Layout main+side", Action: "preset-main-side"},
+			},
+		},
+		{
 			Key:   "?",
 			Label: "Help",
 			Items: nil, // Direct action, no sub-items

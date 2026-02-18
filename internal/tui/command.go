@@ -61,6 +61,7 @@ func defaultCommands() []CommandDef {
 		{Name: "field", Aliases: nil, Description: "Manage custom fields", ArgSpec: "set <key> <value> | remove <key>"},
 		{Name: "all", Aliases: nil, Description: "Show all connections", ArgSpec: ""},
 		{Name: "move", Aliases: nil, Description: "Move to group", ArgSpec: "<group>"},
+		{Name: "layout", Aliases: nil, Description: "Apply pane layout preset", ArgSpec: "<2h|2v|3v|2x2|main-side>"},
 	}
 }
 
