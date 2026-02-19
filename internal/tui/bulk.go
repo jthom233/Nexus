@@ -177,9 +177,9 @@ func ResolveRangeIDs(filtered []config.Connection, rangeStart, rangeEnd int) []s
 	return ids
 }
 
-// ResolveVisualIDs extracts connection IDs from the visual selection.
-func ResolveVisualIDs(vs *VisualState, rows []Row) []string {
-	if vs == nil || !vs.Active() {
+// ResolveVisualIDs extracts connection IDs from the selection set.
+func ResolveVisualIDs(vs *SelectionSet, rows []Row) []string {
+	if vs == nil || !vs.HasSelection() {
 		return nil
 	}
 	return vs.SelectedIDs(rows)

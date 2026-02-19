@@ -139,6 +139,8 @@ func (s statusBarModel) View() string {
 	modeLabel := s.mode.String()
 	if s.mode == ModeVisual && s.visualCount > 0 {
 		modeLabel = fmt.Sprintf("VISUAL (%d selected)", s.visualCount)
+	} else if s.mode == ModeNormal && s.visualCount > 0 {
+		modeLabel = fmt.Sprintf("%d selected", s.visualCount)
 	}
 	modeTag := modeIndicatorStyle(s.mode).Render(modeLabel)
 

@@ -73,8 +73,8 @@ type App struct {
 	animationsEnabled bool
 
 	// State
-	mode        Mode
-	visualState VisualState
+	mode         Mode
+	selectionSet SelectionSet
 	ready          bool
 	bracketPending rune     // 0=none, ']'=next, '['=prev
 	bracketNav     *BracketNav
@@ -137,7 +137,7 @@ func NewApp(cfg *config.Config) App {
 			Enabled: cfg.Settings.HealthEnabled(),
 		}),
 		mode:              ModeNormal,
-		visualState:       NewVisualState(),
+		selectionSet:      NewSelectionSet(),
 		viewTransition:    newTransition(6), // 6 frames @ 16ms = ~96ms
 		animationsEnabled: cfg.Settings.AnimationsEnabled(),
 	}
@@ -681,8 +681,20 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 
 	// Handle Visual mode keys first if visual mode is active.
-	if a.visualState.Active() {
+	if a.selectionSet.VisualActive() {
 		return a.handleVisualKey(msg)
+	}
+
+	// --- Bulk operation intercept (Normal mode with a picker selection) ---
+	// When items are selected via Tab/Ctrl+A and no motion sequence is pending,
+	// the d and y keys operate on the full selection instead of the single cursor row.
+	if a.selectionSet.HasSelection() && !a.list.table.motion.Pending() {
+		switch k {
+		case "d":
+			return a.bulkDeleteSelected()
+		case "y":
+			return a.bulkYankSelected()
+		}
 	}
 
 	motion := a.list.table.motion
@@ -708,6 +720,59 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// --- App-level key handlers (non-motion keys) ---
 	switch k {
+	case "ctrl+a":
+		// Toggle select-all / deselect-all for the visible (filtered) rows.
+		rowCount := len(a.list.table.rows)
+		if a.selectionSet.HasSelection() {
+			a.selectionSet.DeselectAll()
+			a.list.table.selectionSet = nil
+		} else {
+			a.selectionSet.SelectAll(rowCount)
+			if a.selectionSet.HasSelection() {
+				a.list.table.selectionSet = &a.selectionSet
+			}
+		}
+		a.statusBar.visualCount = a.selectionSet.Count()
+		return a, nil
+
+	case "esc":
+		// In Normal mode with a picker selection (but not visual mode), clear the selection.
+		if a.selectionSet.HasSelection() && !a.selectionSet.VisualActive() {
+			a.selectionSet.DeselectAll()
+			a.list.table.selectionSet = nil
+			a.statusBar.visualCount = 0
+			return a, nil
+		}
+		// Otherwise fall through (no further esc handling at list level in normal mode).
+
+	case "tab": // Toggle selection on current row
+		if len(a.list.table.rows) == 0 {
+			return a, nil
+		}
+		cursor := a.list.table.Cursor()
+		a.selectionSet.Toggle(cursor)
+		if a.selectionSet.HasSelection() {
+			a.list.table.selectionSet = &a.selectionSet
+		} else {
+			a.list.table.selectionSet = nil
+		}
+		a.statusBar.visualCount = a.selectionSet.Count()
+		return a, nil
+
+	case "shift+tab": // Deselect current row (idempotent; no-op on empty list)
+		if len(a.list.table.rows) == 0 {
+			return a, nil
+		}
+		cursor := a.list.table.Cursor()
+		a.selectionSet.Deselect(cursor)
+		if a.selectionSet.HasSelection() {
+			a.list.table.selectionSet = &a.selectionSet
+		} else {
+			a.list.table.selectionSet = nil
+		}
+		a.statusBar.visualCount = a.selectionSet.Count()
+		return a, nil
+
 	case " ": // Space = leader key
 		if !a.leader.active {
 			cmd := a.leader.activate()
@@ -794,11 +859,6 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+l": // View event log
 		a.log.setSize(a.width, a.contentHeight())
 		a.pushView(viewLog)
-		return a, nil
-
-	case "tab": // Cycle group filter
-		a.list.cycleGroup()
-		a.syncCursorPosition()
 		return a, nil
 
 	case "V": // Enter line-visual mode
@@ -916,19 +976,35 @@ func (a App) handleOperatorRange(result *MotionResult) (tea.Model, tea.Cmd) {
 // enterVisualMode switches to Visual mode with the current cursor as anchor.
 func (a App) enterVisualMode() (tea.Model, tea.Cmd) {
 	cursor := a.list.table.Cursor()
-	a.visualState.Enter(cursor)
-	a.list.table.visualState = &a.visualState
+	a.selectionSet.EnterVisual(cursor)
+	a.list.table.selectionSet = &a.selectionSet
 	a.mode = ModeVisual
 	a.statusBar.mode = ModeVisual
-	a.statusBar.visualCount = a.visualState.Count()
+	a.statusBar.visualCount = a.selectionSet.Count()
 	return a, a.setMode(ModeVisual)
 }
 
-// exitVisualMode returns to Normal mode and clears all visual selection.
+// exitVisualMode returns to Normal mode but preserves any picker selection (Tab-selected items).
+// The status bar is updated to reflect the remaining selection count.
 func (a *App) exitVisualMode() tea.Cmd {
-	a.visualState.Exit()
-	a.list.table.visualState = nil
+	a.selectionSet.ExitVisual()
+	if !a.selectionSet.HasSelection() {
+		a.list.table.selectionSet = nil
+	}
 	a.mode = ModeNormal
+	a.statusBar.mode = ModeNormal
+	// Show "N selected" in Normal mode if items are still Tab-selected after leaving Visual.
+	a.statusBar.visualCount = a.selectionSet.Count()
+	return a.setMode(ModeNormal)
+}
+
+// clearAllSelection fully resets all selection state: exits Visual mode, deselects all items,
+// clears the table's selection pointer, resets mode to Normal, and zeroes the status-bar count.
+// Use this after bulk operations where selections must no longer persist.
+func (a *App) clearAllSelection() tea.Cmd {
+	a.selectionSet.ExitVisual()
+	a.selectionSet.DeselectAll()
+	a.list.table.selectionSet = nil
 	a.statusBar.mode = ModeNormal
 	a.statusBar.visualCount = 0
 	return a.setMode(ModeNormal)
@@ -936,7 +1012,7 @@ func (a *App) exitVisualMode() tea.Cmd {
 
 // syncVisualStatus updates the statusbar with the current visual selection count.
 func (a *App) syncVisualStatus() {
-	a.statusBar.visualCount = a.visualState.Count()
+	a.statusBar.visualCount = a.selectionSet.Count()
 }
 
 // handleVisualKey processes key events while in Visual mode.
@@ -954,8 +1030,8 @@ func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Move cursor down and extend selection range
 		newCursor := min(cursor+1, total-1)
 		a.list.table.MoveCursor(newCursor)
-		a.visualState.UpdateRange(newCursor)
-		a.list.table.visualState = &a.visualState
+		a.selectionSet.UpdateRange(newCursor)
+		a.list.table.selectionSet = &a.selectionSet
 		a.syncVisualStatus()
 		a.syncCursorPosition()
 		return a, nil
@@ -964,8 +1040,8 @@ func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Move cursor up and extend/contract selection range
 		newCursor := max(cursor-1, 0)
 		a.list.table.MoveCursor(newCursor)
-		a.visualState.UpdateRange(newCursor)
-		a.list.table.visualState = &a.visualState
+		a.selectionSet.UpdateRange(newCursor)
+		a.list.table.selectionSet = &a.selectionSet
 		a.syncVisualStatus()
 		a.syncCursorPosition()
 		return a, nil
@@ -973,26 +1049,55 @@ func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "G":
 		// Jump to last row, extend selection
 		a.list.table.MoveCursor(total - 1)
-		a.visualState.UpdateRange(total - 1)
-		a.list.table.visualState = &a.visualState
+		a.selectionSet.UpdateRange(total - 1)
+		a.list.table.selectionSet = &a.selectionSet
+		a.syncVisualStatus()
+		a.syncCursorPosition()
+		return a, nil
+
+	case "tab":
+		// Cherry-pick / deselect individual items while staying in Visual mode.
+		a.selectionSet.Toggle(cursor)
+		a.list.table.selectionSet = &a.selectionSet
+		a.syncVisualStatus()
+		return a, nil
+
+	case "ctrl+d":
+		// Half-page down; extend selection range addditively.
+		pageHalf := max(a.list.table.height/2, 1)
+		newCursor := min(cursor+pageHalf, total-1)
+		a.list.table.MoveCursor(newCursor)
+		a.selectionSet.UpdateRange(newCursor)
+		a.list.table.selectionSet = &a.selectionSet
+		a.syncVisualStatus()
+		a.syncCursorPosition()
+		return a, nil
+
+	case "ctrl+u":
+		// Half-page up; extend selection range additively.
+		pageHalf := max(a.list.table.height/2, 1)
+		newCursor := max(cursor-pageHalf, 0)
+		a.list.table.MoveCursor(newCursor)
+		a.selectionSet.UpdateRange(newCursor)
+		a.list.table.selectionSet = &a.selectionSet
 		a.syncVisualStatus()
 		a.syncCursorPosition()
 		return a, nil
 
 	case "v":
 		// Toggle current item in/out of selection (non-contiguous)
-		a.visualState.ToggleItem(cursor)
-		a.list.table.visualState = &a.visualState
+		a.selectionSet.Toggle(cursor)
+		a.list.table.selectionSet = &a.selectionSet
 		a.syncVisualStatus()
 		return a, nil
 
 	case "d":
 		// Delete all selected connections (with confirmation)
-		count := a.visualState.Count()
+		count := a.selectionSet.Count()
 		if count == 0 {
 			return a, nil
 		}
-		ids := a.visualState.SelectedIDs(a.list.table.rows)
+		ids := a.selectionSet.SelectedIDs(a.list.table.rows)
 		if len(ids) == 0 {
 			return a, nil
 		}
@@ -1013,9 +1118,30 @@ func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// yankVisualSelection copies the details of all visually selected connections to the clipboard.
-func (a App) yankVisualSelection() (tea.Model, tea.Cmd) {
-	ids := a.visualState.SelectedIDs(a.list.table.rows)
+// bulkDeleteSelected shows a bulk-delete confirmation for all Tab-selected connections
+// (Normal mode, non-visual). After confirmation the confirm handler calls exitVisualMode
+// (via "delete-visual" action) which also calls DeselectAll.
+func (a App) bulkDeleteSelected() (tea.Model, tea.Cmd) {
+	count := a.selectionSet.Count()
+	if count == 0 {
+		return a, nil
+	}
+	ids := a.selectionSet.SelectedIDs(a.list.table.rows)
+	if len(ids) == 0 {
+		return a, nil
+	}
+	prompt := fmt.Sprintf("Delete %d selected connections?", count)
+	idStr := strings.Join(ids, ",")
+	a.confirm.show(prompt, "delete-visual", idStr)
+	a.confirm.width = a.width
+	a.confirm.height = a.height
+	return a, nil
+}
+
+// bulkYankSelected copies commands for all Tab-selected connections to the clipboard
+// (Normal mode, non-visual). Clears the selection after yanking.
+func (a App) bulkYankSelected() (tea.Model, tea.Cmd) {
+	ids := a.selectionSet.SelectedIDs(a.list.table.rows)
 	if len(ids) == 0 {
 		return a, nil
 	}
@@ -1046,9 +1172,47 @@ func (a App) yankVisualSelection() (tea.Model, tea.Cmd) {
 		a.statusBar.setFlash(fmt.Sprintf("Copied %d commands", len(lines)), flashInfo)
 	}
 
-	// Exit visual mode after yanking
-	a.exitVisualMode()
-	return a, scheduleFlashClear()
+	// Clear selection after yanking.
+	clearCmd := a.clearAllSelection()
+	return a, tea.Batch(clearCmd, scheduleFlashClear())
+}
+
+// yankVisualSelection copies the details of all visually selected connections to the clipboard.
+func (a App) yankVisualSelection() (tea.Model, tea.Cmd) {
+	ids := a.selectionSet.SelectedIDs(a.list.table.rows)
+	if len(ids) == 0 {
+		return a, nil
+	}
+
+	var lines []string
+	for _, id := range ids {
+		c := a.cfg.FindConnection(id)
+		if c == nil {
+			continue
+		}
+		l, err := launcher.ForProtocol(c.Protocol)
+		if err != nil {
+			continue
+		}
+		lines = append(lines, l.Command(*c))
+	}
+
+	if len(lines) == 0 {
+		return a, nil
+	}
+
+	text := strings.Join(lines, "\n")
+	if err := termcap.DefaultClipboard().WriteAll(text); err != nil {
+		a.log.error("Clipboard error: %v", err)
+		a.statusBar.setFlash("Clipboard error: "+err.Error(), flashError)
+	} else {
+		a.log.info("Copied %d connection commands to clipboard", len(lines))
+		a.statusBar.setFlash(fmt.Sprintf("Copied %d commands", len(lines)), flashInfo)
+	}
+
+	// Clear all selection after yanking (spec: selections must clear after bulk operations).
+	clearCmd := a.clearAllSelection()
+	return a, tea.Batch(clearCmd, scheduleFlashClear())
 }
 
 func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -1878,10 +2042,10 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 			return a, scheduleFlashClear()
 		}
 
-		// Bulk move: if visual mode is active, move all selected connections.
-		if a.visualState.Active() {
+		// Bulk move: if any connections are selected, move all selected connections.
+		if a.selectionSet.HasSelection() {
 			targetGroup := args
-			ids := ResolveVisualIDs(&a.visualState, a.list.table.rows)
+			ids := ResolveVisualIDs(&a.selectionSet, a.list.table.rows)
 			if len(ids) == 0 {
 				a.statusBar.setFlash("No connections selected", flashError)
 				return a, scheduleFlashClear()
@@ -1915,7 +2079,7 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 				a.undoStack.PushBatch("bulk move to "+targetGroup, children)
 				_ = config.Save(a.cfg)
 			}
-			a.visualState.Exit()
+			clearCmd := a.clearAllSelection()
 			a.list.filtered = a.list.groupFilteredConns()
 			a.list.rebuildTable()
 			a.syncHeaderView()
@@ -1927,7 +2091,7 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 				a.log.info("Moved %d of %d connections to group %s", moved, total, targetGroup)
 				a.statusBar.setFlash(fmt.Sprintf("Moved %d of %d connections to %s", moved, total, targetGroup), flashInfo)
 			}
-			return a, scheduleFlashClear()
+			return a, tea.Batch(clearCmd, scheduleFlashClear())
 		}
 
 		// Single-connection move (existing behavior).
@@ -2166,8 +2330,8 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 		}
 		a.statusBar.setFlash(fmt.Sprintf("Deleted %d connections", len(children)), flashInfo)
 
-		// Exit visual mode
-		a.exitVisualMode()
+		// Exit visual mode and clear selection (connections no longer exist).
+		clearCmd := a.clearAllSelection()
 
 		// Rebuild the list
 		a.list.filtered = a.list.groupFilteredConns()
@@ -2178,7 +2342,7 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 		a.statusBar.offline = offline
 		a.syncHeaderView()
 		a.syncCursorPosition()
-		return a, scheduleFlashClear()
+		return a, tea.Batch(clearCmd, scheduleFlashClear())
 
 	case "kill-session":
 		sess := a.sessions.Get(msg.ID)
@@ -3305,8 +3469,8 @@ func (a App) handleTagCommand(args string) (tea.Model, tea.Cmd) {
 			a.statusBar.setFlash("Usage: :tag add <tag>", flashError)
 			return a, scheduleFlashClear()
 		}
-		// Apply to visual selection if active, otherwise to current connection.
-		if a.visualState.Active() {
+		// Apply to selection if any, otherwise to current connection.
+		if a.selectionSet.HasSelection() {
 			return a.tagAddVisual(tagArg)
 		}
 		c := a.list.selectedConnection()
@@ -3342,7 +3506,7 @@ func (a App) handleTagCommand(args string) (tea.Model, tea.Cmd) {
 			a.statusBar.setFlash("Usage: :tag remove <tag>", flashError)
 			return a, scheduleFlashClear()
 		}
-		if a.visualState.Active() {
+		if a.selectionSet.HasSelection() {
 			return a.tagRemoveVisual(tagArg)
 		}
 		c := a.list.selectedConnection()
@@ -3383,60 +3547,62 @@ func (a App) handleTagCommand(args string) (tea.Model, tea.Cmd) {
 
 // tagAddVisual adds a tag to all visually selected connections.
 func (a App) tagAddVisual(tag string) (tea.Model, tea.Cmd) {
-	indices := a.visualState.SelectedIndices()
+	ids := a.selectionSet.SelectedIDs(a.list.table.rows)
 	var children []Operation
-	for _, idx := range indices {
-		if idx >= 0 && idx < len(a.list.filtered) {
-			c := &a.list.filtered[idx]
-			before := *c
-			if a.tagManager.AddTag(c, tag) {
-				_ = a.cfg.UpdateConnection(*c)
-				children = append(children, Operation{
-					Type:   UndoOpTagChange,
-					ConnID: c.ID,
-					Name:   c.Name,
-					Before: before,
-					After:  *c,
-				})
-			}
+	for _, id := range ids {
+		c := a.cfg.FindConnection(id)
+		if c == nil {
+			continue
+		}
+		before := *c
+		if a.tagManager.AddTag(c, tag) {
+			_ = a.cfg.UpdateConnection(*c)
+			children = append(children, Operation{
+				Type:   UndoOpTagChange,
+				ConnID: c.ID,
+				Name:   c.Name,
+				Before: before,
+				After:  *c,
+			})
 		}
 	}
 	if len(children) > 0 {
 		a.undoStack.PushBatch("bulk tag add "+tag, children)
 	}
-	a.visualState.Exit()
+	clearCmd := a.clearAllSelection()
 	a.list.rebuildTable()
 	a.statusBar.setFlash(fmt.Sprintf("Added tag '%s' to %d connection(s)", tag, len(children)), flashInfo)
-	return a, scheduleFlashClear()
+	return a, tea.Batch(clearCmd, scheduleFlashClear())
 }
 
 // tagRemoveVisual removes a tag from all visually selected connections.
 func (a App) tagRemoveVisual(tag string) (tea.Model, tea.Cmd) {
-	indices := a.visualState.SelectedIndices()
+	ids := a.selectionSet.SelectedIDs(a.list.table.rows)
 	var children []Operation
-	for _, idx := range indices {
-		if idx >= 0 && idx < len(a.list.filtered) {
-			c := &a.list.filtered[idx]
-			before := *c
-			if a.tagManager.RemoveTag(c, tag) {
-				_ = a.cfg.UpdateConnection(*c)
-				children = append(children, Operation{
-					Type:   UndoOpTagChange,
-					ConnID: c.ID,
-					Name:   c.Name,
-					Before: before,
-					After:  *c,
-				})
-			}
+	for _, id := range ids {
+		c := a.cfg.FindConnection(id)
+		if c == nil {
+			continue
+		}
+		before := *c
+		if a.tagManager.RemoveTag(c, tag) {
+			_ = a.cfg.UpdateConnection(*c)
+			children = append(children, Operation{
+				Type:   UndoOpTagChange,
+				ConnID: c.ID,
+				Name:   c.Name,
+				Before: before,
+				After:  *c,
+			})
 		}
 	}
 	if len(children) > 0 {
 		a.undoStack.PushBatch("bulk tag remove "+tag, children)
 	}
-	a.visualState.Exit()
+	clearCmd := a.clearAllSelection()
 	a.list.rebuildTable()
 	a.statusBar.setFlash(fmt.Sprintf("Removed tag '%s' from %d connection(s)", tag, len(children)), flashInfo)
-	return a, scheduleFlashClear()
+	return a, tea.Batch(clearCmd, scheduleFlashClear())
 }
 
 // handleTagsListCommand shows all unique tags with counts.
@@ -3735,9 +3901,9 @@ func (a App) handleExportCommand(args string) (tea.Model, tea.Cmd) {
 
 	// Determine which connections to export.
 	var conns []config.Connection
-	if a.visualState.Active() {
-		// Export only visually selected connections.
-		indices := a.visualState.SelectedIndices()
+	if a.selectionSet.HasSelection() {
+		// Export only selected connections.
+		indices := a.selectionSet.SelectedIndices()
 		for _, idx := range indices {
 			if idx >= 0 && idx < len(a.list.filtered) {
 				conns = append(conns, a.list.filtered[idx])
@@ -3784,5 +3950,8 @@ func (a App) handleExportCommand(args string) (tea.Model, tea.Cmd) {
 	flashMsg := fmt.Sprintf("Exported %d connections to %s", len(conns), filepath.Base(path))
 	a.log.info("Export %s: %s", format, flashMsg)
 	a.statusBar.setFlash(flashMsg, flashInfo)
-	return a, scheduleFlashClear()
+
+	// Clear selection after export.
+	clearCmd := a.clearAllSelection()
+	return a, tea.Batch(clearCmd, scheduleFlashClear())
 }
