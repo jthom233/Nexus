@@ -1,0 +1,7957 @@
+{
+  "nodes": {
+    "mod:nexus.main": {
+      "id": "mod:nexus.main",
+      "type": "module",
+      "label": "main",
+      "metadata": {
+        "package": "nexus",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "cmd/nexus/main.go",
+      "manual": false
+    },
+    "mod:nexus-gui.main": {
+      "id": "mod:nexus-gui.main",
+      "type": "module",
+      "label": "main",
+      "metadata": {
+        "package": "nexus-gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "cmd/nexus-gui/main.go",
+      "manual": false
+    },
+    "service:AuditEvent": {
+      "id": "service:AuditEvent",
+      "type": "service",
+      "label": "AuditEvent",
+      "metadata": {
+        "struct_name": "AuditEvent"
+      },
+      "file_path": "internal/audit/audit.go",
+      "manual": false
+    },
+    "service:AuditFilter": {
+      "id": "service:AuditFilter",
+      "type": "service",
+      "label": "AuditFilter",
+      "metadata": {
+        "struct_name": "AuditFilter"
+      },
+      "file_path": "internal/audit/audit.go",
+      "manual": false
+    },
+    "service:AuditLog": {
+      "id": "service:AuditLog",
+      "type": "service",
+      "label": "AuditLog",
+      "metadata": {
+        "struct_name": "AuditLog"
+      },
+      "file_path": "internal/audit/audit.go",
+      "manual": false
+    },
+    "mod:audit.audit": {
+      "id": "mod:audit.audit",
+      "type": "module",
+      "label": "audit",
+      "metadata": {
+        "package": "audit",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/audit/audit.go",
+      "manual": false
+    },
+    "service:Settings": {
+      "id": "service:Settings",
+      "type": "service",
+      "label": "Settings",
+      "metadata": {
+        "struct_name": "Settings"
+      },
+      "file_path": "internal/config/config.go",
+      "manual": false
+    },
+    "service:ConfigTemplate": {
+      "id": "service:ConfigTemplate",
+      "type": "service",
+      "label": "ConfigTemplate",
+      "metadata": {
+        "struct_name": "ConfigTemplate"
+      },
+      "file_path": "internal/config/config.go",
+      "manual": false
+    },
+    "service:Config": {
+      "id": "service:Config",
+      "type": "service",
+      "label": "Config",
+      "metadata": {
+        "struct_name": "Config"
+      },
+      "file_path": "internal/config/config.go",
+      "manual": false
+    },
+    "env:XDG_CONFIG_HOME": {
+      "id": "env:XDG_CONFIG_HOME",
+      "type": "env_var",
+      "label": "XDG_CONFIG_HOME",
+      "metadata": {
+        "variable": "XDG_CONFIG_HOME"
+      },
+      "file_path": "internal/config/config.go",
+      "manual": false
+    },
+    "mod:config.config": {
+      "id": "mod:config.config",
+      "type": "module",
+      "label": "config",
+      "metadata": {
+        "package": "config",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/config/config.go",
+      "manual": false
+    },
+    "service:PortForward": {
+      "id": "service:PortForward",
+      "type": "service",
+      "label": "PortForward",
+      "metadata": {
+        "struct_name": "PortForward"
+      },
+      "file_path": "internal/config/connection.go",
+      "manual": false
+    },
+    "service:RDPOptions": {
+      "id": "service:RDPOptions",
+      "type": "service",
+      "label": "RDPOptions",
+      "metadata": {
+        "struct_name": "RDPOptions"
+      },
+      "file_path": "internal/config/connection.go",
+      "manual": false
+    },
+    "service:Connection": {
+      "id": "service:Connection",
+      "type": "service",
+      "label": "Connection",
+      "metadata": {
+        "struct_name": "Connection"
+      },
+      "file_path": "internal/config/connection.go",
+      "manual": false
+    },
+    "service:Group": {
+      "id": "service:Group",
+      "type": "service",
+      "label": "Group",
+      "metadata": {
+        "struct_name": "Group"
+      },
+      "file_path": "internal/config/connection.go",
+      "manual": false
+    },
+    "mod:config.connection": {
+      "id": "mod:config.connection",
+      "type": "module",
+      "label": "connection",
+      "metadata": {
+        "package": "config",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/config/connection.go",
+      "manual": false
+    },
+    "mod:config.ssh_import": {
+      "id": "mod:config.ssh_import",
+      "type": "module",
+      "label": "ssh_import",
+      "metadata": {
+        "package": "config",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/config/ssh_import.go",
+      "manual": false
+    },
+    "mod:crypto.crypto": {
+      "id": "mod:crypto.crypto",
+      "type": "module",
+      "label": "crypto",
+      "metadata": {
+        "package": "crypto",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/crypto/crypto.go",
+      "manual": false
+    },
+    "service:toolbarButton": {
+      "id": "service:toolbarButton",
+      "type": "service",
+      "label": "toolbarButton",
+      "metadata": {
+        "struct_name": "toolbarButton"
+      },
+      "file_path": "internal/gui/app.go",
+      "manual": false
+    },
+    "service:App": {
+      "id": "service:App",
+      "type": "service",
+      "label": "App",
+      "metadata": {
+        "struct_name": "App"
+      },
+      "file_path": "internal/gui/app.go",
+      "manual": false
+    },
+    "env:WAYLAND_DISPLAY": {
+      "id": "env:WAYLAND_DISPLAY",
+      "type": "env_var",
+      "label": "WAYLAND_DISPLAY",
+      "metadata": {
+        "variable": "WAYLAND_DISPLAY"
+      },
+      "file_path": "internal/gui/app.go",
+      "manual": false
+    },
+    "env:XDG_SESSION_TYPE": {
+      "id": "env:XDG_SESSION_TYPE",
+      "type": "env_var",
+      "label": "XDG_SESSION_TYPE",
+      "metadata": {
+        "variable": "XDG_SESSION_TYPE"
+      },
+      "file_path": "internal/gui/app.go",
+      "manual": false
+    },
+    "mod:gui.app": {
+      "id": "mod:gui.app",
+      "type": "module",
+      "label": "app",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/app.go",
+      "manual": false
+    },
+    "service:clipboardChannel": {
+      "id": "service:clipboardChannel",
+      "type": "service",
+      "label": "clipboardChannel",
+      "metadata": {
+        "struct_name": "clipboardChannel"
+      },
+      "file_path": "internal/gui/clipboard.go",
+      "manual": false
+    },
+    "mod:gui.clipboard": {
+      "id": "mod:gui.clipboard",
+      "type": "module",
+      "label": "clipboard",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/clipboard.go",
+      "manual": false
+    },
+    "mod:gui.clipboard_image": {
+      "id": "mod:gui.clipboard_image",
+      "type": "module",
+      "label": "clipboard_image",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/clipboard_image.go",
+      "manual": false
+    },
+    "mod:gui.clipboard_image_other": {
+      "id": "mod:gui.clipboard_image_other",
+      "type": "module",
+      "label": "clipboard_image_other",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/clipboard_image_other.go",
+      "manual": false
+    },
+    "mod:gui.clipboard_image_windows": {
+      "id": "mod:gui.clipboard_image_windows",
+      "type": "module",
+      "label": "clipboard_image_windows",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/clipboard_image_windows.go",
+      "manual": false
+    },
+    "service:inputState": {
+      "id": "service:inputState",
+      "type": "service",
+      "label": "inputState",
+      "metadata": {
+        "struct_name": "inputState"
+      },
+      "file_path": "internal/gui/input.go",
+      "manual": false
+    },
+    "mod:gui.input": {
+      "id": "mod:gui.input",
+      "type": "module",
+      "label": "input",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/input.go",
+      "manual": false
+    },
+    "service:IPCManager": {
+      "id": "service:IPCManager",
+      "type": "service",
+      "label": "IPCManager",
+      "metadata": {
+        "struct_name": "IPCManager"
+      },
+      "file_path": "internal/gui/ipc.go",
+      "manual": false
+    },
+    "mod:gui.ipc": {
+      "id": "mod:gui.ipc",
+      "type": "module",
+      "label": "ipc",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/ipc.go",
+      "manual": false
+    },
+    "service:hookEvent": {
+      "id": "service:hookEvent",
+      "type": "service",
+      "label": "hookEvent",
+      "metadata": {
+        "struct_name": "hookEvent"
+      },
+      "file_path": "internal/gui/keyhook_other.go",
+      "manual": false
+    },
+    "mod:gui.keyhook_other": {
+      "id": "mod:gui.keyhook_other",
+      "type": "module",
+      "label": "keyhook_other",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/keyhook_other.go",
+      "manual": false
+    },
+    "service:kbdllHookStruct": {
+      "id": "service:kbdllHookStruct",
+      "type": "service",
+      "label": "kbdllHookStruct",
+      "metadata": {
+        "struct_name": "kbdllHookStruct"
+      },
+      "file_path": "internal/gui/keyhook_windows.go",
+      "manual": false
+    },
+    "service:msg": {
+      "id": "service:msg",
+      "type": "service",
+      "label": "msg",
+      "metadata": {
+        "struct_name": "msg"
+      },
+      "file_path": "internal/gui/keyhook_windows.go",
+      "manual": false
+    },
+    "mod:gui.keyhook_windows": {
+      "id": "mod:gui.keyhook_windows",
+      "type": "module",
+      "label": "keyhook_windows",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/keyhook_windows.go",
+      "manual": false
+    },
+    "service:ipcLogger": {
+      "id": "service:ipcLogger",
+      "type": "service",
+      "label": "ipcLogger",
+      "metadata": {
+        "struct_name": "ipcLogger"
+      },
+      "file_path": "internal/gui/logger.go",
+      "manual": false
+    },
+    "mod:gui.logger": {
+      "id": "mod:gui.logger",
+      "type": "module",
+      "label": "logger",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/logger.go",
+      "manual": false
+    },
+    "service:RDPSession": {
+      "id": "service:RDPSession",
+      "type": "service",
+      "label": "RDPSession",
+      "metadata": {
+        "struct_name": "RDPSession"
+      },
+      "file_path": "internal/gui/rdp.go",
+      "manual": false
+    },
+    "service:decodedBmp": {
+      "id": "service:decodedBmp",
+      "type": "service",
+      "label": "decodedBmp",
+      "metadata": {
+        "struct_name": "decodedBmp"
+      },
+      "file_path": "internal/gui/rdp.go",
+      "manual": false
+    },
+    "mod:gui.rdp": {
+      "id": "mod:gui.rdp",
+      "type": "module",
+      "label": "rdp",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/rdp.go",
+      "manual": false
+    },
+    "service:Tab": {
+      "id": "service:Tab",
+      "type": "service",
+      "label": "Tab",
+      "metadata": {
+        "struct_name": "Tab"
+      },
+      "file_path": "internal/gui/tabs.go",
+      "manual": false
+    },
+    "service:TabManager": {
+      "id": "service:TabManager",
+      "type": "service",
+      "label": "TabManager",
+      "metadata": {
+        "struct_name": "TabManager"
+      },
+      "file_path": "internal/gui/tabs.go",
+      "manual": false
+    },
+    "mod:gui.tabs": {
+      "id": "mod:gui.tabs",
+      "type": "module",
+      "label": "tabs",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/tabs.go",
+      "manual": false
+    },
+    "service:VNCSession": {
+      "id": "service:VNCSession",
+      "type": "service",
+      "label": "VNCSession",
+      "metadata": {
+        "struct_name": "VNCSession"
+      },
+      "file_path": "internal/gui/vnc.go",
+      "manual": false
+    },
+    "mod:gui.vnc": {
+      "id": "mod:gui.vnc",
+      "type": "module",
+      "label": "vnc",
+      "metadata": {
+        "package": "gui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/gui/vnc.go",
+      "manual": false
+    },
+    "service:Result": {
+      "id": "service:Result",
+      "type": "service",
+      "label": "Result",
+      "metadata": {
+        "struct_name": "Result"
+      },
+      "file_path": "internal/health/checker.go",
+      "manual": false
+    },
+    "service:ResultMsg": {
+      "id": "service:ResultMsg",
+      "type": "service",
+      "label": "ResultMsg",
+      "metadata": {
+        "struct_name": "ResultMsg"
+      },
+      "file_path": "internal/health/checker.go",
+      "manual": false
+    },
+    "service:TickMsg": {
+      "id": "service:TickMsg",
+      "type": "service",
+      "label": "TickMsg",
+      "metadata": {
+        "struct_name": "TickMsg"
+      },
+      "file_path": "internal/health/checker.go",
+      "manual": false
+    },
+    "service:Options": {
+      "id": "service:Options",
+      "type": "service",
+      "label": "Options",
+      "metadata": {
+        "struct_name": "Options"
+      },
+      "file_path": "internal/health/checker.go",
+      "manual": false
+    },
+    "service:breaker": {
+      "id": "service:breaker",
+      "type": "service",
+      "label": "breaker",
+      "metadata": {
+        "struct_name": "breaker"
+      },
+      "file_path": "internal/health/checker.go",
+      "manual": false
+    },
+    "service:Checker": {
+      "id": "service:Checker",
+      "type": "service",
+      "label": "Checker",
+      "metadata": {
+        "struct_name": "Checker"
+      },
+      "file_path": "internal/health/checker.go",
+      "manual": false
+    },
+    "service:job": {
+      "id": "service:job",
+      "type": "service",
+      "label": "job",
+      "metadata": {
+        "struct_name": "job"
+      },
+      "file_path": "internal/health/checker.go",
+      "manual": false
+    },
+    "mod:health.checker": {
+      "id": "mod:health.checker",
+      "type": "module",
+      "label": "checker",
+      "metadata": {
+        "package": "health",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/health/checker.go",
+      "manual": false
+    },
+    "service:Hook": {
+      "id": "service:Hook",
+      "type": "service",
+      "label": "Hook",
+      "metadata": {
+        "struct_name": "Hook"
+      },
+      "file_path": "internal/hooks/hooks.go",
+      "manual": false
+    },
+    "service:HookResult": {
+      "id": "service:HookResult",
+      "type": "service",
+      "label": "HookResult",
+      "metadata": {
+        "struct_name": "HookResult"
+      },
+      "file_path": "internal/hooks/hooks.go",
+      "manual": false
+    },
+    "service:Hooks": {
+      "id": "service:Hooks",
+      "type": "service",
+      "label": "Hooks",
+      "metadata": {
+        "struct_name": "Hooks"
+      },
+      "file_path": "internal/hooks/hooks.go",
+      "manual": false
+    },
+    "service:HookRunner": {
+      "id": "service:HookRunner",
+      "type": "service",
+      "label": "HookRunner",
+      "metadata": {
+        "struct_name": "HookRunner"
+      },
+      "file_path": "internal/hooks/hooks.go",
+      "manual": false
+    },
+    "mod:hooks.hooks": {
+      "id": "mod:hooks.hooks",
+      "type": "module",
+      "label": "hooks",
+      "metadata": {
+        "package": "hooks",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/hooks/hooks.go",
+      "manual": false
+    },
+    "service:ExportOptions": {
+      "id": "service:ExportOptions",
+      "type": "service",
+      "label": "ExportOptions",
+      "metadata": {
+        "struct_name": "ExportOptions"
+      },
+      "file_path": "internal/importexport/export.go",
+      "manual": false
+    },
+    "service:CSVExporter": {
+      "id": "service:CSVExporter",
+      "type": "service",
+      "label": "CSVExporter",
+      "metadata": {
+        "struct_name": "CSVExporter"
+      },
+      "file_path": "internal/importexport/export.go",
+      "manual": false
+    },
+    "service:JSONExporter": {
+      "id": "service:JSONExporter",
+      "type": "service",
+      "label": "JSONExporter",
+      "metadata": {
+        "struct_name": "JSONExporter"
+      },
+      "file_path": "internal/importexport/export.go",
+      "manual": false
+    },
+    "service:jsonExportConn": {
+      "id": "service:jsonExportConn",
+      "type": "service",
+      "label": "jsonExportConn",
+      "metadata": {
+        "struct_name": "jsonExportConn"
+      },
+      "file_path": "internal/importexport/export.go",
+      "manual": false
+    },
+    "service:YAMLExporter": {
+      "id": "service:YAMLExporter",
+      "type": "service",
+      "label": "YAMLExporter",
+      "metadata": {
+        "struct_name": "YAMLExporter"
+      },
+      "file_path": "internal/importexport/export.go",
+      "manual": false
+    },
+    "service:yamlExportConn": {
+      "id": "service:yamlExportConn",
+      "type": "service",
+      "label": "yamlExportConn",
+      "metadata": {
+        "struct_name": "yamlExportConn"
+      },
+      "file_path": "internal/importexport/export.go",
+      "manual": false
+    },
+    "mod:importexport.export": {
+      "id": "mod:importexport.export",
+      "type": "module",
+      "label": "export",
+      "metadata": {
+        "package": "importexport",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/importexport/export.go",
+      "manual": false
+    },
+    "service:ImportResult": {
+      "id": "service:ImportResult",
+      "type": "service",
+      "label": "ImportResult",
+      "metadata": {
+        "struct_name": "ImportResult"
+      },
+      "file_path": "internal/importexport/import.go",
+      "manual": false
+    },
+    "service:CSVImporter": {
+      "id": "service:CSVImporter",
+      "type": "service",
+      "label": "CSVImporter",
+      "metadata": {
+        "struct_name": "CSVImporter"
+      },
+      "file_path": "internal/importexport/import.go",
+      "manual": false
+    },
+    "service:JSONImporter": {
+      "id": "service:JSONImporter",
+      "type": "service",
+      "label": "JSONImporter",
+      "metadata": {
+        "struct_name": "JSONImporter"
+      },
+      "file_path": "internal/importexport/import.go",
+      "manual": false
+    },
+    "service:jsonConnection": {
+      "id": "service:jsonConnection",
+      "type": "service",
+      "label": "jsonConnection",
+      "metadata": {
+        "struct_name": "jsonConnection"
+      },
+      "file_path": "internal/importexport/import.go",
+      "manual": false
+    },
+    "mod:importexport.import": {
+      "id": "mod:importexport.import",
+      "type": "module",
+      "label": "import",
+      "metadata": {
+        "package": "importexport",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/importexport/import.go",
+      "manual": false
+    },
+    "service:Client": {
+      "id": "service:Client",
+      "type": "service",
+      "label": "Client",
+      "metadata": {
+        "struct_name": "Client"
+      },
+      "file_path": "internal/ipc/client.go",
+      "manual": false
+    },
+    "mod:ipc.client": {
+      "id": "mod:ipc.client",
+      "type": "module",
+      "label": "client",
+      "metadata": {
+        "package": "ipc",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/ipc/client.go",
+      "manual": false
+    },
+    "service:Envelope": {
+      "id": "service:Envelope",
+      "type": "service",
+      "label": "Envelope",
+      "metadata": {
+        "struct_name": "Envelope"
+      },
+      "file_path": "internal/ipc/protocol.go",
+      "manual": false
+    },
+    "service:OpenTabCmd": {
+      "id": "service:OpenTabCmd",
+      "type": "service",
+      "label": "OpenTabCmd",
+      "metadata": {
+        "struct_name": "OpenTabCmd"
+      },
+      "file_path": "internal/ipc/protocol.go",
+      "manual": false
+    },
+    "service:CloseTabCmd": {
+      "id": "service:CloseTabCmd",
+      "type": "service",
+      "label": "CloseTabCmd",
+      "metadata": {
+        "struct_name": "CloseTabCmd"
+      },
+      "file_path": "internal/ipc/protocol.go",
+      "manual": false
+    },
+    "service:FocusTabCmd": {
+      "id": "service:FocusTabCmd",
+      "type": "service",
+      "label": "FocusTabCmd",
+      "metadata": {
+        "struct_name": "FocusTabCmd"
+      },
+      "file_path": "internal/ipc/protocol.go",
+      "manual": false
+    },
+    "service:TabOpenedEvent": {
+      "id": "service:TabOpenedEvent",
+      "type": "service",
+      "label": "TabOpenedEvent",
+      "metadata": {
+        "struct_name": "TabOpenedEvent"
+      },
+      "file_path": "internal/ipc/protocol.go",
+      "manual": false
+    },
+    "service:TabClosedEvent": {
+      "id": "service:TabClosedEvent",
+      "type": "service",
+      "label": "TabClosedEvent",
+      "metadata": {
+        "struct_name": "TabClosedEvent"
+      },
+      "file_path": "internal/ipc/protocol.go",
+      "manual": false
+    },
+    "service:TabErrorEvent": {
+      "id": "service:TabErrorEvent",
+      "type": "service",
+      "label": "TabErrorEvent",
+      "metadata": {
+        "struct_name": "TabErrorEvent"
+      },
+      "file_path": "internal/ipc/protocol.go",
+      "manual": false
+    },
+    "service:GUIReadyEvent": {
+      "id": "service:GUIReadyEvent",
+      "type": "service",
+      "label": "GUIReadyEvent",
+      "metadata": {
+        "struct_name": "GUIReadyEvent"
+      },
+      "file_path": "internal/ipc/protocol.go",
+      "manual": false
+    },
+    "service:LogLineEvent": {
+      "id": "service:LogLineEvent",
+      "type": "service",
+      "label": "LogLineEvent",
+      "metadata": {
+        "struct_name": "LogLineEvent"
+      },
+      "file_path": "internal/ipc/protocol.go",
+      "manual": false
+    },
+    "env:XDG_RUNTIME_DIR": {
+      "id": "env:XDG_RUNTIME_DIR",
+      "type": "env_var",
+      "label": "XDG_RUNTIME_DIR",
+      "metadata": {
+        "variable": "XDG_RUNTIME_DIR"
+      },
+      "file_path": "internal/ipc/protocol.go",
+      "manual": false
+    },
+    "mod:ipc.protocol": {
+      "id": "mod:ipc.protocol",
+      "type": "module",
+      "label": "protocol",
+      "metadata": {
+        "package": "ipc",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/ipc/protocol.go",
+      "manual": false
+    },
+    "service:Server": {
+      "id": "service:Server",
+      "type": "service",
+      "label": "Server",
+      "metadata": {
+        "struct_name": "Server"
+      },
+      "file_path": "internal/ipc/server.go",
+      "manual": false
+    },
+    "mod:ipc.server": {
+      "id": "mod:ipc.server",
+      "type": "module",
+      "label": "server",
+      "metadata": {
+        "package": "ipc",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/ipc/server.go",
+      "manual": false
+    },
+    "service:LaunchFinishedMsg": {
+      "id": "service:LaunchFinishedMsg",
+      "type": "service",
+      "label": "LaunchFinishedMsg",
+      "metadata": {
+        "struct_name": "LaunchFinishedMsg"
+      },
+      "file_path": "internal/launcher/launcher.go",
+      "manual": false
+    },
+    "service:GUILogLineMsg": {
+      "id": "service:GUILogLineMsg",
+      "type": "service",
+      "label": "GUILogLineMsg",
+      "metadata": {
+        "struct_name": "GUILogLineMsg"
+      },
+      "file_path": "internal/launcher/launcher.go",
+      "manual": false
+    },
+    "mod:launcher.launcher": {
+      "id": "mod:launcher.launcher",
+      "type": "module",
+      "label": "launcher",
+      "metadata": {
+        "package": "launcher",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/launcher/launcher.go",
+      "manual": false
+    },
+    "mod:launcher.procattr_unix": {
+      "id": "mod:launcher.procattr_unix",
+      "type": "module",
+      "label": "procattr_unix",
+      "metadata": {
+        "package": "launcher",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/launcher/procattr_unix.go",
+      "manual": false
+    },
+    "mod:launcher.procattr_windows": {
+      "id": "mod:launcher.procattr_windows",
+      "type": "module",
+      "label": "procattr_windows",
+      "metadata": {
+        "package": "launcher",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/launcher/procattr_windows.go",
+      "manual": false
+    },
+    "service:RDPLauncher": {
+      "id": "service:RDPLauncher",
+      "type": "service",
+      "label": "RDPLauncher",
+      "metadata": {
+        "struct_name": "RDPLauncher"
+      },
+      "file_path": "internal/launcher/rdp.go",
+      "manual": false
+    },
+    "mod:launcher.rdp": {
+      "id": "mod:launcher.rdp",
+      "type": "module",
+      "label": "rdp",
+      "metadata": {
+        "package": "launcher",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/launcher/rdp.go",
+      "manual": false
+    },
+    "service:SSHLauncher": {
+      "id": "service:SSHLauncher",
+      "type": "service",
+      "label": "SSHLauncher",
+      "metadata": {
+        "struct_name": "SSHLauncher"
+      },
+      "file_path": "internal/launcher/ssh.go",
+      "manual": false
+    },
+    "service:hookedSSHSession": {
+      "id": "service:hookedSSHSession",
+      "type": "service",
+      "label": "hookedSSHSession",
+      "metadata": {
+        "struct_name": "hookedSSHSession"
+      },
+      "file_path": "internal/launcher/ssh.go",
+      "manual": false
+    },
+    "mod:launcher.ssh": {
+      "id": "mod:launcher.ssh",
+      "type": "module",
+      "label": "ssh",
+      "metadata": {
+        "package": "launcher",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/launcher/ssh.go",
+      "manual": false
+    },
+    "service:TelnetLauncher": {
+      "id": "service:TelnetLauncher",
+      "type": "service",
+      "label": "TelnetLauncher",
+      "metadata": {
+        "struct_name": "TelnetLauncher"
+      },
+      "file_path": "internal/launcher/telnet.go",
+      "manual": false
+    },
+    "mod:launcher.telnet": {
+      "id": "mod:launcher.telnet",
+      "type": "module",
+      "label": "telnet",
+      "metadata": {
+        "package": "launcher",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/launcher/telnet.go",
+      "manual": false
+    },
+    "mod:launcher.util": {
+      "id": "mod:launcher.util",
+      "type": "module",
+      "label": "util",
+      "metadata": {
+        "package": "launcher",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/launcher/util.go",
+      "manual": false
+    },
+    "service:VNCLauncher": {
+      "id": "service:VNCLauncher",
+      "type": "service",
+      "label": "VNCLauncher",
+      "metadata": {
+        "struct_name": "VNCLauncher"
+      },
+      "file_path": "internal/launcher/vnc.go",
+      "manual": false
+    },
+    "mod:launcher.vnc": {
+      "id": "mod:launcher.vnc",
+      "type": "module",
+      "label": "vnc",
+      "metadata": {
+        "package": "launcher",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/launcher/vnc.go",
+      "manual": false
+    },
+    "service:asciicastHeader": {
+      "id": "service:asciicastHeader",
+      "type": "service",
+      "label": "asciicastHeader",
+      "metadata": {
+        "struct_name": "asciicastHeader"
+      },
+      "file_path": "internal/recording/recorder.go",
+      "manual": false
+    },
+    "service:Metadata": {
+      "id": "service:Metadata",
+      "type": "service",
+      "label": "Metadata",
+      "metadata": {
+        "struct_name": "Metadata"
+      },
+      "file_path": "internal/recording/recorder.go",
+      "manual": false
+    },
+    "service:Recorder": {
+      "id": "service:Recorder",
+      "type": "service",
+      "label": "Recorder",
+      "metadata": {
+        "struct_name": "Recorder"
+      },
+      "file_path": "internal/recording/recorder.go",
+      "manual": false
+    },
+    "mod:recording.recorder": {
+      "id": "mod:recording.recorder",
+      "type": "module",
+      "label": "recorder",
+      "metadata": {
+        "package": "recording",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/recording/recorder.go",
+      "manual": false
+    },
+    "service:ringBuffer": {
+      "id": "service:ringBuffer",
+      "type": "service",
+      "label": "ringBuffer",
+      "metadata": {
+        "struct_name": "ringBuffer"
+      },
+      "file_path": "internal/session/managed.go",
+      "manual": false
+    },
+    "service:replayBuffer": {
+      "id": "service:replayBuffer",
+      "type": "service",
+      "label": "replayBuffer",
+      "metadata": {
+        "struct_name": "replayBuffer"
+      },
+      "file_path": "internal/session/managed.go",
+      "manual": false
+    },
+    "service:stdinResult": {
+      "id": "service:stdinResult",
+      "type": "service",
+      "label": "stdinResult",
+      "metadata": {
+        "struct_name": "stdinResult"
+      },
+      "file_path": "internal/session/managed.go",
+      "manual": false
+    },
+    "service:ManagedSession": {
+      "id": "service:ManagedSession",
+      "type": "service",
+      "label": "ManagedSession",
+      "metadata": {
+        "struct_name": "ManagedSession"
+      },
+      "file_path": "internal/session/managed.go",
+      "manual": false
+    },
+    "env:USER": {
+      "id": "env:USER",
+      "type": "env_var",
+      "label": "USER",
+      "metadata": {
+        "variable": "USER"
+      },
+      "file_path": "internal/session/managed.go",
+      "manual": false
+    },
+    "mod:session.managed": {
+      "id": "mod:session.managed",
+      "type": "module",
+      "label": "managed",
+      "metadata": {
+        "package": "session",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/session/managed.go",
+      "manual": false
+    },
+    "service:ActiveForward": {
+      "id": "service:ActiveForward",
+      "type": "service",
+      "label": "ActiveForward",
+      "metadata": {
+        "struct_name": "ActiveForward"
+      },
+      "file_path": "internal/session/portforward.go",
+      "manual": false
+    },
+    "service:PortForwardManager": {
+      "id": "service:PortForwardManager",
+      "type": "service",
+      "label": "PortForwardManager",
+      "metadata": {
+        "struct_name": "PortForwardManager"
+      },
+      "file_path": "internal/session/portforward.go",
+      "manual": false
+    },
+    "mod:session.portforward": {
+      "id": "mod:session.portforward",
+      "type": "module",
+      "label": "portforward",
+      "metadata": {
+        "package": "session",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/session/portforward.go",
+      "manual": false
+    },
+    "service:SSHSession": {
+      "id": "service:SSHSession",
+      "type": "service",
+      "label": "SSHSession",
+      "metadata": {
+        "struct_name": "SSHSession"
+      },
+      "file_path": "internal/session/ssh.go",
+      "manual": false
+    },
+    "mod:session.ssh": {
+      "id": "mod:session.ssh",
+      "type": "module",
+      "label": "ssh",
+      "metadata": {
+        "package": "session",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/session/ssh.go",
+      "manual": false
+    },
+    "mod:session.ssh_auth": {
+      "id": "mod:session.ssh_auth",
+      "type": "module",
+      "label": "ssh_auth",
+      "metadata": {
+        "package": "session",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/session/ssh_auth.go",
+      "manual": false
+    },
+    "service:TelnetSession": {
+      "id": "service:TelnetSession",
+      "type": "service",
+      "label": "TelnetSession",
+      "metadata": {
+        "struct_name": "TelnetSession"
+      },
+      "file_path": "internal/session/telnet.go",
+      "manual": false
+    },
+    "mod:session.telnet": {
+      "id": "mod:session.telnet",
+      "type": "module",
+      "label": "telnet",
+      "metadata": {
+        "package": "session",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/session/telnet.go",
+      "manual": false
+    },
+    "service:CellStyle": {
+      "id": "service:CellStyle",
+      "type": "service",
+      "label": "CellStyle",
+      "metadata": {
+        "struct_name": "CellStyle"
+      },
+      "file_path": "internal/session/vterm.go",
+      "manual": false
+    },
+    "service:Cell": {
+      "id": "service:Cell",
+      "type": "service",
+      "label": "Cell",
+      "metadata": {
+        "struct_name": "Cell"
+      },
+      "file_path": "internal/session/vterm.go",
+      "manual": false
+    },
+    "service:VTermBuffer": {
+      "id": "service:VTermBuffer",
+      "type": "service",
+      "label": "VTermBuffer",
+      "metadata": {
+        "struct_name": "VTermBuffer"
+      },
+      "file_path": "internal/session/vterm.go",
+      "manual": false
+    },
+    "mod:session.vterm": {
+      "id": "mod:session.vterm",
+      "type": "module",
+      "label": "vterm",
+      "metadata": {
+        "package": "session",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/session/vterm.go",
+      "manual": false
+    },
+    "mod:store.migrate": {
+      "id": "mod:store.migrate",
+      "type": "module",
+      "label": "migrate",
+      "metadata": {
+        "package": "store",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/store/migrate.go",
+      "manual": false
+    },
+    "service:SQLiteStore": {
+      "id": "service:SQLiteStore",
+      "type": "service",
+      "label": "SQLiteStore",
+      "metadata": {
+        "struct_name": "SQLiteStore"
+      },
+      "file_path": "internal/store/sqlite.go",
+      "manual": false
+    },
+    "mod:store.sqlite": {
+      "id": "mod:store.sqlite",
+      "type": "module",
+      "label": "sqlite",
+      "metadata": {
+        "package": "store",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/store/sqlite.go",
+      "manual": false
+    },
+    "service:ErrNotFound": {
+      "id": "service:ErrNotFound",
+      "type": "service",
+      "label": "ErrNotFound",
+      "metadata": {
+        "struct_name": "ErrNotFound"
+      },
+      "file_path": "internal/store/store.go",
+      "manual": false
+    },
+    "mod:store.store": {
+      "id": "mod:store.store",
+      "type": "module",
+      "label": "store",
+      "metadata": {
+        "package": "store",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/store/store.go",
+      "manual": false
+    },
+    "service:YAMLStore": {
+      "id": "service:YAMLStore",
+      "type": "service",
+      "label": "YAMLStore",
+      "metadata": {
+        "struct_name": "YAMLStore"
+      },
+      "file_path": "internal/store/yaml.go",
+      "manual": false
+    },
+    "mod:store.yaml": {
+      "id": "mod:store.yaml",
+      "type": "module",
+      "label": "yaml",
+      "metadata": {
+        "package": "store",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/store/yaml.go",
+      "manual": false
+    },
+    "service:Template": {
+      "id": "service:Template",
+      "type": "service",
+      "label": "Template",
+      "metadata": {
+        "struct_name": "Template"
+      },
+      "file_path": "internal/template/template.go",
+      "manual": false
+    },
+    "service:TemplateStore": {
+      "id": "service:TemplateStore",
+      "type": "service",
+      "label": "TemplateStore",
+      "metadata": {
+        "struct_name": "TemplateStore"
+      },
+      "file_path": "internal/template/template.go",
+      "manual": false
+    },
+    "mod:template.template": {
+      "id": "mod:template.template",
+      "type": "module",
+      "label": "template",
+      "metadata": {
+        "package": "template",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/template/template.go",
+      "manual": false
+    },
+    "service:OSC52Clipboard": {
+      "id": "service:OSC52Clipboard",
+      "type": "service",
+      "label": "OSC52Clipboard",
+      "metadata": {
+        "struct_name": "OSC52Clipboard"
+      },
+      "file_path": "internal/termcap/clipboard.go",
+      "manual": false
+    },
+    "service:SystemClipboard": {
+      "id": "service:SystemClipboard",
+      "type": "service",
+      "label": "SystemClipboard",
+      "metadata": {
+        "struct_name": "SystemClipboard"
+      },
+      "file_path": "internal/termcap/clipboard.go",
+      "manual": false
+    },
+    "mod:termcap.clipboard": {
+      "id": "mod:termcap.clipboard",
+      "type": "module",
+      "label": "clipboard",
+      "metadata": {
+        "package": "termcap",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/termcap/clipboard.go",
+      "manual": false
+    },
+    "env:TERM_PROGRAM": {
+      "id": "env:TERM_PROGRAM",
+      "type": "env_var",
+      "label": "TERM_PROGRAM",
+      "metadata": {
+        "variable": "TERM_PROGRAM"
+      },
+      "file_path": "internal/termcap/probe.go",
+      "manual": false
+    },
+    "env:TMUX": {
+      "id": "env:TMUX",
+      "type": "env_var",
+      "label": "TMUX",
+      "metadata": {
+        "variable": "TMUX"
+      },
+      "file_path": "internal/termcap/probe.go",
+      "manual": false
+    },
+    "env:TERM": {
+      "id": "env:TERM",
+      "type": "env_var",
+      "label": "TERM",
+      "metadata": {
+        "variable": "TERM"
+      },
+      "file_path": "internal/termcap/probe.go",
+      "manual": false
+    },
+    "env:COLORTERM": {
+      "id": "env:COLORTERM",
+      "type": "env_var",
+      "label": "COLORTERM",
+      "metadata": {
+        "variable": "COLORTERM"
+      },
+      "file_path": "internal/termcap/probe.go",
+      "manual": false
+    },
+    "mod:termcap.probe": {
+      "id": "mod:termcap.probe",
+      "type": "module",
+      "label": "probe",
+      "metadata": {
+        "package": "termcap",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/termcap/probe.go",
+      "manual": false
+    },
+    "service:Capabilities": {
+      "id": "service:Capabilities",
+      "type": "service",
+      "label": "Capabilities",
+      "metadata": {
+        "struct_name": "Capabilities"
+      },
+      "file_path": "internal/termcap/termcap.go",
+      "manual": false
+    },
+    "mod:termcap.termcap": {
+      "id": "mod:termcap.termcap",
+      "type": "module",
+      "label": "termcap",
+      "metadata": {
+        "package": "termcap",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/termcap/termcap.go",
+      "manual": false
+    },
+    "mod:theme.styles": {
+      "id": "mod:theme.styles",
+      "type": "module",
+      "label": "styles",
+      "metadata": {
+        "package": "theme",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/theme/styles.go",
+      "manual": false
+    },
+    "service:Theme": {
+      "id": "service:Theme",
+      "type": "service",
+      "label": "Theme",
+      "metadata": {
+        "struct_name": "Theme"
+      },
+      "file_path": "internal/theme/theme.go",
+      "manual": false
+    },
+    "mod:theme.theme": {
+      "id": "mod:theme.theme",
+      "type": "module",
+      "label": "theme",
+      "metadata": {
+        "package": "theme",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/theme/theme.go",
+      "manual": false
+    },
+    "service:transitionTickMsg": {
+      "id": "service:transitionTickMsg",
+      "type": "service",
+      "label": "transitionTickMsg",
+      "metadata": {
+        "struct_name": "transitionTickMsg"
+      },
+      "file_path": "internal/tui/animation.go",
+      "manual": false
+    },
+    "service:transition": {
+      "id": "service:transition",
+      "type": "service",
+      "label": "transition",
+      "metadata": {
+        "struct_name": "transition"
+      },
+      "file_path": "internal/tui/animation.go",
+      "manual": false
+    },
+    "mod:tui.animation": {
+      "id": "mod:tui.animation",
+      "type": "module",
+      "label": "animation",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/animation.go",
+      "manual": false
+    },
+    "service:saveErrorMsg": {
+      "id": "service:saveErrorMsg",
+      "type": "service",
+      "label": "saveErrorMsg",
+      "metadata": {
+        "struct_name": "saveErrorMsg"
+      },
+      "file_path": "internal/tui/app.go",
+      "manual": false
+    },
+    "mod:tui.app": {
+      "id": "mod:tui.app",
+      "type": "module",
+      "label": "app",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/app.go",
+      "manual": false
+    },
+    "service:BracketNav": {
+      "id": "service:BracketNav",
+      "type": "service",
+      "label": "BracketNav",
+      "metadata": {
+        "struct_name": "BracketNav"
+      },
+      "file_path": "internal/tui/bracket.go",
+      "manual": false
+    },
+    "mod:tui.bracket": {
+      "id": "mod:tui.bracket",
+      "type": "module",
+      "label": "bracket",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/bracket.go",
+      "manual": false
+    },
+    "service:BulkOperation": {
+      "id": "service:BulkOperation",
+      "type": "service",
+      "label": "BulkOperation",
+      "metadata": {
+        "struct_name": "BulkOperation"
+      },
+      "file_path": "internal/tui/bulk.go",
+      "manual": false
+    },
+    "service:BulkProgress": {
+      "id": "service:BulkProgress",
+      "type": "service",
+      "label": "BulkProgress",
+      "metadata": {
+        "struct_name": "BulkProgress"
+      },
+      "file_path": "internal/tui/bulk.go",
+      "manual": false
+    },
+    "service:BulkResultMsg": {
+      "id": "service:BulkResultMsg",
+      "type": "service",
+      "label": "BulkResultMsg",
+      "metadata": {
+        "struct_name": "BulkResultMsg"
+      },
+      "file_path": "internal/tui/bulk.go",
+      "manual": false
+    },
+    "mod:tui.bulk": {
+      "id": "mod:tui.bulk",
+      "type": "module",
+      "label": "bulk",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/bulk.go",
+      "manual": false
+    },
+    "service:CommandMsg": {
+      "id": "service:CommandMsg",
+      "type": "service",
+      "label": "CommandMsg",
+      "metadata": {
+        "struct_name": "CommandMsg"
+      },
+      "file_path": "internal/tui/command.go",
+      "manual": false
+    },
+    "service:CommandDef": {
+      "id": "service:CommandDef",
+      "type": "service",
+      "label": "CommandDef",
+      "metadata": {
+        "struct_name": "CommandDef"
+      },
+      "file_path": "internal/tui/command.go",
+      "manual": false
+    },
+    "service:CommandEngine": {
+      "id": "service:CommandEngine",
+      "type": "service",
+      "label": "CommandEngine",
+      "metadata": {
+        "struct_name": "CommandEngine"
+      },
+      "file_path": "internal/tui/command.go",
+      "manual": false
+    },
+    "service:commandModel": {
+      "id": "service:commandModel",
+      "type": "service",
+      "label": "commandModel",
+      "metadata": {
+        "struct_name": "commandModel"
+      },
+      "file_path": "internal/tui/command.go",
+      "manual": false
+    },
+    "env:HOME": {
+      "id": "env:HOME",
+      "type": "env_var",
+      "label": "HOME",
+      "metadata": {
+        "variable": "HOME"
+      },
+      "file_path": "internal/tui/command.go",
+      "manual": false
+    },
+    "mod:tui.command": {
+      "id": "mod:tui.command",
+      "type": "module",
+      "label": "command",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/command.go",
+      "manual": false
+    },
+    "service:ConfirmResultMsg": {
+      "id": "service:ConfirmResultMsg",
+      "type": "service",
+      "label": "ConfirmResultMsg",
+      "metadata": {
+        "struct_name": "ConfirmResultMsg"
+      },
+      "file_path": "internal/tui/confirm.go",
+      "manual": false
+    },
+    "service:confirmModel": {
+      "id": "service:confirmModel",
+      "type": "service",
+      "label": "confirmModel",
+      "metadata": {
+        "struct_name": "confirmModel"
+      },
+      "file_path": "internal/tui/confirm.go",
+      "manual": false
+    },
+    "mod:tui.confirm": {
+      "id": "mod:tui.confirm",
+      "type": "module",
+      "label": "confirm",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/confirm.go",
+      "manual": false
+    },
+    "service:detailModel": {
+      "id": "service:detailModel",
+      "type": "service",
+      "label": "detailModel",
+      "metadata": {
+        "struct_name": "detailModel"
+      },
+      "file_path": "internal/tui/detail.go",
+      "manual": false
+    },
+    "mod:tui.detail": {
+      "id": "mod:tui.detail",
+      "type": "module",
+      "label": "detail",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/detail.go",
+      "manual": false
+    },
+    "mod:tui.favorites": {
+      "id": "mod:tui.favorites",
+      "type": "module",
+      "label": "favorites",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/favorites.go",
+      "manual": false
+    },
+    "service:filterDebounceMsg": {
+      "id": "service:filterDebounceMsg",
+      "type": "service",
+      "label": "filterDebounceMsg",
+      "metadata": {
+        "struct_name": "filterDebounceMsg"
+      },
+      "file_path": "internal/tui/filter.go",
+      "manual": false
+    },
+    "service:filterModel": {
+      "id": "service:filterModel",
+      "type": "service",
+      "label": "filterModel",
+      "metadata": {
+        "struct_name": "filterModel"
+      },
+      "file_path": "internal/tui/filter.go",
+      "manual": false
+    },
+    "mod:tui.filter": {
+      "id": "mod:tui.filter",
+      "type": "module",
+      "label": "filter",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/filter.go",
+      "manual": false
+    },
+    "service:FinderEntry": {
+      "id": "service:FinderEntry",
+      "type": "service",
+      "label": "FinderEntry",
+      "metadata": {
+        "struct_name": "FinderEntry"
+      },
+      "file_path": "internal/tui/finder.go",
+      "manual": false
+    },
+    "service:FinderModel": {
+      "id": "service:FinderModel",
+      "type": "service",
+      "label": "FinderModel",
+      "metadata": {
+        "struct_name": "FinderModel"
+      },
+      "file_path": "internal/tui/finder.go",
+      "manual": false
+    },
+    "mod:tui.finder": {
+      "id": "mod:tui.finder",
+      "type": "module",
+      "label": "finder",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/finder.go",
+      "manual": false
+    },
+    "service:FormSubmitMsg": {
+      "id": "service:FormSubmitMsg",
+      "type": "service",
+      "label": "FormSubmitMsg",
+      "metadata": {
+        "struct_name": "FormSubmitMsg"
+      },
+      "file_path": "internal/tui/form.go",
+      "manual": false
+    },
+    "service:FormCancelMsg": {
+      "id": "service:FormCancelMsg",
+      "type": "service",
+      "label": "FormCancelMsg",
+      "metadata": {
+        "struct_name": "FormCancelMsg"
+      },
+      "file_path": "internal/tui/form.go",
+      "manual": false
+    },
+    "service:formModel": {
+      "id": "service:formModel",
+      "type": "service",
+      "label": "formModel",
+      "metadata": {
+        "struct_name": "formModel"
+      },
+      "file_path": "internal/tui/form.go",
+      "manual": false
+    },
+    "mod:tui.form": {
+      "id": "mod:tui.form",
+      "type": "module",
+      "label": "form",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/form.go",
+      "manual": false
+    },
+    "service:headerModel": {
+      "id": "service:headerModel",
+      "type": "service",
+      "label": "headerModel",
+      "metadata": {
+        "struct_name": "headerModel"
+      },
+      "file_path": "internal/tui/header.go",
+      "manual": false
+    },
+    "service:menuItem": {
+      "id": "service:menuItem",
+      "type": "service",
+      "label": "menuItem",
+      "metadata": {
+        "struct_name": "menuItem"
+      },
+      "file_path": "internal/tui/header.go",
+      "manual": false
+    },
+    "mod:tui.header": {
+      "id": "mod:tui.header",
+      "type": "module",
+      "label": "header",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/header.go",
+      "manual": false
+    },
+    "service:helpModel": {
+      "id": "service:helpModel",
+      "type": "service",
+      "label": "helpModel",
+      "metadata": {
+        "struct_name": "helpModel"
+      },
+      "file_path": "internal/tui/help.go",
+      "manual": false
+    },
+    "service:helpEntry": {
+      "id": "service:helpEntry",
+      "type": "service",
+      "label": "helpEntry",
+      "metadata": {
+        "struct_name": "helpEntry"
+      },
+      "file_path": "internal/tui/help.go",
+      "manual": false
+    },
+    "mod:tui.help": {
+      "id": "mod:tui.help",
+      "type": "module",
+      "label": "help",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/help.go",
+      "manual": false
+    },
+    "service:KeyMap": {
+      "id": "service:KeyMap",
+      "type": "service",
+      "label": "KeyMap",
+      "metadata": {
+        "struct_name": "KeyMap"
+      },
+      "file_path": "internal/tui/keys.go",
+      "manual": false
+    },
+    "mod:tui.keys": {
+      "id": "mod:tui.keys",
+      "type": "module",
+      "label": "keys",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/keys.go",
+      "manual": false
+    },
+    "service:LeaderTimeoutMsg": {
+      "id": "service:LeaderTimeoutMsg",
+      "type": "service",
+      "label": "LeaderTimeoutMsg",
+      "metadata": {
+        "struct_name": "LeaderTimeoutMsg"
+      },
+      "file_path": "internal/tui/leader.go",
+      "manual": false
+    },
+    "service:LeaderAction": {
+      "id": "service:LeaderAction",
+      "type": "service",
+      "label": "LeaderAction",
+      "metadata": {
+        "struct_name": "LeaderAction"
+      },
+      "file_path": "internal/tui/leader.go",
+      "manual": false
+    },
+    "service:LeaderItem": {
+      "id": "service:LeaderItem",
+      "type": "service",
+      "label": "LeaderItem",
+      "metadata": {
+        "struct_name": "LeaderItem"
+      },
+      "file_path": "internal/tui/leader.go",
+      "manual": false
+    },
+    "service:LeaderGroup": {
+      "id": "service:LeaderGroup",
+      "type": "service",
+      "label": "LeaderGroup",
+      "metadata": {
+        "struct_name": "LeaderGroup"
+      },
+      "file_path": "internal/tui/leader.go",
+      "manual": false
+    },
+    "service:leaderModel": {
+      "id": "service:leaderModel",
+      "type": "service",
+      "label": "leaderModel",
+      "metadata": {
+        "struct_name": "leaderModel"
+      },
+      "file_path": "internal/tui/leader.go",
+      "manual": false
+    },
+    "mod:tui.leader": {
+      "id": "mod:tui.leader",
+      "type": "module",
+      "label": "leader",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/leader.go",
+      "manual": false
+    },
+    "service:connStatus": {
+      "id": "service:connStatus",
+      "type": "service",
+      "label": "connStatus",
+      "metadata": {
+        "struct_name": "connStatus"
+      },
+      "file_path": "internal/tui/list.go",
+      "manual": false
+    },
+    "service:listModel": {
+      "id": "service:listModel",
+      "type": "service",
+      "label": "listModel",
+      "metadata": {
+        "struct_name": "listModel"
+      },
+      "file_path": "internal/tui/list.go",
+      "manual": false
+    },
+    "mod:tui.list": {
+      "id": "mod:tui.list",
+      "type": "module",
+      "label": "list",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/list.go",
+      "manual": false
+    },
+    "service:logEntry": {
+      "id": "service:logEntry",
+      "type": "service",
+      "label": "logEntry",
+      "metadata": {
+        "struct_name": "logEntry"
+      },
+      "file_path": "internal/tui/log.go",
+      "manual": false
+    },
+    "service:logsModel": {
+      "id": "service:logsModel",
+      "type": "service",
+      "label": "logsModel",
+      "metadata": {
+        "struct_name": "logsModel"
+      },
+      "file_path": "internal/tui/log.go",
+      "manual": false
+    },
+    "mod:tui.log": {
+      "id": "mod:tui.log",
+      "type": "module",
+      "label": "log",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/log.go",
+      "manual": false
+    },
+    "service:ModeChangedMsg": {
+      "id": "service:ModeChangedMsg",
+      "type": "service",
+      "label": "ModeChangedMsg",
+      "metadata": {
+        "struct_name": "ModeChangedMsg"
+      },
+      "file_path": "internal/tui/mode.go",
+      "manual": false
+    },
+    "mod:tui.mode": {
+      "id": "mod:tui.mode",
+      "type": "module",
+      "label": "mode",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/mode.go",
+      "manual": false
+    },
+    "service:MotionResult": {
+      "id": "service:MotionResult",
+      "type": "service",
+      "label": "MotionResult",
+      "metadata": {
+        "struct_name": "MotionResult"
+      },
+      "file_path": "internal/tui/motion.go",
+      "manual": false
+    },
+    "service:MotionEngine": {
+      "id": "service:MotionEngine",
+      "type": "service",
+      "label": "MotionEngine",
+      "metadata": {
+        "struct_name": "MotionEngine"
+      },
+      "file_path": "internal/tui/motion.go",
+      "manual": false
+    },
+    "mod:tui.motion": {
+      "id": "mod:tui.motion",
+      "type": "module",
+      "label": "motion",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/motion.go",
+      "manual": false
+    },
+    "service:StateChange": {
+      "id": "service:StateChange",
+      "type": "service",
+      "label": "StateChange",
+      "metadata": {
+        "struct_name": "StateChange"
+      },
+      "file_path": "internal/tui/notify.go",
+      "manual": false
+    },
+    "service:NotifyManager": {
+      "id": "service:NotifyManager",
+      "type": "service",
+      "label": "NotifyManager",
+      "metadata": {
+        "struct_name": "NotifyManager"
+      },
+      "file_path": "internal/tui/notify.go",
+      "manual": false
+    },
+    "mod:tui.notify": {
+      "id": "mod:tui.notify",
+      "type": "module",
+      "label": "notify",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/notify.go",
+      "manual": false
+    },
+    "service:panePickerMsg": {
+      "id": "service:panePickerMsg",
+      "type": "service",
+      "label": "panePickerMsg",
+      "metadata": {
+        "struct_name": "panePickerMsg"
+      },
+      "file_path": "internal/tui/pane_render.go",
+      "manual": false
+    },
+    "service:panePickerCancelMsg": {
+      "id": "service:panePickerCancelMsg",
+      "type": "service",
+      "label": "panePickerCancelMsg",
+      "metadata": {
+        "struct_name": "panePickerCancelMsg"
+      },
+      "file_path": "internal/tui/pane_render.go",
+      "manual": false
+    },
+    "service:PaneConnectionPicker": {
+      "id": "service:PaneConnectionPicker",
+      "type": "service",
+      "label": "PaneConnectionPicker",
+      "metadata": {
+        "struct_name": "PaneConnectionPicker"
+      },
+      "file_path": "internal/tui/pane_render.go",
+      "manual": false
+    },
+    "mod:tui.pane_render": {
+      "id": "mod:tui.pane_render",
+      "type": "module",
+      "label": "pane_render",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/pane_render.go",
+      "manual": false
+    },
+    "service:Pane": {
+      "id": "service:Pane",
+      "type": "service",
+      "label": "Pane",
+      "metadata": {
+        "struct_name": "Pane"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "service:SplitNode": {
+      "id": "service:SplitNode",
+      "type": "service",
+      "label": "SplitNode",
+      "metadata": {
+        "struct_name": "SplitNode"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "service:PaneLayoutModel": {
+      "id": "service:PaneLayoutModel",
+      "type": "service",
+      "label": "PaneLayoutModel",
+      "metadata": {
+        "struct_name": "PaneLayoutModel"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "service:PaneOutputMsg": {
+      "id": "service:PaneOutputMsg",
+      "type": "service",
+      "label": "PaneOutputMsg",
+      "metadata": {
+        "struct_name": "PaneOutputMsg"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "service:PaneDisconnectedMsg": {
+      "id": "service:PaneDisconnectedMsg",
+      "type": "service",
+      "label": "PaneDisconnectedMsg",
+      "metadata": {
+        "struct_name": "PaneDisconnectedMsg"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "service:PaneConnectedMsg": {
+      "id": "service:PaneConnectedMsg",
+      "type": "service",
+      "label": "PaneConnectedMsg",
+      "metadata": {
+        "struct_name": "PaneConnectedMsg"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "service:paneSessionStartedMsg": {
+      "id": "service:paneSessionStartedMsg",
+      "type": "service",
+      "label": "paneSessionStartedMsg",
+      "metadata": {
+        "struct_name": "paneSessionStartedMsg"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "service:tickOutputsMsg": {
+      "id": "service:tickOutputsMsg",
+      "type": "service",
+      "label": "tickOutputsMsg",
+      "metadata": {
+        "struct_name": "tickOutputsMsg"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "service:AllPanesClosedMsg": {
+      "id": "service:AllPanesClosedMsg",
+      "type": "service",
+      "label": "AllPanesClosedMsg",
+      "metadata": {
+        "struct_name": "AllPanesClosedMsg"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "service:panePosition": {
+      "id": "service:panePosition",
+      "type": "service",
+      "label": "panePosition",
+      "metadata": {
+        "struct_name": "panePosition"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "service:broadcastFlashMsg": {
+      "id": "service:broadcastFlashMsg",
+      "type": "service",
+      "label": "broadcastFlashMsg",
+      "metadata": {
+        "struct_name": "broadcastFlashMsg"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "mod:tui.panes": {
+      "id": "mod:tui.panes",
+      "type": "module",
+      "label": "panes",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/panes.go",
+      "manual": false
+    },
+    "service:PulseSummary": {
+      "id": "service:PulseSummary",
+      "type": "service",
+      "label": "PulseSummary",
+      "metadata": {
+        "struct_name": "PulseSummary"
+      },
+      "file_path": "internal/tui/pulse.go",
+      "manual": false
+    },
+    "service:GroupHealth": {
+      "id": "service:GroupHealth",
+      "type": "service",
+      "label": "GroupHealth",
+      "metadata": {
+        "struct_name": "GroupHealth"
+      },
+      "file_path": "internal/tui/pulse.go",
+      "manual": false
+    },
+    "service:ProtoDist": {
+      "id": "service:ProtoDist",
+      "type": "service",
+      "label": "ProtoDist",
+      "metadata": {
+        "struct_name": "ProtoDist"
+      },
+      "file_path": "internal/tui/pulse.go",
+      "manual": false
+    },
+    "service:LatencyEntry": {
+      "id": "service:LatencyEntry",
+      "type": "service",
+      "label": "LatencyEntry",
+      "metadata": {
+        "struct_name": "LatencyEntry"
+      },
+      "file_path": "internal/tui/pulse.go",
+      "manual": false
+    },
+    "service:PulseModel": {
+      "id": "service:PulseModel",
+      "type": "service",
+      "label": "PulseModel",
+      "metadata": {
+        "struct_name": "PulseModel"
+      },
+      "file_path": "internal/tui/pulse.go",
+      "manual": false
+    },
+    "service:card": {
+      "id": "service:card",
+      "type": "service",
+      "label": "card",
+      "metadata": {
+        "struct_name": "card"
+      },
+      "file_path": "internal/tui/pulse.go",
+      "manual": false
+    },
+    "mod:tui.pulse": {
+      "id": "mod:tui.pulse",
+      "type": "module",
+      "label": "pulse",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/pulse.go",
+      "manual": false
+    },
+    "service:QuickConnectMsg": {
+      "id": "service:QuickConnectMsg",
+      "type": "service",
+      "label": "QuickConnectMsg",
+      "metadata": {
+        "struct_name": "QuickConnectMsg"
+      },
+      "file_path": "internal/tui/quickconnect.go",
+      "manual": false
+    },
+    "service:QuickConnect": {
+      "id": "service:QuickConnect",
+      "type": "service",
+      "label": "QuickConnect",
+      "metadata": {
+        "struct_name": "QuickConnect"
+      },
+      "file_path": "internal/tui/quickconnect.go",
+      "manual": false
+    },
+    "mod:tui.quickconnect": {
+      "id": "mod:tui.quickconnect",
+      "type": "module",
+      "label": "quickconnect",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/quickconnect.go",
+      "manual": false
+    },
+    "service:parsedSearch": {
+      "id": "service:parsedSearch",
+      "type": "service",
+      "label": "parsedSearch",
+      "metadata": {
+        "struct_name": "parsedSearch"
+      },
+      "file_path": "internal/tui/search.go",
+      "manual": false
+    },
+    "service:searchModel": {
+      "id": "service:searchModel",
+      "type": "service",
+      "label": "searchModel",
+      "metadata": {
+        "struct_name": "searchModel"
+      },
+      "file_path": "internal/tui/search.go",
+      "manual": false
+    },
+    "mod:tui.search": {
+      "id": "mod:tui.search",
+      "type": "module",
+      "label": "search",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/search.go",
+      "manual": false
+    },
+    "service:SessionDetachedMsg": {
+      "id": "service:SessionDetachedMsg",
+      "type": "service",
+      "label": "SessionDetachedMsg",
+      "metadata": {
+        "struct_name": "SessionDetachedMsg"
+      },
+      "file_path": "internal/tui/sessions.go",
+      "manual": false
+    },
+    "service:SessionDiedMsg": {
+      "id": "service:SessionDiedMsg",
+      "type": "service",
+      "label": "SessionDiedMsg",
+      "metadata": {
+        "struct_name": "SessionDiedMsg"
+      },
+      "file_path": "internal/tui/sessions.go",
+      "manual": false
+    },
+    "service:SessionManager": {
+      "id": "service:SessionManager",
+      "type": "service",
+      "label": "SessionManager",
+      "metadata": {
+        "struct_name": "SessionManager"
+      },
+      "file_path": "internal/tui/sessions.go",
+      "manual": false
+    },
+    "mod:tui.sessions": {
+      "id": "mod:tui.sessions",
+      "type": "module",
+      "label": "sessions",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/sessions.go",
+      "manual": false
+    },
+    "service:sessionsViewModel": {
+      "id": "service:sessionsViewModel",
+      "type": "service",
+      "label": "sessionsViewModel",
+      "metadata": {
+        "struct_name": "sessionsViewModel"
+      },
+      "file_path": "internal/tui/sessions_view.go",
+      "manual": false
+    },
+    "mod:tui.sessions_view": {
+      "id": "mod:tui.sessions_view",
+      "type": "module",
+      "label": "sessions_view",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/sessions_view.go",
+      "manual": false
+    },
+    "service:flash": {
+      "id": "service:flash",
+      "type": "service",
+      "label": "flash",
+      "metadata": {
+        "struct_name": "flash"
+      },
+      "file_path": "internal/tui/statusbar.go",
+      "manual": false
+    },
+    "service:FlashExpireMsg": {
+      "id": "service:FlashExpireMsg",
+      "type": "service",
+      "label": "FlashExpireMsg",
+      "metadata": {
+        "struct_name": "FlashExpireMsg"
+      },
+      "file_path": "internal/tui/statusbar.go",
+      "manual": false
+    },
+    "service:statusBarModel": {
+      "id": "service:statusBarModel",
+      "type": "service",
+      "label": "statusBarModel",
+      "metadata": {
+        "struct_name": "statusBarModel"
+      },
+      "file_path": "internal/tui/statusbar.go",
+      "manual": false
+    },
+    "service:keyHint": {
+      "id": "service:keyHint",
+      "type": "service",
+      "label": "keyHint",
+      "metadata": {
+        "struct_name": "keyHint"
+      },
+      "file_path": "internal/tui/statusbar.go",
+      "manual": false
+    },
+    "mod:tui.statusbar": {
+      "id": "mod:tui.statusbar",
+      "type": "module",
+      "label": "statusbar",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/statusbar.go",
+      "manual": false
+    },
+    "mod:tui.styles": {
+      "id": "mod:tui.styles",
+      "type": "module",
+      "label": "styles",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/styles.go",
+      "manual": false
+    },
+    "service:Column": {
+      "id": "service:Column",
+      "type": "service",
+      "label": "Column",
+      "metadata": {
+        "struct_name": "Column"
+      },
+      "file_path": "internal/tui/table.go",
+      "manual": false
+    },
+    "service:Row": {
+      "id": "service:Row",
+      "type": "service",
+      "label": "Row",
+      "metadata": {
+        "struct_name": "Row"
+      },
+      "file_path": "internal/tui/table.go",
+      "manual": false
+    },
+    "service:tableModel": {
+      "id": "service:tableModel",
+      "type": "service",
+      "label": "tableModel",
+      "metadata": {
+        "struct_name": "tableModel"
+      },
+      "file_path": "internal/tui/table.go",
+      "manual": false
+    },
+    "mod:tui.table": {
+      "id": "mod:tui.table",
+      "type": "module",
+      "label": "table",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/table.go",
+      "manual": false
+    },
+    "service:TagManager": {
+      "id": "service:TagManager",
+      "type": "service",
+      "label": "TagManager",
+      "metadata": {
+        "struct_name": "TagManager"
+      },
+      "file_path": "internal/tui/tags.go",
+      "manual": false
+    },
+    "service:TagInfo": {
+      "id": "service:TagInfo",
+      "type": "service",
+      "label": "TagInfo",
+      "metadata": {
+        "struct_name": "TagInfo"
+      },
+      "file_path": "internal/tui/tags.go",
+      "manual": false
+    },
+    "service:TagFilter": {
+      "id": "service:TagFilter",
+      "type": "service",
+      "label": "TagFilter",
+      "metadata": {
+        "struct_name": "TagFilter"
+      },
+      "file_path": "internal/tui/tags.go",
+      "manual": false
+    },
+    "mod:tui.tags": {
+      "id": "mod:tui.tags",
+      "type": "module",
+      "label": "tags",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/tags.go",
+      "manual": false
+    },
+    "service:Operation": {
+      "id": "service:Operation",
+      "type": "service",
+      "label": "Operation",
+      "metadata": {
+        "struct_name": "Operation"
+      },
+      "file_path": "internal/tui/undo.go",
+      "manual": false
+    },
+    "service:UndoStack": {
+      "id": "service:UndoStack",
+      "type": "service",
+      "label": "UndoStack",
+      "metadata": {
+        "struct_name": "UndoStack"
+      },
+      "file_path": "internal/tui/undo.go",
+      "manual": false
+    },
+    "mod:tui.undo": {
+      "id": "mod:tui.undo",
+      "type": "module",
+      "label": "undo",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/undo.go",
+      "manual": false
+    },
+    "service:SelectionSet": {
+      "id": "service:SelectionSet",
+      "type": "service",
+      "label": "SelectionSet",
+      "metadata": {
+        "struct_name": "SelectionSet"
+      },
+      "file_path": "internal/tui/visual.go",
+      "manual": false
+    },
+    "mod:tui.visual": {
+      "id": "mod:tui.visual",
+      "type": "module",
+      "label": "visual",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/visual.go",
+      "manual": false
+    },
+    "mod:tui.whichkey": {
+      "id": "mod:tui.whichkey",
+      "type": "module",
+      "label": "whichkey",
+      "metadata": {
+        "package": "tui",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/tui/whichkey.go",
+      "manual": false
+    },
+    "service:internalEntry": {
+      "id": "service:internalEntry",
+      "type": "service",
+      "label": "internalEntry",
+      "metadata": {
+        "struct_name": "internalEntry"
+      },
+      "file_path": "internal/vault/internal.go",
+      "manual": false
+    },
+    "service:internalStore": {
+      "id": "service:internalStore",
+      "type": "service",
+      "label": "internalStore",
+      "metadata": {
+        "struct_name": "internalStore"
+      },
+      "file_path": "internal/vault/internal.go",
+      "manual": false
+    },
+    "service:InternalVault": {
+      "id": "service:InternalVault",
+      "type": "service",
+      "label": "InternalVault",
+      "metadata": {
+        "struct_name": "InternalVault"
+      },
+      "file_path": "internal/vault/internal.go",
+      "manual": false
+    },
+    "mod:vault.internal": {
+      "id": "mod:vault.internal",
+      "type": "module",
+      "label": "internal",
+      "metadata": {
+        "package": "vault",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/vault/internal.go",
+      "manual": false
+    },
+    "service:KeyringVault": {
+      "id": "service:KeyringVault",
+      "type": "service",
+      "label": "KeyringVault",
+      "metadata": {
+        "struct_name": "KeyringVault"
+      },
+      "file_path": "internal/vault/keyring.go",
+      "manual": false
+    },
+    "mod:vault.keyring": {
+      "id": "mod:vault.keyring",
+      "type": "module",
+      "label": "keyring",
+      "metadata": {
+        "package": "vault",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/vault/keyring.go",
+      "manual": false
+    },
+    "service:PassVault": {
+      "id": "service:PassVault",
+      "type": "service",
+      "label": "PassVault",
+      "metadata": {
+        "struct_name": "PassVault"
+      },
+      "file_path": "internal/vault/pass.go",
+      "manual": false
+    },
+    "mod:vault.pass": {
+      "id": "mod:vault.pass",
+      "type": "module",
+      "label": "pass",
+      "metadata": {
+        "package": "vault",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/vault/pass.go",
+      "manual": false
+    },
+    "service:CredentialEntry": {
+      "id": "service:CredentialEntry",
+      "type": "service",
+      "label": "CredentialEntry",
+      "metadata": {
+        "struct_name": "CredentialEntry"
+      },
+      "file_path": "internal/vault/vault.go",
+      "manual": false
+    },
+    "mod:vault.vault": {
+      "id": "mod:vault.vault",
+      "type": "module",
+      "label": "vault",
+      "metadata": {
+        "package": "vault",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/vault/vault.go",
+      "manual": false
+    }
+  },
+  "edges": [
+    {
+      "source": "mod:nexus.main",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "handleMasterPassword",
+        "callee": "Save",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "Load",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "mod:termcap.termcap",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "Detect",
+        "receiver": "termcap",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "service:Settings",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "ColorProfileOverride",
+        "receiver": "Settings",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "SetProfile",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "mod:tui.whichkey",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "NewApp",
+        "receiver": "tui",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "mod:launcher.launcher",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "SetProgram",
+        "receiver": "launcher",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "mod:gui.vnc",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "NewApp",
+        "receiver": "gui",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "mod:tui.app",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "SetIPCManager",
+        "receiver": "app",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:audit.audit",
+      "target": "service:AuditEvent",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:audit.audit",
+      "target": "service:AuditFilter",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:audit.audit",
+      "target": "service:AuditLog",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config",
+      "target": "service:Settings",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config",
+      "target": "service:ConfigTemplate",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config",
+      "target": "service:Config",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config",
+      "target": "env:XDG_CONFIG_HOME",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config",
+      "target": "mod:store.yaml",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "Load",
+        "callee": "Unmarshal",
+        "receiver": "yaml",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:config.connection",
+      "target": "service:PortForward",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.connection",
+      "target": "service:RDPOptions",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.connection",
+      "target": "service:Connection",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.connection",
+      "target": "service:Group",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:App",
+      "target": "mod:gui.tabs",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "Active",
+        "receiver": "tabs",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.header",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.syncHeaderView",
+        "callee": "setView",
+        "receiver": "header",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.list",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.syncHeaderView",
+        "callee": "selectedConnection",
+        "receiver": "list",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.sessions",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.syncHeaderView",
+        "callee": "Count",
+        "receiver": "sessions",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.table",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.syncCursorPosition",
+        "callee": "Cursor",
+        "receiver": "table",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:health.checker",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Init",
+        "callee": "CheckAll",
+        "receiver": "checker",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "service:Settings",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Init",
+        "callee": "HealthInterval",
+        "receiver": "Settings",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.confirm",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "Update",
+        "receiver": "confirm",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "service:msg",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "String",
+        "receiver": "msg",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.leader",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "dismiss",
+        "receiver": "leader",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.help",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "toggle",
+        "receiver": "help",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.filter",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "deactivate",
+        "receiver": "filter",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:gui.input",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "Blur",
+        "receiver": "input",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.finder",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "Deactivate",
+        "receiver": "finder",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.command",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "Update",
+        "receiver": "command",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.form",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "Update",
+        "receiver": "form",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.pulse",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "Refresh",
+        "receiver": "pulse",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.detail",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Update",
+        "callee": "Update",
+        "receiver": "detail",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.motion",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.handleListKey",
+        "callee": "Pending",
+        "receiver": "motion",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:tui.search",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.handleListKey",
+        "callee": "activate",
+        "receiver": "search",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:launcher.launcher",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.bulkYankSelected",
+        "callee": "ForProtocol",
+        "receiver": "launcher",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:termcap.termcap",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.bulkYankSelected",
+        "callee": "DefaultClipboard",
+        "receiver": "termcap",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.toggleFavorite",
+        "callee": "Save",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:session.vterm",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.connectManaged",
+        "callee": "NewManagedSession",
+        "receiver": "session",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "service:Hooks",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.connectManaged",
+        "callee": "IsEmpty",
+        "receiver": "Hooks",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:session.managed",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.connectManaged",
+        "callee": "SetHooks",
+        "receiver": "managed",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:gui.app",
+      "target": "service:toolbarButton",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.app",
+      "target": "service:App",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.app",
+      "target": "env:WAYLAND_DISPLAY",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.app",
+      "target": "env:XDG_SESSION_TYPE",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.app",
+      "target": "mod:gui.tabs",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "bool.sessionTransform",
+        "callee": "Active",
+        "receiver": "tabs",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:clipboardChannel",
+      "target": "mod:termcap.clipboard",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "clipboardChannel.processFormatDataRequest",
+        "callee": "ReadAll",
+        "receiver": "clipboard",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:gui.clipboard",
+      "target": "service:clipboardChannel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.clipboard",
+      "target": "mod:termcap.clipboard",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "uint16.processFormatDataResponse",
+        "callee": "WriteAll",
+        "receiver": "clipboard",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:gui.clipboard_image_other",
+      "target": "env:WAYLAND_DISPLAY",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.input",
+      "target": "service:inputState",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:IPCManager",
+      "target": "mod:ipc.server",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "IPCManager.Serve",
+        "callee": "Serve",
+        "receiver": "server",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:IPCManager",
+      "target": "mod:gui.ipc",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "IPCManager.handleMessage",
+        "callee": "DecodePayload",
+        "receiver": "ipc",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:IPCManager",
+      "target": "mod:tui.app",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "IPCManager.handleMessage",
+        "callee": "OpenTab",
+        "receiver": "app",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:IPCManager",
+      "target": "mod:gui.tabs",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "IPCManager.handleMessage",
+        "callee": "Focus",
+        "receiver": "tabs",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:gui.ipc",
+      "target": "service:IPCManager",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.ipc",
+      "target": "mod:ipc.server",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "string.SendTabOpened",
+        "callee": "Broadcast",
+        "receiver": "server",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:gui.keyhook_other",
+      "target": "service:hookEvent",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.keyhook_windows",
+      "target": "service:kbdllHookStruct",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.keyhook_windows",
+      "target": "service:hookEvent",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.keyhook_windows",
+      "target": "service:msg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.logger",
+      "target": "service:ipcLogger",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:RDPSession",
+      "target": "mod:termcap.clipboard",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "RDPSession.Close",
+        "callee": "stop",
+        "receiver": "clipboard",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:gui.rdp",
+      "target": "service:RDPSession",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.rdp",
+      "target": "service:decodedBmp",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.tabs",
+      "target": "service:Tab",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.tabs",
+      "target": "service:TabManager",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:VNCSession",
+      "target": "mod:launcher.vnc",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "VNCSession.Connect",
+        "callee": "Connect",
+        "receiver": "vnc",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:VNCSession",
+      "target": "service:msg",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "VNCSession.messageLoop",
+        "callee": "Type",
+        "receiver": "msg",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:gui.vnc",
+      "target": "service:VNCSession",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.vnc",
+      "target": "service:msg",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "int.HandleMouseMove",
+        "callee": "Write",
+        "receiver": "msg",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:health.checker",
+      "target": "service:Result",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:health.checker",
+      "target": "service:ResultMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:health.checker",
+      "target": "service:TickMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:health.checker",
+      "target": "service:Options",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:health.checker",
+      "target": "service:breaker",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:health.checker",
+      "target": "service:Checker",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:health.checker",
+      "target": "service:job",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:hooks.hooks",
+      "target": "service:Hook",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:hooks.hooks",
+      "target": "service:HookResult",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:hooks.hooks",
+      "target": "service:Hooks",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:hooks.hooks",
+      "target": "service:HookRunner",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:YAMLExporter",
+      "target": "mod:store.yaml",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "YAMLExporter.Export",
+        "callee": "Marshal",
+        "receiver": "yaml",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:importexport.export",
+      "target": "service:ExportOptions",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:importexport.export",
+      "target": "service:CSVExporter",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:importexport.export",
+      "target": "service:JSONExporter",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:importexport.export",
+      "target": "service:jsonExportConn",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:importexport.export",
+      "target": "service:YAMLExporter",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:importexport.export",
+      "target": "service:yamlExportConn",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:importexport.import",
+      "target": "service:ImportResult",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:importexport.import",
+      "target": "service:CSVImporter",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:importexport.import",
+      "target": "service:JSONImporter",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:importexport.import",
+      "target": "service:jsonConnection",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:importexport.import",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "csvRowToConnection",
+        "callee": "Protocol",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:ipc.client",
+      "target": "service:Client",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.protocol",
+      "target": "service:Envelope",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.protocol",
+      "target": "service:OpenTabCmd",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.protocol",
+      "target": "service:CloseTabCmd",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.protocol",
+      "target": "service:FocusTabCmd",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.protocol",
+      "target": "service:TabOpenedEvent",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.protocol",
+      "target": "service:TabClosedEvent",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.protocol",
+      "target": "service:TabErrorEvent",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.protocol",
+      "target": "service:GUIReadyEvent",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.protocol",
+      "target": "service:LogLineEvent",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.protocol",
+      "target": "env:XDG_RUNTIME_DIR",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.server",
+      "target": "service:Server",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:launcher.launcher",
+      "target": "service:LaunchFinishedMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:launcher.launcher",
+      "target": "service:GUILogLineMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:RDPLauncher",
+      "target": "mod:gui.ipc",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "RDPLauncher.Launch",
+        "callee": "Connect",
+        "receiver": "ipc",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:RDPLauncher",
+      "target": "mod:ipc.client",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "RDPLauncher.Launch",
+        "callee": "Close",
+        "receiver": "client",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:launcher.rdp",
+      "target": "service:RDPLauncher",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:launcher.rdp",
+      "target": "mod:gui.ipc",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "ensureGUI",
+        "callee": "Probe",
+        "receiver": "ipc",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:SSHLauncher",
+      "target": "service:Hooks",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "SSHLauncher.Launch",
+        "callee": "IsEmpty",
+        "receiver": "Hooks",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:SSHLauncher",
+      "target": "mod:hooks.hooks",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "SSHLauncher.Launch",
+        "callee": "NewHookRunner",
+        "receiver": "hooks",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:launcher.ssh",
+      "target": "service:SSHLauncher",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:launcher.ssh",
+      "target": "service:hookedSSHSession",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:launcher.telnet",
+      "target": "service:TelnetLauncher",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:VNCLauncher",
+      "target": "mod:gui.ipc",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "VNCLauncher.Launch",
+        "callee": "Connect",
+        "receiver": "ipc",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:VNCLauncher",
+      "target": "mod:ipc.client",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "VNCLauncher.Launch",
+        "callee": "Close",
+        "receiver": "client",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:launcher.vnc",
+      "target": "service:VNCLauncher",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:recording.recorder",
+      "target": "service:asciicastHeader",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:recording.recorder",
+      "target": "service:Metadata",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:recording.recorder",
+      "target": "service:Recorder",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:ManagedSession",
+      "target": "mod:hooks.hooks",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "ManagedSession.SetHooks",
+        "callee": "NewHookRunner",
+        "receiver": "hooks",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:ManagedSession",
+      "target": "mod:ipc.client",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "ManagedSession.Run",
+        "callee": "Close",
+        "receiver": "client",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:ManagedSession",
+      "target": "mod:session.ssh",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "ManagedSession.connect",
+        "callee": "InsecureIgnoreHostKey",
+        "receiver": "ssh",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:ManagedSession",
+      "target": "mod:session.vterm",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "ManagedSession.waitDone",
+        "callee": "Wait",
+        "receiver": "session",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:session.managed",
+      "target": "service:ringBuffer",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.managed",
+      "target": "service:replayBuffer",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.managed",
+      "target": "service:stdinResult",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.managed",
+      "target": "service:ManagedSession",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.managed",
+      "target": "env:USER",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.managed",
+      "target": "mod:session.vterm",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "int.SetPaneSize",
+        "callee": "WindowChange",
+        "receiver": "session",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:session.portforward",
+      "target": "service:ActiveForward",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.portforward",
+      "target": "service:PortForwardManager",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.portforward",
+      "target": "mod:ipc.client",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "string.StartLocal",
+        "callee": "Dial",
+        "receiver": "client",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:SSHSession",
+      "target": "mod:session.ssh",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "SSHSession.connect",
+        "callee": "InsecureIgnoreHostKey",
+        "receiver": "ssh",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:SSHSession",
+      "target": "mod:ipc.client",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "SSHSession.shell",
+        "callee": "NewSession",
+        "receiver": "client",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:SSHSession",
+      "target": "mod:session.vterm",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "SSHSession.shell",
+        "callee": "Close",
+        "receiver": "session",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:session.ssh",
+      "target": "service:SSHSession",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.ssh",
+      "target": "mod:session.vterm",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "int.watchResize",
+        "callee": "WindowChange",
+        "receiver": "session",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:session.ssh_auth",
+      "target": "mod:session.ssh",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "buildSSHAuth",
+        "callee": "PublicKeys",
+        "receiver": "ssh",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:session.telnet",
+      "target": "service:TelnetSession",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.vterm",
+      "target": "service:CellStyle",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.vterm",
+      "target": "service:Cell",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.vterm",
+      "target": "service:VTermBuffer",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:store.sqlite",
+      "target": "service:SQLiteStore",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:store.sqlite",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "scanConnection",
+        "callee": "Protocol",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:store.store",
+      "target": "service:ErrNotFound",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:YAMLStore",
+      "target": "mod:store.yaml",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "YAMLStore.load",
+        "callee": "Unmarshal",
+        "receiver": "yaml",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:store.yaml",
+      "target": "service:YAMLStore",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:template.template",
+      "target": "service:Template",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:template.template",
+      "target": "service:TemplateStore",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:template.template",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "Apply",
+        "callee": "Protocol",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:template.template",
+      "target": "service:Hooks",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "Apply",
+        "callee": "IsEmpty",
+        "receiver": "Hooks",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:termcap.clipboard",
+      "target": "service:OSC52Clipboard",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:termcap.clipboard",
+      "target": "service:SystemClipboard",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:termcap.probe",
+      "target": "env:TERM_PROGRAM",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:termcap.probe",
+      "target": "env:TMUX",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:termcap.probe",
+      "target": "env:TERM",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:termcap.probe",
+      "target": "env:COLORTERM",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:termcap.termcap",
+      "target": "service:Capabilities",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:theme.theme",
+      "target": "service:Theme",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.animation",
+      "target": "service:transitionTickMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.animation",
+      "target": "service:transition",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "service:App",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "service:saveErrorMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "NewApp",
+        "callee": "ConfigPath",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:audit.audit",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "NewApp",
+        "callee": "Open",
+        "receiver": "audit",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:health.checker",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "NewApp",
+        "callee": "NewChecker",
+        "receiver": "health",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "service:Settings",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "NewApp",
+        "callee": "HealthWorkers",
+        "receiver": "Settings",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "service:msg",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "keyMsgToBytes",
+        "callee": "String",
+        "receiver": "msg",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:launcher.launcher",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "string.connectByID",
+        "callee": "ForProtocol",
+        "receiver": "launcher",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:tui.list",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "string.applyTagFilter",
+        "callee": "groupFilteredConns",
+        "receiver": "list",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:tui.search",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "bool.searchNextMatch",
+        "callee": "computeMatches",
+        "receiver": "search",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:tui.table",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "bool.searchNextMatch",
+        "callee": "Cursor",
+        "receiver": "table",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:tui.header",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "SearchMode.searchUnderCursor",
+        "callee": "setFilter",
+        "receiver": "header",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:tui.sessions",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "string.handleBracketMotion",
+        "callee": "All",
+        "receiver": "sessions",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:tui.detail",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "string.handleNoteCommand",
+        "callee": "setConnection",
+        "receiver": "detail",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:importexport.import",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "string.handleImportCommand",
+        "callee": "ApplyMerge",
+        "receiver": "importexport",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.bracket",
+      "target": "service:BracketNav",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.bulk",
+      "target": "service:BulkOperation",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.bulk",
+      "target": "service:BulkProgress",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.bulk",
+      "target": "service:BulkResultMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.bulk",
+      "target": "mod:health.checker",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "ExecuteBulkHealthCheck",
+        "callee": "CheckAll",
+        "receiver": "checker",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:CommandMsg",
+      "target": "mod:tui.form",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "CommandMsg.handleCommand",
+        "callee": "startAdd",
+        "receiver": "form",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:CommandMsg",
+      "target": "mod:launcher.launcher",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "CommandMsg.handleCommand",
+        "callee": "ForProtocol",
+        "receiver": "launcher",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:CommandMsg",
+      "target": "mod:tui.confirm",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "CommandMsg.handleCommand",
+        "callee": "show",
+        "receiver": "confirm",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:CommandMsg",
+      "target": "mod:tui.list",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "CommandMsg.handleCommand",
+        "callee": "applyGroupFilter",
+        "receiver": "list",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:CommandMsg",
+      "target": "mod:tui.sessions",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "CommandMsg.handleCommand",
+        "callee": "All",
+        "receiver": "sessions",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:CommandMsg",
+      "target": "mod:tui.pulse",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "CommandMsg.handleCommand",
+        "callee": "SetSize",
+        "receiver": "pulse",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:CommandMsg",
+      "target": "mod:tui.help",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "CommandMsg.handleCommand",
+        "callee": "toggle",
+        "receiver": "help",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:CommandMsg",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "CommandMsg.handleCommand",
+        "callee": "Save",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:commandModel",
+      "target": "mod:gui.input",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "commandModel.activate",
+        "callee": "Focus",
+        "receiver": "input",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:commandModel",
+      "target": "service:msg",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "commandModel.Update",
+        "callee": "String",
+        "receiver": "msg",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.command",
+      "target": "service:CommandMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.command",
+      "target": "service:CommandDef",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.command",
+      "target": "service:CommandEngine",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.command",
+      "target": "service:commandModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.command",
+      "target": "env:HOME",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:ConfirmResultMsg",
+      "target": "mod:tui.list",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "ConfirmResultMsg.handleConfirmResult",
+        "callee": "groupFilteredConns",
+        "receiver": "list",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:ConfirmResultMsg",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "ConfirmResultMsg.handleConfirmResult",
+        "callee": "Save",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:ConfirmResultMsg",
+      "target": "mod:tui.sessions",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "ConfirmResultMsg.handleConfirmResult",
+        "callee": "Get",
+        "receiver": "sessions",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:confirmModel",
+      "target": "service:msg",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "confirmModel.Update",
+        "callee": "String",
+        "receiver": "msg",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.confirm",
+      "target": "service:ConfirmResultMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.confirm",
+      "target": "service:confirmModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.detail",
+      "target": "service:detailModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:filterModel",
+      "target": "mod:gui.input",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "filterModel.activate",
+        "callee": "Focus",
+        "receiver": "input",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.filter",
+      "target": "service:filterDebounceMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.filter",
+      "target": "service:filterModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:FinderModel",
+      "target": "service:msg",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "FinderModel.Update",
+        "callee": "String",
+        "receiver": "msg",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:FinderModel",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "FinderModel.View",
+        "callee": "Current",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.finder",
+      "target": "service:FinderEntry",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.finder",
+      "target": "service:FinderModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:FormSubmitMsg",
+      "target": "mod:tui.list",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "FormSubmitMsg.handleFormSubmit",
+        "callee": "groupFilteredConns",
+        "receiver": "list",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:FormSubmitMsg",
+      "target": "mod:health.checker",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "FormSubmitMsg.handleFormSubmit",
+        "callee": "CheckAll",
+        "receiver": "checker",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:formModel",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "formModel.startEdit",
+        "callee": "FormatPortForwards",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:formModel",
+      "target": "mod:hooks.hooks",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "formModel.buildHooks",
+        "callee": "OnFailure",
+        "receiver": "hooks",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:formModel",
+      "target": "service:msg",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "formModel.Update",
+        "callee": "String",
+        "receiver": "msg",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:formModel",
+      "target": "mod:tui.form",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "formModel.Update",
+        "callee": "Update",
+        "receiver": "form",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.form",
+      "target": "service:FormSubmitMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.form",
+      "target": "service:FormCancelMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.form",
+      "target": "service:formModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:headerModel",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "headerModel.View",
+        "callee": "Current",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.header",
+      "target": "service:headerModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.header",
+      "target": "service:menuItem",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.help",
+      "target": "service:helpModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.help",
+      "target": "service:helpEntry",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.keys",
+      "target": "service:KeyMap",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:tui.finder",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "SetSize",
+        "receiver": "finder",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:gui.input",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "Focus",
+        "receiver": "input",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:tui.form",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "startAdd",
+        "receiver": "form",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:tui.list",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "selectedConnection",
+        "receiver": "list",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:tui.confirm",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "show",
+        "receiver": "confirm",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:tui.sessions",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "All",
+        "receiver": "sessions",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:tui.command",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "activate",
+        "receiver": "command",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:tui.detail",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "setConnection",
+        "receiver": "detail",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:tui.table",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "CycleSort",
+        "receiver": "table",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:health.checker",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "CheckAll",
+        "receiver": "checker",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:tui.pulse",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "SetSize",
+        "receiver": "pulse",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:termcap.termcap",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "DefaultClipboard",
+        "receiver": "termcap",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "service:Settings",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "HealthEnabled",
+        "receiver": "Settings",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "Save",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
+      "target": "mod:tui.help",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "toggle",
+        "receiver": "help",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:leaderModel",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "leaderModel.View",
+        "callee": "Current",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.leader",
+      "target": "service:LeaderTimeoutMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.leader",
+      "target": "service:LeaderAction",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.leader",
+      "target": "service:LeaderItem",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.leader",
+      "target": "service:LeaderGroup",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.leader",
+      "target": "service:leaderModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:listModel",
+      "target": "mod:tui.table",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "listModel.selectedConnection",
+        "callee": "selectedRow",
+        "receiver": "table",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.list",
+      "target": "service:connStatus",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.list",
+      "target": "service:listModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.list",
+      "target": "mod:tui.table",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "int.setSize",
+        "callee": "setSize",
+        "receiver": "table",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.log",
+      "target": "service:logEntry",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.log",
+      "target": "service:logsModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.mode",
+      "target": "service:ModeChangedMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:MotionResult",
+      "target": "mod:tui.table",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "MotionResult.applyMotionResult",
+        "callee": "ResolveScreenTarget",
+        "receiver": "table",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:MotionResult",
+      "target": "mod:tui.list",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "MotionResult.handleOperatorLine",
+        "callee": "selectedConnection",
+        "receiver": "list",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:MotionResult",
+      "target": "mod:tui.confirm",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "MotionResult.handleOperatorLine",
+        "callee": "show",
+        "receiver": "confirm",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.motion",
+      "target": "service:MotionResult",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.motion",
+      "target": "service:MotionEngine",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.notify",
+      "target": "service:StateChange",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.notify",
+      "target": "service:NotifyManager",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:PaneConnectionPicker",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "PaneConnectionPicker.View",
+        "callee": "Current",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.pane_render",
+      "target": "service:panePickerMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.pane_render",
+      "target": "service:panePickerCancelMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.pane_render",
+      "target": "service:PaneConnectionPicker",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.pane_render",
+      "target": "mod:session.vterm",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "startBackgroundSession",
+        "callee": "NewManagedSession",
+        "receiver": "session",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.pane_render",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "renderPane",
+        "callee": "Current",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:PaneLayoutModel",
+      "target": "mod:launcher.launcher",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "PaneLayoutModel.Update",
+        "callee": "ForProtocol",
+        "receiver": "launcher",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:PaneLayoutModel",
+      "target": "mod:session.vterm",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "PaneLayoutModel.Update",
+        "callee": "NewVTermBuffer",
+        "receiver": "session",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.panes",
+      "target": "service:Pane",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.panes",
+      "target": "service:SplitNode",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.panes",
+      "target": "service:PaneLayoutModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.panes",
+      "target": "service:PaneOutputMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.panes",
+      "target": "service:PaneDisconnectedMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.panes",
+      "target": "service:PaneConnectedMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.panes",
+      "target": "service:paneSessionStartedMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.panes",
+      "target": "service:tickOutputsMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.panes",
+      "target": "service:AllPanesClosedMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.panes",
+      "target": "service:panePosition",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.panes",
+      "target": "service:broadcastFlashMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:PulseModel",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "PulseModel.View",
+        "callee": "Current",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.pulse",
+      "target": "service:PulseSummary",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.pulse",
+      "target": "service:GroupHealth",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.pulse",
+      "target": "service:ProtoDist",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.pulse",
+      "target": "service:LatencyEntry",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.pulse",
+      "target": "service:PulseModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.pulse",
+      "target": "service:card",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:QuickConnect",
+      "target": "mod:gui.input",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "QuickConnect.Activate",
+        "callee": "Focus",
+        "receiver": "input",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:QuickConnect",
+      "target": "service:msg",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "QuickConnect.Update",
+        "callee": "String",
+        "receiver": "msg",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.quickconnect",
+      "target": "service:QuickConnectMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.quickconnect",
+      "target": "service:QuickConnect",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:parsedSearch",
+      "target": "mod:tui.list",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "parsedSearch.applySearchFilter",
+        "callee": "applyFilter",
+        "receiver": "list",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:searchModel",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "searchModel.View",
+        "callee": "Current",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.search",
+      "target": "service:parsedSearch",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.search",
+      "target": "service:searchModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.sessions",
+      "target": "service:SessionDetachedMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.sessions",
+      "target": "service:SessionDiedMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.sessions",
+      "target": "service:SessionManager",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:sessionsViewModel",
+      "target": "mod:tui.table",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "sessionsViewModel.selectedSession",
+        "callee": "Cursor",
+        "receiver": "table",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.sessions_view",
+      "target": "service:sessionsViewModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:statusBarModel",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "statusBarModel.View",
+        "callee": "Current",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:statusBarModel",
+      "target": "mod:tui.mode",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "statusBarModel.View",
+        "callee": "String",
+        "receiver": "mode",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.statusbar",
+      "target": "service:flash",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.statusbar",
+      "target": "service:FlashExpireMsg",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.statusbar",
+      "target": "service:statusBarModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.statusbar",
+      "target": "service:keyHint",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.statusbar",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "renderKeyHints",
+        "callee": "Current",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.styles",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "",
+        "callee": "Current",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:tableModel",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "tableModel.View",
+        "callee": "Current",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.table",
+      "target": "service:Column",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.table",
+      "target": "service:Row",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.table",
+      "target": "service:tableModel",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.tags",
+      "target": "service:TagManager",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.tags",
+      "target": "service:TagInfo",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.tags",
+      "target": "service:TagFilter",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.tags",
+      "target": "mod:tui.filter",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "FilterByTags",
+        "callee": "Match",
+        "receiver": "filter",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.undo",
+      "target": "service:Operation",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.undo",
+      "target": "service:UndoStack",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.visual",
+      "target": "service:SelectionSet",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:vault.internal",
+      "target": "service:internalEntry",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:vault.internal",
+      "target": "service:internalStore",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:vault.internal",
+      "target": "service:InternalVault",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:vault.internal",
+      "target": "env:XDG_CONFIG_HOME",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:vault.keyring",
+      "target": "service:KeyringVault",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:vault.pass",
+      "target": "service:PassVault",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:vault.vault",
+      "target": "service:CredentialEntry",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    }
+  ],
+  "project_path": "/mnt/jon/projects/Nexus",
+  "last_scan": "2026-02-19T02:34:59.384998+00:00",
+  "schema_version": "1.0",
+  "_token_estimate": 0,
+  "_retrieval_strategy": "",
+  "layout": {
+    "mod:nexus.main": [
+      -1.0,
+      -1.0
+    ],
+    "mod:nexus-gui.main": [
+      -0.875,
+      -1.0
+    ],
+    "service:AuditEvent": [
+      -0.75,
+      -1.0
+    ],
+    "service:AuditFilter": [
+      -0.625,
+      -1.0
+    ],
+    "service:AuditLog": [
+      -0.5,
+      -1.0
+    ],
+    "mod:audit.audit": [
+      -0.375,
+      -1.0
+    ],
+    "service:Settings": [
+      -0.25,
+      -1.0
+    ],
+    "service:ConfigTemplate": [
+      -0.125,
+      -1.0
+    ],
+    "service:Config": [
+      0.0,
+      -1.0
+    ],
+    "env:XDG_CONFIG_HOME": [
+      0.125,
+      -1.0
+    ],
+    "mod:config.config": [
+      0.25,
+      -1.0
+    ],
+    "service:PortForward": [
+      0.375,
+      -1.0
+    ],
+    "service:RDPOptions": [
+      0.5,
+      -1.0
+    ],
+    "service:Connection": [
+      0.625,
+      -1.0
+    ],
+    "service:Group": [
+      0.75,
+      -1.0
+    ],
+    "mod:config.connection": [
+      0.875,
+      -1.0
+    ],
+    "mod:config.ssh_import": [
+      1.0,
+      -1.0
+    ],
+    "mod:crypto.crypto": [
+      -1.0,
+      -0.875
+    ],
+    "service:toolbarButton": [
+      -0.875,
+      -0.875
+    ],
+    "service:App": [
+      -0.75,
+      -0.875
+    ],
+    "env:WAYLAND_DISPLAY": [
+      -0.625,
+      -0.875
+    ],
+    "env:XDG_SESSION_TYPE": [
+      -0.5,
+      -0.875
+    ],
+    "mod:gui.app": [
+      -0.375,
+      -0.875
+    ],
+    "service:clipboardChannel": [
+      -0.25,
+      -0.875
+    ],
+    "mod:gui.clipboard": [
+      -0.125,
+      -0.875
+    ],
+    "mod:gui.clipboard_image": [
+      0.0,
+      -0.875
+    ],
+    "mod:gui.clipboard_image_other": [
+      0.125,
+      -0.875
+    ],
+    "mod:gui.clipboard_image_windows": [
+      0.25,
+      -0.875
+    ],
+    "service:inputState": [
+      0.375,
+      -0.875
+    ],
+    "mod:gui.input": [
+      0.5,
+      -0.875
+    ],
+    "service:IPCManager": [
+      0.625,
+      -0.875
+    ],
+    "mod:gui.ipc": [
+      0.75,
+      -0.875
+    ],
+    "service:hookEvent": [
+      0.875,
+      -0.875
+    ],
+    "mod:gui.keyhook_other": [
+      1.0,
+      -0.875
+    ],
+    "service:kbdllHookStruct": [
+      -1.0,
+      -0.75
+    ],
+    "service:msg": [
+      -0.875,
+      -0.75
+    ],
+    "mod:gui.keyhook_windows": [
+      -0.75,
+      -0.75
+    ],
+    "service:ipcLogger": [
+      -0.625,
+      -0.75
+    ],
+    "mod:gui.logger": [
+      -0.5,
+      -0.75
+    ],
+    "service:RDPSession": [
+      -0.375,
+      -0.75
+    ],
+    "service:decodedBmp": [
+      -0.25,
+      -0.75
+    ],
+    "mod:gui.rdp": [
+      -0.125,
+      -0.75
+    ],
+    "service:Tab": [
+      0.0,
+      -0.75
+    ],
+    "service:TabManager": [
+      0.125,
+      -0.75
+    ],
+    "mod:gui.tabs": [
+      0.25,
+      -0.75
+    ],
+    "service:VNCSession": [
+      0.375,
+      -0.75
+    ],
+    "mod:gui.vnc": [
+      0.5,
+      -0.75
+    ],
+    "service:Result": [
+      0.625,
+      -0.75
+    ],
+    "service:ResultMsg": [
+      0.75,
+      -0.75
+    ],
+    "service:TickMsg": [
+      0.875,
+      -0.75
+    ],
+    "service:Options": [
+      1.0,
+      -0.75
+    ],
+    "service:breaker": [
+      -1.0,
+      -0.625
+    ],
+    "service:Checker": [
+      -0.875,
+      -0.625
+    ],
+    "service:job": [
+      -0.75,
+      -0.625
+    ],
+    "mod:health.checker": [
+      -0.625,
+      -0.625
+    ],
+    "service:Hook": [
+      -0.5,
+      -0.625
+    ],
+    "service:HookResult": [
+      -0.375,
+      -0.625
+    ],
+    "service:Hooks": [
+      -0.25,
+      -0.625
+    ],
+    "service:HookRunner": [
+      -0.125,
+      -0.625
+    ],
+    "mod:hooks.hooks": [
+      0.0,
+      -0.625
+    ],
+    "service:ExportOptions": [
+      0.125,
+      -0.625
+    ],
+    "service:CSVExporter": [
+      0.25,
+      -0.625
+    ],
+    "service:JSONExporter": [
+      0.375,
+      -0.625
+    ],
+    "service:jsonExportConn": [
+      0.5,
+      -0.625
+    ],
+    "service:YAMLExporter": [
+      0.625,
+      -0.625
+    ],
+    "service:yamlExportConn": [
+      0.75,
+      -0.625
+    ],
+    "mod:importexport.export": [
+      0.875,
+      -0.625
+    ],
+    "service:ImportResult": [
+      1.0,
+      -0.625
+    ],
+    "service:CSVImporter": [
+      -1.0,
+      -0.5
+    ],
+    "service:JSONImporter": [
+      -0.875,
+      -0.5
+    ],
+    "service:jsonConnection": [
+      -0.75,
+      -0.5
+    ],
+    "mod:importexport.import": [
+      -0.625,
+      -0.5
+    ],
+    "service:Client": [
+      -0.5,
+      -0.5
+    ],
+    "mod:ipc.client": [
+      -0.375,
+      -0.5
+    ],
+    "service:Envelope": [
+      -0.25,
+      -0.5
+    ],
+    "service:OpenTabCmd": [
+      -0.125,
+      -0.5
+    ],
+    "service:CloseTabCmd": [
+      0.0,
+      -0.5
+    ],
+    "service:FocusTabCmd": [
+      0.125,
+      -0.5
+    ],
+    "service:TabOpenedEvent": [
+      0.25,
+      -0.5
+    ],
+    "service:TabClosedEvent": [
+      0.375,
+      -0.5
+    ],
+    "service:TabErrorEvent": [
+      0.5,
+      -0.5
+    ],
+    "service:GUIReadyEvent": [
+      0.625,
+      -0.5
+    ],
+    "service:LogLineEvent": [
+      0.75,
+      -0.5
+    ],
+    "env:XDG_RUNTIME_DIR": [
+      0.875,
+      -0.5
+    ],
+    "mod:ipc.protocol": [
+      1.0,
+      -0.5
+    ],
+    "service:Server": [
+      -1.0,
+      -0.375
+    ],
+    "mod:ipc.server": [
+      -0.875,
+      -0.375
+    ],
+    "service:LaunchFinishedMsg": [
+      -0.75,
+      -0.375
+    ],
+    "service:GUILogLineMsg": [
+      -0.625,
+      -0.375
+    ],
+    "mod:launcher.launcher": [
+      -0.5,
+      -0.375
+    ],
+    "mod:launcher.procattr_unix": [
+      -0.375,
+      -0.375
+    ],
+    "mod:launcher.procattr_windows": [
+      -0.25,
+      -0.375
+    ],
+    "service:RDPLauncher": [
+      -0.125,
+      -0.375
+    ],
+    "mod:launcher.rdp": [
+      0.0,
+      -0.375
+    ],
+    "service:SSHLauncher": [
+      0.125,
+      -0.375
+    ],
+    "service:hookedSSHSession": [
+      0.25,
+      -0.375
+    ],
+    "mod:launcher.ssh": [
+      0.375,
+      -0.375
+    ],
+    "service:TelnetLauncher": [
+      0.5,
+      -0.375
+    ],
+    "mod:launcher.telnet": [
+      0.625,
+      -0.375
+    ],
+    "mod:launcher.util": [
+      0.75,
+      -0.375
+    ],
+    "service:VNCLauncher": [
+      0.875,
+      -0.375
+    ],
+    "mod:launcher.vnc": [
+      1.0,
+      -0.375
+    ],
+    "service:asciicastHeader": [
+      -1.0,
+      -0.25
+    ],
+    "service:Metadata": [
+      -0.875,
+      -0.25
+    ],
+    "service:Recorder": [
+      -0.75,
+      -0.25
+    ],
+    "mod:recording.recorder": [
+      -0.625,
+      -0.25
+    ],
+    "service:ringBuffer": [
+      -0.5,
+      -0.25
+    ],
+    "service:replayBuffer": [
+      -0.375,
+      -0.25
+    ],
+    "service:stdinResult": [
+      -0.25,
+      -0.25
+    ],
+    "service:ManagedSession": [
+      -0.125,
+      -0.25
+    ],
+    "env:USER": [
+      0.0,
+      -0.25
+    ],
+    "mod:session.managed": [
+      0.125,
+      -0.25
+    ],
+    "service:ActiveForward": [
+      0.25,
+      -0.25
+    ],
+    "service:PortForwardManager": [
+      0.375,
+      -0.25
+    ],
+    "mod:session.portforward": [
+      0.5,
+      -0.25
+    ],
+    "service:SSHSession": [
+      0.625,
+      -0.25
+    ],
+    "mod:session.ssh": [
+      0.75,
+      -0.25
+    ],
+    "mod:session.ssh_auth": [
+      0.875,
+      -0.25
+    ],
+    "service:TelnetSession": [
+      1.0,
+      -0.25
+    ],
+    "mod:session.telnet": [
+      -1.0,
+      -0.125
+    ],
+    "service:CellStyle": [
+      -0.875,
+      -0.125
+    ],
+    "service:Cell": [
+      -0.75,
+      -0.125
+    ],
+    "service:VTermBuffer": [
+      -0.625,
+      -0.125
+    ],
+    "mod:session.vterm": [
+      -0.5,
+      -0.125
+    ],
+    "mod:store.migrate": [
+      -0.375,
+      -0.125
+    ],
+    "service:SQLiteStore": [
+      -0.25,
+      -0.125
+    ],
+    "mod:store.sqlite": [
+      -0.125,
+      -0.125
+    ],
+    "service:ErrNotFound": [
+      0.0,
+      -0.125
+    ],
+    "mod:store.store": [
+      0.125,
+      -0.125
+    ],
+    "service:YAMLStore": [
+      0.25,
+      -0.125
+    ],
+    "mod:store.yaml": [
+      0.375,
+      -0.125
+    ],
+    "service:Template": [
+      0.5,
+      -0.125
+    ],
+    "service:TemplateStore": [
+      0.625,
+      -0.125
+    ],
+    "mod:template.template": [
+      0.75,
+      -0.125
+    ],
+    "service:OSC52Clipboard": [
+      0.875,
+      -0.125
+    ],
+    "service:SystemClipboard": [
+      1.0,
+      -0.125
+    ],
+    "mod:termcap.clipboard": [
+      -1.0,
+      0.0
+    ],
+    "env:TERM_PROGRAM": [
+      -0.875,
+      0.0
+    ],
+    "env:TMUX": [
+      -0.75,
+      0.0
+    ],
+    "env:TERM": [
+      -0.625,
+      0.0
+    ],
+    "env:COLORTERM": [
+      -0.5,
+      0.0
+    ],
+    "mod:termcap.probe": [
+      -0.375,
+      0.0
+    ],
+    "service:Capabilities": [
+      -0.25,
+      0.0
+    ],
+    "mod:termcap.termcap": [
+      -0.125,
+      0.0
+    ],
+    "mod:theme.styles": [
+      0.0,
+      0.0
+    ],
+    "service:Theme": [
+      0.125,
+      0.0
+    ],
+    "mod:theme.theme": [
+      0.25,
+      0.0
+    ],
+    "service:transitionTickMsg": [
+      0.375,
+      0.0
+    ],
+    "service:transition": [
+      0.5,
+      0.0
+    ],
+    "mod:tui.animation": [
+      0.625,
+      0.0
+    ],
+    "service:saveErrorMsg": [
+      0.75,
+      0.0
+    ],
+    "mod:tui.app": [
+      0.875,
+      0.0
+    ],
+    "service:BracketNav": [
+      1.0,
+      0.0
+    ],
+    "mod:tui.bracket": [
+      -1.0,
+      0.125
+    ],
+    "service:BulkOperation": [
+      -0.875,
+      0.125
+    ],
+    "service:BulkProgress": [
+      -0.75,
+      0.125
+    ],
+    "service:BulkResultMsg": [
+      -0.625,
+      0.125
+    ],
+    "mod:tui.bulk": [
+      -0.5,
+      0.125
+    ],
+    "service:CommandMsg": [
+      -0.375,
+      0.125
+    ],
+    "service:CommandDef": [
+      -0.25,
+      0.125
+    ],
+    "service:CommandEngine": [
+      -0.125,
+      0.125
+    ],
+    "service:commandModel": [
+      0.0,
+      0.125
+    ],
+    "env:HOME": [
+      0.125,
+      0.125
+    ],
+    "mod:tui.command": [
+      0.25,
+      0.125
+    ],
+    "service:ConfirmResultMsg": [
+      0.375,
+      0.125
+    ],
+    "service:confirmModel": [
+      0.5,
+      0.125
+    ],
+    "mod:tui.confirm": [
+      0.625,
+      0.125
+    ],
+    "service:detailModel": [
+      0.75,
+      0.125
+    ],
+    "mod:tui.detail": [
+      0.875,
+      0.125
+    ],
+    "mod:tui.favorites": [
+      1.0,
+      0.125
+    ],
+    "service:filterDebounceMsg": [
+      -1.0,
+      0.25
+    ],
+    "service:filterModel": [
+      -0.875,
+      0.25
+    ],
+    "mod:tui.filter": [
+      -0.75,
+      0.25
+    ],
+    "service:FinderEntry": [
+      -0.625,
+      0.25
+    ],
+    "service:FinderModel": [
+      -0.5,
+      0.25
+    ],
+    "mod:tui.finder": [
+      -0.375,
+      0.25
+    ],
+    "service:FormSubmitMsg": [
+      -0.25,
+      0.25
+    ],
+    "service:FormCancelMsg": [
+      -0.125,
+      0.25
+    ],
+    "service:formModel": [
+      0.0,
+      0.25
+    ],
+    "mod:tui.form": [
+      0.125,
+      0.25
+    ],
+    "service:headerModel": [
+      0.25,
+      0.25
+    ],
+    "service:menuItem": [
+      0.375,
+      0.25
+    ],
+    "mod:tui.header": [
+      0.5,
+      0.25
+    ],
+    "service:helpModel": [
+      0.625,
+      0.25
+    ],
+    "service:helpEntry": [
+      0.75,
+      0.25
+    ],
+    "mod:tui.help": [
+      0.875,
+      0.25
+    ],
+    "service:KeyMap": [
+      1.0,
+      0.25
+    ],
+    "mod:tui.keys": [
+      -1.0,
+      0.375
+    ],
+    "service:LeaderTimeoutMsg": [
+      -0.875,
+      0.375
+    ],
+    "service:LeaderAction": [
+      -0.75,
+      0.375
+    ],
+    "service:LeaderItem": [
+      -0.625,
+      0.375
+    ],
+    "service:LeaderGroup": [
+      -0.5,
+      0.375
+    ],
+    "service:leaderModel": [
+      -0.375,
+      0.375
+    ],
+    "mod:tui.leader": [
+      -0.25,
+      0.375
+    ],
+    "service:connStatus": [
+      -0.125,
+      0.375
+    ],
+    "service:listModel": [
+      0.0,
+      0.375
+    ],
+    "mod:tui.list": [
+      0.125,
+      0.375
+    ],
+    "service:logEntry": [
+      0.25,
+      0.375
+    ],
+    "service:logsModel": [
+      0.375,
+      0.375
+    ],
+    "mod:tui.log": [
+      0.5,
+      0.375
+    ],
+    "service:ModeChangedMsg": [
+      0.625,
+      0.375
+    ],
+    "mod:tui.mode": [
+      0.75,
+      0.375
+    ],
+    "service:MotionResult": [
+      0.875,
+      0.375
+    ],
+    "service:MotionEngine": [
+      1.0,
+      0.375
+    ],
+    "mod:tui.motion": [
+      -1.0,
+      0.5
+    ],
+    "service:StateChange": [
+      -0.875,
+      0.5
+    ],
+    "service:NotifyManager": [
+      -0.75,
+      0.5
+    ],
+    "mod:tui.notify": [
+      -0.625,
+      0.5
+    ],
+    "service:panePickerMsg": [
+      -0.5,
+      0.5
+    ],
+    "service:panePickerCancelMsg": [
+      -0.375,
+      0.5
+    ],
+    "service:PaneConnectionPicker": [
+      -0.25,
+      0.5
+    ],
+    "mod:tui.pane_render": [
+      -0.125,
+      0.5
+    ],
+    "service:Pane": [
+      0.0,
+      0.5
+    ],
+    "service:SplitNode": [
+      0.125,
+      0.5
+    ],
+    "service:PaneLayoutModel": [
+      0.25,
+      0.5
+    ],
+    "service:PaneOutputMsg": [
+      0.375,
+      0.5
+    ],
+    "service:PaneDisconnectedMsg": [
+      0.5,
+      0.5
+    ],
+    "service:PaneConnectedMsg": [
+      0.625,
+      0.5
+    ],
+    "service:paneSessionStartedMsg": [
+      0.75,
+      0.5
+    ],
+    "service:tickOutputsMsg": [
+      0.875,
+      0.5
+    ],
+    "service:AllPanesClosedMsg": [
+      1.0,
+      0.5
+    ],
+    "service:panePosition": [
+      -1.0,
+      0.625
+    ],
+    "service:broadcastFlashMsg": [
+      -0.875,
+      0.625
+    ],
+    "mod:tui.panes": [
+      -0.75,
+      0.625
+    ],
+    "service:PulseSummary": [
+      -0.625,
+      0.625
+    ],
+    "service:GroupHealth": [
+      -0.5,
+      0.625
+    ],
+    "service:ProtoDist": [
+      -0.375,
+      0.625
+    ],
+    "service:LatencyEntry": [
+      -0.25,
+      0.625
+    ],
+    "service:PulseModel": [
+      -0.125,
+      0.625
+    ],
+    "service:card": [
+      0.0,
+      0.625
+    ],
+    "mod:tui.pulse": [
+      0.125,
+      0.625
+    ],
+    "service:QuickConnectMsg": [
+      0.25,
+      0.625
+    ],
+    "service:QuickConnect": [
+      0.375,
+      0.625
+    ],
+    "mod:tui.quickconnect": [
+      0.5,
+      0.625
+    ],
+    "service:parsedSearch": [
+      0.625,
+      0.625
+    ],
+    "service:searchModel": [
+      0.75,
+      0.625
+    ],
+    "mod:tui.search": [
+      0.875,
+      0.625
+    ],
+    "service:SessionDetachedMsg": [
+      1.0,
+      0.625
+    ],
+    "service:SessionDiedMsg": [
+      -1.0,
+      0.75
+    ],
+    "service:SessionManager": [
+      -0.875,
+      0.75
+    ],
+    "mod:tui.sessions": [
+      -0.75,
+      0.75
+    ],
+    "service:sessionsViewModel": [
+      -0.625,
+      0.75
+    ],
+    "mod:tui.sessions_view": [
+      -0.5,
+      0.75
+    ],
+    "service:flash": [
+      -0.375,
+      0.75
+    ],
+    "service:FlashExpireMsg": [
+      -0.25,
+      0.75
+    ],
+    "service:statusBarModel": [
+      -0.125,
+      0.75
+    ],
+    "service:keyHint": [
+      0.0,
+      0.75
+    ],
+    "mod:tui.statusbar": [
+      0.125,
+      0.75
+    ],
+    "mod:tui.styles": [
+      0.25,
+      0.75
+    ],
+    "service:Column": [
+      0.375,
+      0.75
+    ],
+    "service:Row": [
+      0.5,
+      0.75
+    ],
+    "service:tableModel": [
+      0.625,
+      0.75
+    ],
+    "mod:tui.table": [
+      0.75,
+      0.75
+    ],
+    "service:TagManager": [
+      0.875,
+      0.75
+    ],
+    "service:TagInfo": [
+      1.0,
+      0.75
+    ],
+    "service:TagFilter": [
+      -1.0,
+      0.875
+    ],
+    "mod:tui.tags": [
+      -0.875,
+      0.875
+    ],
+    "service:Operation": [
+      -0.75,
+      0.875
+    ],
+    "service:UndoStack": [
+      -0.625,
+      0.875
+    ],
+    "mod:tui.undo": [
+      -0.5,
+      0.875
+    ],
+    "service:SelectionSet": [
+      -0.375,
+      0.875
+    ],
+    "mod:tui.visual": [
+      -0.25,
+      0.875
+    ],
+    "mod:tui.whichkey": [
+      -0.125,
+      0.875
+    ],
+    "service:internalEntry": [
+      0.0,
+      0.875
+    ],
+    "service:internalStore": [
+      0.125,
+      0.875
+    ],
+    "service:InternalVault": [
+      0.25,
+      0.875
+    ],
+    "mod:vault.internal": [
+      0.375,
+      0.875
+    ],
+    "service:KeyringVault": [
+      0.5,
+      0.875
+    ],
+    "mod:vault.keyring": [
+      0.625,
+      0.875
+    ],
+    "service:PassVault": [
+      0.75,
+      0.875
+    ],
+    "mod:vault.pass": [
+      0.875,
+      0.875
+    ],
+    "service:CredentialEntry": [
+      1.0,
+      0.875
+    ],
+    "mod:vault.vault": [
+      -1.0,
+      1.0
+    ]
+  }
+}
