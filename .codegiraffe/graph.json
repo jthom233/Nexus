@@ -2909,6 +2909,151 @@
       },
       "file_path": "internal/vault/vault.go",
       "manual": false
+    },
+    "table:connections": {
+      "id": "table:connections",
+      "type": "database_table",
+      "label": "table:connections",
+      "metadata": {},
+      "file_path": null,
+      "manual": true
+    },
+    "table:connections_fts": {
+      "id": "table:connections_fts",
+      "type": "database_table",
+      "label": "table:connections_fts",
+      "metadata": {},
+      "file_path": null,
+      "manual": true
+    },
+    "ext:ssh": {
+      "id": "ext:ssh",
+      "type": "external_api",
+      "label": "ext:ssh",
+      "metadata": {},
+      "file_path": null,
+      "manual": true
+    },
+    "ext:rdp": {
+      "id": "ext:rdp",
+      "type": "external_api",
+      "label": "ext:rdp",
+      "metadata": {},
+      "file_path": null,
+      "manual": true
+    },
+    "ext:vnc": {
+      "id": "ext:vnc",
+      "type": "external_api",
+      "label": "ext:vnc",
+      "metadata": {},
+      "file_path": null,
+      "manual": true
+    },
+    "ext:telnet": {
+      "id": "ext:telnet",
+      "type": "external_api",
+      "label": "ext:telnet",
+      "metadata": {},
+      "file_path": null,
+      "manual": true
+    },
+    "contract:unix-socket-ipc": {
+      "id": "contract:unix-socket-ipc",
+      "type": "contract",
+      "label": "unix-socket-ipc",
+      "metadata": {
+        "contract_type": "api",
+        "producer": "mod:nexus.main",
+        "consumers": [
+          "mod:nexus-gui.main"
+        ],
+        "version": "",
+        "status": "active",
+        "protocol": "unix-socket",
+        "format": "newline-delimited JSON",
+        "commands": [
+          "open-tab",
+          "close-tab",
+          "focus-tab",
+          "status"
+        ],
+        "events": [
+          "tab-opened",
+          "tab-closed",
+          "tab-error",
+          "gui-ready",
+          "log-line"
+        ]
+      },
+      "file_path": null,
+      "manual": true
+    },
+    "domain:tui": {
+      "id": "domain:tui",
+      "type": "domain",
+      "label": "tui",
+      "metadata": {
+        "domain_name": "tui",
+        "member_count": 35
+      },
+      "file_path": null,
+      "manual": true
+    },
+    "domain:gui": {
+      "id": "domain:gui",
+      "type": "domain",
+      "label": "gui",
+      "metadata": {
+        "domain_name": "gui",
+        "member_count": 14
+      },
+      "file_path": null,
+      "manual": true
+    },
+    "domain:networking": {
+      "id": "domain:networking",
+      "type": "domain",
+      "label": "networking",
+      "metadata": {
+        "domain_name": "networking",
+        "member_count": 12
+      },
+      "file_path": null,
+      "manual": true
+    },
+    "domain:storage": {
+      "id": "domain:storage",
+      "type": "domain",
+      "label": "storage",
+      "metadata": {
+        "domain_name": "storage",
+        "member_count": 8
+      },
+      "file_path": null,
+      "manual": true
+    },
+    "domain:ipc": {
+      "id": "domain:ipc",
+      "type": "domain",
+      "label": "ipc",
+      "metadata": {
+        "domain_name": "ipc",
+        "member_count": 3
+      },
+      "file_path": null,
+      "manual": true
+    },
+    "domain:core": {
+      "id": "domain:core",
+      "type": "domain",
+      "label": "core",
+      "metadata": {
+        "domain_name": "core",
+        "member_count": 15
+      },
+      "file_path": null,
+      "manual": true
     }
   },
   "edges": [
@@ -2925,6 +3070,86 @@
       },
       "manual": false,
       "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "contract:unix-socket-ipc",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:OpenTabCmd",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:CloseTabCmd",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:FocusTabCmd",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:TabOpenedEvent",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:TabClosedEvent",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:TabErrorEvent",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:GUIReadyEvent",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:LogLineEvent",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
     },
     {
       "source": "mod:nexus-gui.main",
@@ -3039,6 +3264,86 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:nexus-gui.main",
+      "target": "contract:unix-socket-ipc",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "service:OpenTabCmd",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "service:CloseTabCmd",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "service:FocusTabCmd",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "service:TabOpenedEvent",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "service:TabClosedEvent",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "service:TabErrorEvent",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "service:GUIReadyEvent",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "service:LogLineEvent",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:audit.audit",
       "target": "service:AuditEvent",
       "type": "contains",
@@ -3066,6 +3371,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:audit.audit",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -3123,6 +3436,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:config.config",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:config.connection",
       "target": "service:PortForward",
       "type": "contains",
@@ -3160,6 +3481,30 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.connection",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.ssh_import",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:crypto.crypto",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -3581,6 +3926,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:gui.app",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "service:clipboardChannel",
       "target": "mod:termcap.clipboard",
       "type": "calls",
@@ -3619,6 +3972,22 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:gui.clipboard",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.clipboard_image",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:gui.clipboard_image_other",
       "target": "env:WAYLAND_DISPLAY",
       "type": "contains",
@@ -3629,6 +3998,22 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:gui.clipboard_image_other",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.clipboard_image_windows",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:gui.input",
       "target": "service:inputState",
       "type": "contains",
@@ -3636,6 +4021,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.input",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -3719,6 +4112,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:gui.ipc",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:gui.keyhook_other",
       "target": "service:hookEvent",
       "type": "contains",
@@ -3726,6 +4127,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.keyhook_other",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -3759,6 +4168,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:gui.keyhook_windows",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:gui.logger",
       "target": "service:ipcLogger",
       "type": "contains",
@@ -3766,6 +4183,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.logger",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -3803,6 +4228,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:gui.rdp",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:gui.tabs",
       "target": "service:Tab",
       "type": "contains",
@@ -3820,6 +4253,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:gui.tabs",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -3873,6 +4314,14 @@
       },
       "manual": false,
       "confidence": 0.8
+    },
+    {
+      "source": "mod:gui.vnc",
+      "target": "domain:gui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
     },
     {
       "source": "mod:health.checker",
@@ -3945,6 +4394,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:health.checker",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:hooks.hooks",
       "target": "service:Hook",
       "type": "contains",
@@ -3982,6 +4439,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:hooks.hooks",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4059,6 +4524,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:importexport.export",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:importexport.import",
       "target": "service:ImportResult",
       "type": "contains",
@@ -4113,6 +4586,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:importexport.import",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:ipc.client",
       "target": "service:Client",
       "type": "contains",
@@ -4120,6 +4601,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.client",
+      "target": "domain:ipc",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4223,6 +4712,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:ipc.protocol",
+      "target": "domain:ipc",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:ipc.server",
       "target": "service:Server",
       "type": "contains",
@@ -4230,6 +4727,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:ipc.server",
+      "target": "domain:ipc",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4250,6 +4755,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:launcher.launcher",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4281,6 +4794,25 @@
       "confidence": 0.8
     },
     {
+      "source": "service:RDPLauncher",
+      "target": "mod:launcher.launcher",
+      "type": "implements",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:RDPLauncher",
+      "target": "ext:rdp",
+      "type": "calls",
+      "metadata": {
+        "port": 3389,
+        "library": "github.com/tomatome/grdp"
+      },
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:launcher.rdp",
       "target": "service:RDPLauncher",
       "type": "contains",
@@ -4303,6 +4835,14 @@
       },
       "manual": false,
       "confidence": 0.8
+    },
+    {
+      "source": "mod:launcher.rdp",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
     },
     {
       "source": "service:SSHLauncher",
@@ -4333,6 +4873,25 @@
       "confidence": 0.8
     },
     {
+      "source": "service:SSHLauncher",
+      "target": "mod:launcher.launcher",
+      "type": "implements",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:SSHLauncher",
+      "target": "ext:ssh",
+      "type": "calls",
+      "metadata": {
+        "port": 22,
+        "library": "golang.org/x/crypto/ssh"
+      },
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:launcher.ssh",
       "target": "service:SSHLauncher",
       "type": "contains",
@@ -4353,6 +4912,33 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:launcher.ssh",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:TelnetLauncher",
+      "target": "mod:launcher.launcher",
+      "type": "implements",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:TelnetLauncher",
+      "target": "ext:telnet",
+      "type": "calls",
+      "metadata": {
+        "port": 23,
+        "protocol": "raw TCP"
+      },
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:launcher.telnet",
       "target": "service:TelnetLauncher",
       "type": "contains",
@@ -4360,6 +4946,22 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:launcher.telnet",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:launcher.util",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4391,6 +4993,25 @@
       "confidence": 0.8
     },
     {
+      "source": "service:VNCLauncher",
+      "target": "mod:launcher.launcher",
+      "type": "implements",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:VNCLauncher",
+      "target": "ext:vnc",
+      "type": "calls",
+      "metadata": {
+        "port": 5900,
+        "library": "github.com/amitbet/vnc2video"
+      },
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:launcher.vnc",
       "target": "service:VNCLauncher",
       "type": "contains",
@@ -4398,6 +5019,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:launcher.vnc",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4428,6 +5057,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:recording.recorder",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4551,6 +5188,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:session.managed",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:session.portforward",
       "target": "service:ActiveForward",
       "type": "contains",
@@ -4583,6 +5228,14 @@
       },
       "manual": false,
       "confidence": 0.8
+    },
+    {
+      "source": "mod:session.portforward",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
     },
     {
       "source": "service:SSHSession",
@@ -4651,6 +5304,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:session.ssh",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:session.ssh_auth",
       "target": "mod:session.ssh",
       "type": "calls",
@@ -4665,6 +5326,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:session.ssh_auth",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:session.telnet",
       "target": "service:TelnetSession",
       "type": "contains",
@@ -4672,6 +5341,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:session.telnet",
+      "target": "domain:networking",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4705,6 +5382,44 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:store.migrate",
+      "target": "domain:storage",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:SQLiteStore",
+      "target": "mod:store.store",
+      "type": "implements",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:SQLiteStore",
+      "target": "table:connections",
+      "type": "contains",
+      "metadata": {
+        "columns": 21,
+        "has_fts": true
+      },
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:SQLiteStore",
+      "target": "table:connections_fts",
+      "type": "contains",
+      "metadata": {
+        "type": "FTS5 virtual table",
+        "content_table": "connections"
+      },
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:store.sqlite",
       "target": "service:SQLiteStore",
       "type": "contains",
@@ -4729,6 +5444,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:store.sqlite",
+      "target": "domain:storage",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:store.store",
       "target": "service:ErrNotFound",
       "type": "contains",
@@ -4736,6 +5459,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:store.store",
+      "target": "domain:storage",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4753,6 +5484,14 @@
       "confidence": 0.8
     },
     {
+      "source": "service:YAMLStore",
+      "target": "mod:store.store",
+      "type": "implements",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:store.yaml",
       "target": "service:YAMLStore",
       "type": "contains",
@@ -4760,6 +5499,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:store.yaml",
+      "target": "domain:storage",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4811,6 +5558,30 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:template.template",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:OSC52Clipboard",
+      "target": "mod:termcap.clipboard",
+      "type": "implements",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:SystemClipboard",
+      "target": "mod:termcap.clipboard",
+      "type": "implements",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:termcap.clipboard",
       "target": "service:OSC52Clipboard",
       "type": "contains",
@@ -4828,6 +5599,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:termcap.clipboard",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4871,6 +5650,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:termcap.probe",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:termcap.termcap",
       "target": "service:Capabilities",
       "type": "contains",
@@ -4881,6 +5668,22 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:termcap.termcap",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:theme.styles",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:theme.theme",
       "target": "service:Theme",
       "type": "contains",
@@ -4888,6 +5691,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:theme.theme",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -4908,6 +5719,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.animation",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -5113,6 +5932,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:tui.app",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:tui.bracket",
       "target": "service:BracketNav",
       "type": "contains",
@@ -5120,6 +5947,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.bracket",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -5165,6 +6000,14 @@
       },
       "manual": false,
       "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.bulk",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
     },
     {
       "source": "service:CommandMsg",
@@ -5357,6 +6200,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.command",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "service:ConfirmResultMsg",
       "target": "mod:tui.list",
       "type": "calls",
@@ -5433,6 +6284,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.confirm",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:tui.detail",
       "target": "service:detailModel",
       "type": "contains",
@@ -5440,6 +6299,22 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.detail",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.favorites",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -5474,6 +6349,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.filter",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -5522,6 +6405,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.finder",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -5639,6 +6530,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.form",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "service:headerModel",
       "target": "mod:theme.theme",
       "type": "calls",
@@ -5673,6 +6572,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.header",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:tui.help",
       "target": "service:helpModel",
       "type": "contains",
@@ -5693,6 +6600,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.help",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:tui.keys",
       "target": "service:KeyMap",
       "type": "contains",
@@ -5700,6 +6615,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.keys",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -5977,6 +6900,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.leader",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "service:listModel",
       "target": "mod:tui.table",
       "type": "calls",
@@ -6025,6 +6956,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:tui.list",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:tui.log",
       "target": "service:logEntry",
       "type": "contains",
@@ -6045,6 +6984,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.log",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:tui.mode",
       "target": "service:ModeChangedMsg",
       "type": "contains",
@@ -6052,6 +6999,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.mode",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -6117,6 +7072,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.motion",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:tui.notify",
       "target": "service:StateChange",
       "type": "contains",
@@ -6134,6 +7097,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.notify",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -6207,6 +7178,14 @@
       },
       "manual": false,
       "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.pane_render",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
     },
     {
       "source": "service:PaneLayoutModel",
@@ -6347,6 +7326,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.panes",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "service:PulseModel",
       "target": "mod:theme.theme",
       "type": "calls",
@@ -6421,6 +7408,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.pulse",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "service:QuickConnect",
       "target": "mod:gui.input",
       "type": "calls",
@@ -6466,6 +7461,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.quickconnect",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -6517,6 +7520,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.search",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:tui.sessions",
       "target": "service:SessionDetachedMsg",
       "type": "contains",
@@ -6547,6 +7558,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.sessions",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "service:sessionsViewModel",
       "target": "mod:tui.table",
       "type": "calls",
@@ -6568,6 +7587,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.sessions_view",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -6653,6 +7680,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:tui.statusbar",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:tui.styles",
       "target": "mod:theme.theme",
       "type": "calls",
@@ -6665,6 +7700,14 @@
       },
       "manual": false,
       "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.styles",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
     },
     {
       "source": "service:tableModel",
@@ -6708,6 +7751,14 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.table",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -6755,6 +7806,14 @@
       "confidence": 0.8
     },
     {
+      "source": "mod:tui.tags",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:tui.undo",
       "target": "service:Operation",
       "type": "contains",
@@ -6775,6 +7834,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:tui.undo",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:tui.visual",
       "target": "service:SelectionSet",
       "type": "contains",
@@ -6782,6 +7849,30 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.visual",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.whichkey",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:InternalVault",
+      "target": "mod:vault.vault",
+      "type": "implements",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -6825,6 +7916,22 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:vault.internal",
+      "target": "domain:storage",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:KeyringVault",
+      "target": "mod:vault.vault",
+      "type": "implements",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:vault.keyring",
       "target": "service:KeyringVault",
       "type": "contains",
@@ -6832,6 +7939,22 @@
         "inferred": true
       },
       "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:vault.keyring",
+      "target": "domain:storage",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "service:PassVault",
+      "target": "mod:vault.vault",
+      "type": "implements",
+      "metadata": {},
+      "manual": true,
       "confidence": 1.0
     },
     {
@@ -6845,6 +7968,14 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:vault.pass",
+      "target": "domain:storage",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
       "source": "mod:vault.vault",
       "target": "service:CredentialEntry",
       "type": "contains",
@@ -6853,10 +7984,18 @@
       },
       "manual": false,
       "confidence": 1.0
+    },
+    {
+      "source": "mod:vault.vault",
+      "target": "domain:storage",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
     }
   ],
   "project_path": "/mnt/jon/projects/Nexus",
-  "last_scan": "2026-02-19T02:34:59.384998+00:00",
+  "last_scan": "2026-02-19T03:07:31.516985+00:00",
   "schema_version": "1.0",
   "_token_estimate": 0,
   "_retrieval_strategy": "",
@@ -7951,6 +9090,58 @@
     ],
     "mod:vault.vault": [
       -1.0,
+      1.0
+    ],
+    "table:connections": [
+      -0.875,
+      1.0
+    ],
+    "table:connections_fts": [
+      -0.75,
+      1.0
+    ],
+    "ext:ssh": [
+      -0.625,
+      1.0
+    ],
+    "ext:rdp": [
+      -0.5,
+      1.0
+    ],
+    "ext:vnc": [
+      -0.375,
+      1.0
+    ],
+    "ext:telnet": [
+      -0.25,
+      1.0
+    ],
+    "contract:unix-socket-ipc": [
+      -0.125,
+      1.0
+    ],
+    "domain:tui": [
+      0.0,
+      1.0
+    ],
+    "domain:gui": [
+      0.125,
+      1.0
+    ],
+    "domain:networking": [
+      0.25,
+      1.0
+    ],
+    "domain:storage": [
+      0.375,
+      1.0
+    ],
+    "domain:ipc": [
+      0.5,
+      1.0
+    ],
+    "domain:core": [
+      0.625,
       1.0
     ]
   }
