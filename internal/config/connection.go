@@ -195,8 +195,9 @@ type Connection struct {
 	Group        string        `yaml:"group,omitempty"`
 	Tags         []string      `yaml:"tags,omitempty"`
 	RDPOptions   RDPOptions    `yaml:"rdp_options,omitempty"`
-	VNCPassword  string        `yaml:"vnc_password,omitempty"`
-	Hooks        hooks.Hooks   `yaml:"hooks,omitempty"` // lifecycle hooks (pre/post connect/disconnect)
+	VNCPassword       string      `yaml:"vnc_password,omitempty"`
+	CredentialProfile string      `yaml:"credential_profile,omitempty"`
+	Hooks             hooks.Hooks `yaml:"hooks,omitempty"` // lifecycle hooks (pre/post connect/disconnect)
 
 	// Favorites & usage tracking
 	Favorite        bool       `yaml:"favorite,omitempty"`

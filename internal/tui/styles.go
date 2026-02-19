@@ -85,9 +85,11 @@ var (
 
 // Detail view styles
 var (
-	DetailLabelStyle = theme.DetailLabelStyle()
-	DetailValueStyle = theme.DetailValueStyle()
-	DetailTitleStyle = theme.DetailTitleStyle()
+	DetailLabelStyle      = theme.DetailLabelStyle()
+	DetailValueStyle      = theme.DetailValueStyle()
+	DetailTitleStyle      = theme.DetailTitleStyle()
+	DetailProvenanceStyle = lipgloss.NewStyle().Foreground(theme.Current().Subtle).Italic(true)
+	DetailWarnStyle       = lipgloss.NewStyle().Foreground(theme.Current().Warning).Bold(true)
 )
 
 // Confirm dialog styles

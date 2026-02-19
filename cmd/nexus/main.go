@@ -12,6 +12,7 @@ import (
 	"github.com/dr4zz/nexus/internal/termcap"
 	"github.com/dr4zz/nexus/internal/theme"
 	"github.com/dr4zz/nexus/internal/tui"
+	"github.com/dr4zz/nexus/internal/vault"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
@@ -31,9 +32,16 @@ func main() {
 		}
 	}
 
-	if err := handleMasterPassword(cfg); err != nil {
+	masterPassword, err := handleMasterPassword(cfg)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
+	}
+
+	v, err := vault.Open(vault.Backend(cfg.Settings.Vault), string(masterPassword))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not open credential vault: %v\n", err)
+		v = nil
 	}
 
 	// Detect terminal capabilities
@@ -61,7 +69,7 @@ func main() {
 	}
 
 	p := tea.NewProgram(
-		tui.NewApp(cfg),
+		tui.NewApp(cfg, v),
 		opts...,
 	)
 
@@ -158,42 +166,42 @@ func firstLaunchSetup(cfg *config.Config) error {
 	return nil
 }
 
-func handleMasterPassword(cfg *config.Config) error {
+func handleMasterPassword(cfg *config.Config) ([]byte, error) {
 	// If a master password was configured, always prompt for it
 	if cfg.HasMasterPassword() {
 		// Allow env var for scripting/testing (exposes password in /proc — testing only)
 		if envPw := os.Getenv("MASTER_PASSWORD"); envPw != "" {
 			if err := cfg.VerifyMasterPassword([]byte(envPw)); err != nil {
-				return err
+				return nil, err
 			}
 			cfg.SetKey([]byte(envPw))
 			if err := cfg.DecryptPasswords(); err != nil {
-				return fmt.Errorf("decryption failed: %w", err)
+				return nil, fmt.Errorf("decryption failed: %w", err)
 			}
-			return nil
+			return []byte(envPw), nil
 		}
 
 		fmt.Print("Master password: ")
 		pw, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
 		if err != nil {
-			return fmt.Errorf("reading password: %w", err)
+			return nil, fmt.Errorf("reading password: %w", err)
 		}
 
 		if err := cfg.VerifyMasterPassword(pw); err != nil {
-			return err
+			return nil, err
 		}
 
 		cfg.SetKey(pw)
 		if err := cfg.DecryptPasswords(); err != nil {
-			return fmt.Errorf("decryption failed: %w", err)
+			return nil, fmt.Errorf("decryption failed: %w", err)
 		}
-		return nil
+		return pw, nil
 	}
 
 	// Legacy path: no password_verify but has passwords in config
 	if !cfg.HasAnyPasswords() {
-		return nil
+		return nil, nil
 	}
 
 	hasEncrypted := cfg.HasEncryptedPasswords()
@@ -207,7 +215,7 @@ func handleMasterPassword(cfg *config.Config) error {
 		pw, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
 		if err != nil {
-			return fmt.Errorf("reading password: %w", err)
+			return nil, fmt.Errorf("reading password: %w", err)
 		}
 		password = pw
 	} else if hasPlaintext {
@@ -216,27 +224,27 @@ func handleMasterPassword(cfg *config.Config) error {
 		pw1, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
 		if err != nil {
-			return fmt.Errorf("reading password: %w", err)
+			return nil, fmt.Errorf("reading password: %w", err)
 		}
 
 		fmt.Print("Confirm: ")
 		pw2, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
 		if err != nil {
-			return fmt.Errorf("reading password: %w", err)
+			return nil, fmt.Errorf("reading password: %w", err)
 		}
 
 		if !bytes.Equal(pw1, pw2) {
-			return fmt.Errorf("passwords do not match")
+			return nil, fmt.Errorf("passwords do not match")
 		}
 
 		if len(pw1) == 0 {
-			return fmt.Errorf("password cannot be empty")
+			return nil, fmt.Errorf("password cannot be empty")
 		}
 
 		password = pw1
 	} else {
-		return nil
+		return nil, nil
 	}
 
 	// Store raw password as key — Encrypt/Decrypt handle per-password key derivation
@@ -244,22 +252,22 @@ func handleMasterPassword(cfg *config.Config) error {
 
 	// Decrypt all passwords in memory
 	if err := cfg.DecryptPasswords(); err != nil {
-		return fmt.Errorf("decryption failed (wrong password?): %w", err)
+		return nil, fmt.Errorf("decryption failed (wrong password?): %w", err)
 	}
 
 	// If migrating from plaintext, save immediately to encrypt on disk
 	if hasPlaintext && !hasEncrypted {
 		// Also set up password verify sentinel for future launches
 		if err := cfg.SetPasswordVerify(password); err != nil {
-			return fmt.Errorf("setting password verify: %w", err)
+			return nil, fmt.Errorf("setting password verify: %w", err)
 		}
 		if err := config.Save(cfg); err != nil {
-			return fmt.Errorf("saving encrypted config: %w", err)
+			return nil, fmt.Errorf("saving encrypted config: %w", err)
 		}
 		fmt.Println("Passwords encrypted successfully.")
 	}
 
-	return nil
+	return password, nil
 }
 
 // readLine reads a single line from stdin (for y/n prompts).

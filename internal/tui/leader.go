@@ -259,10 +259,16 @@ func leaderGroups() []LeaderGroup {
 		},
 		{
 			Key:   "p",
-			Label: "Password",
+			Label: "Profiles",
 			Items: []LeaderItem{
-				{Key: "s", Label: "Show password", Action: "show-password"},
-				{Key: "c", Label: "Copy password", Action: "copy-password"},
+				{Key: "l", Label: "List profiles", Action: "profile-list"},
+				{Key: "c", Label: "Create profile", Action: "profile-create"},
+				{Key: "e", Label: "Edit profile", Action: "profile-edit"},
+				{Key: "d", Label: "Delete profile", Action: "profile-delete"},
+				{Key: "a", Label: "Assign to session", Action: "profile-assign"},
+				{Key: "s", Label: "Save from session", Action: "profile-save-from"},
+				{Key: "r", Label: "Remove from session", Action: "profile-remove"},
+				{Key: "w", Label: "Who uses profile", Action: "profile-who"},
 			},
 		},
 		{
@@ -271,6 +277,7 @@ func leaderGroups() []LeaderGroup {
 			Items: []LeaderItem{
 				{Key: "n", Label: "Set note", Action: "set-note"},
 				{Key: "f", Label: "Manage fields", Action: "manage-fields"},
+				{Key: "p", Label: "Copy password", Action: "copy-password"},
 			},
 		},
 		{

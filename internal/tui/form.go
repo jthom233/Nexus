@@ -59,20 +59,24 @@ type formModel struct {
 	editID string
 	groups []string
 
+	// Credential profile
+	credentialProfile string
+	profiles          []string
+
 	// Template support
 	templateStore  *template.TemplateStore
 	templateChoice string
 }
 
-func newForm(groups []string, tplStore *template.TemplateStore) formModel {
-	return formModel{groups: groups, templateStore: tplStore}
+func newForm(groups []string, tplStore *template.TemplateStore, profiles []string) formModel {
+	return formModel{groups: groups, templateStore: tplStore, profiles: profiles}
 }
 
-func newFormPtr(groups []string, tplStore *template.TemplateStore) *formModel {
-	return &formModel{groups: groups, templateStore: tplStore}
+func newFormPtr(groups []string, tplStore *template.TemplateStore, profiles []string) *formModel {
+	return &formModel{groups: groups, templateStore: tplStore, profiles: profiles}
 }
 
-func (f *formModel) startAdd(groups []string) {
+func (f *formModel) startAdd(groups []string, profiles []string) {
 	f.isEdit = false
 	f.editID = ""
 	f.name = ""
@@ -99,12 +103,14 @@ func (f *formModel) startAdd(groups []string) {
 	f.hookPostDisconnect = ""
 	f.hookOnFailure = "warn"
 	f.groups = groups
+	f.profiles = profiles
+	f.credentialProfile = ""
 	f.templateChoice = ""
 	f.buildForm()
 	f.active = true
 }
 
-func (f *formModel) startEdit(conn config.Connection, groups []string) {
+func (f *formModel) startEdit(conn config.Connection, groups []string, profiles []string) {
 	f.isEdit = true
 	f.editID = conn.ID
 	f.name = conn.Name
@@ -133,6 +139,8 @@ func (f *formModel) startEdit(conn config.Connection, groups []string) {
 		f.security = "auto"
 	}
 	f.groups = groups
+	f.profiles = profiles
+	f.credentialProfile = conn.CredentialProfile
 
 	// Load hooks from connection
 	f.hookPreConnect = hookCommandsToString(conn.Hooks.PreConnect)
@@ -239,6 +247,17 @@ func (f *formModel) buildForm() {
 		),
 		// Credentials (shown for all protocols)
 		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Credential Profile").
+				Description("Select a saved credential profile, or fill in credentials below").
+				Options(func() []huh.Option[string] {
+					opts := []huh.Option[string]{huh.NewOption("(none)", "")}
+					for _, p := range f.profiles {
+						opts = append(opts, huh.NewOption(p, p))
+					}
+					return opts
+				}()...).
+				Value(&f.credentialProfile),
 			huh.NewInput().
 				Title("Username").
 				Value(&f.username),
@@ -399,20 +418,21 @@ func (f *formModel) toConnection() config.Connection {
 	}
 
 	conn := config.Connection{
-		ID:           id,
-		Name:         strings.TrimSpace(f.name),
-		Protocol:     config.Protocol(f.protocol),
-		Host:         strings.TrimSpace(f.host),
-		Port:         port,
-		Username:     strings.TrimSpace(f.username),
-		Password:     f.password,
-		IdentityFile: strings.TrimSpace(f.identityFile),
-		ProxyJump:    strings.TrimSpace(f.proxyJump),
-		ProxyCommand: strings.TrimSpace(f.proxyCommand),
-		PortForwards: portForwards,
-		Group:        f.group,
-		Tags:         tags,
-		Hooks:        f.buildHooks(),
+		ID:                id,
+		Name:              strings.TrimSpace(f.name),
+		Protocol:          config.Protocol(f.protocol),
+		Host:              strings.TrimSpace(f.host),
+		Port:              port,
+		Username:          strings.TrimSpace(f.username),
+		Password:          f.password,
+		IdentityFile:      strings.TrimSpace(f.identityFile),
+		ProxyJump:         strings.TrimSpace(f.proxyJump),
+		ProxyCommand:      strings.TrimSpace(f.proxyCommand),
+		PortForwards:      portForwards,
+		Group:             f.group,
+		Tags:              tags,
+		Hooks:             f.buildHooks(),
+		CredentialProfile: f.credentialProfile,
 	}
 
 	switch f.protocol {

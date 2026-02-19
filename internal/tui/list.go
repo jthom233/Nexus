@@ -26,15 +26,16 @@ type connStatus struct {
 }
 
 type listModel struct {
-	cfg         *config.Config
-	table       tableModel
-	statuses    map[string]connStatus
-	filtered    []config.Connection
-	groupFilter string
-	viewMode    listViewMode
-	width       int
-	height      int
-	ready       bool
+	cfg           *config.Config
+	table         tableModel
+	statuses      map[string]connStatus
+	filtered      []config.Connection
+	groupFilter   string
+	viewMode      listViewMode
+	width         int
+	height        int
+	ready         bool
+	groupProfiles map[string]string // group name -> profile name (for wide mode display)
 }
 
 func newList(cfg *config.Config) listModel {
@@ -74,6 +75,7 @@ func wideColumns() []Column {
 		{Title: "USERNAME", MinWidth: 8, Flex: 10, SortKey: "username", Align: 0},
 		{Title: "TAGS", MinWidth: 8, Flex: 15, SortKey: "tags", Align: 0},
 		{Title: "IDENTITY", MinWidth: 8, Flex: 10, SortKey: "identity", Align: 0},
+		{Title: "PROFILE", MinWidth: 8, Flex: 10, SortKey: "profile", Align: 0},
 	}
 }
 
@@ -265,6 +267,16 @@ func (l *listModel) buildRows() []Row {
 		}
 
 		if l.table.wideMode {
+			// Compute profile display: direct assignment or group-inherited (marked with *).
+			profileDisplay := c.CredentialProfile
+			if profileDisplay == "" && c.Group != "" {
+				if gp, ok := l.groupProfiles[c.Group]; ok && gp != "" {
+					profileDisplay = gp + "*"
+				}
+			}
+			if profileDisplay == "" {
+				profileDisplay = "-"
+			}
 			rows[i] = Row{
 				Cells: []string{
 					indicator,
@@ -278,6 +290,7 @@ func (l *listModel) buildRows() []Row {
 					c.Username,
 					strings.Join(c.Tags, ","),
 					c.IdentityFile,
+					profileDisplay,
 				},
 				ID:     c.ID,
 				Status: statusStr,
