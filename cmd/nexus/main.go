@@ -25,17 +25,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	var masterPassword []byte
 	if isNew {
-		if err := firstLaunchSetup(cfg); err != nil {
+		masterPassword, err = firstLaunchSetup(cfg)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	}
 
-	masterPassword, err := handleMasterPassword(cfg)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+	if masterPassword == nil {
+		masterPassword, err = handleMasterPassword(cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	v, err := vault.Open(vault.Backend(cfg.Settings.Vault), string(masterPassword))
@@ -83,7 +87,7 @@ func main() {
 	}
 }
 
-func firstLaunchSetup(cfg *config.Config) error {
+func firstLaunchSetup(cfg *config.Config) ([]byte, error) {
 	fmt.Println()
 	fmt.Println("  Welcome to Nexus — Terminal Connection Manager")
 	fmt.Println()
@@ -118,12 +122,13 @@ func firstLaunchSetup(cfg *config.Config) error {
 	fmt.Println("  Press Enter to skip (you can set one later).")
 	fmt.Println()
 
+	var masterPassword []byte
 	for {
 		fmt.Print("  Master password: ")
 		pw1, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
 		if err != nil {
-			return fmt.Errorf("reading password: %w", err)
+			return nil, fmt.Errorf("reading password: %w", err)
 		}
 
 		if len(pw1) == 0 {
@@ -135,7 +140,7 @@ func firstLaunchSetup(cfg *config.Config) error {
 		pw2, err := term.ReadPassword(int(os.Stdin.Fd()))
 		fmt.Println()
 		if err != nil {
-			return fmt.Errorf("reading password: %w", err)
+			return nil, fmt.Errorf("reading password: %w", err)
 		}
 
 		if !bytes.Equal(pw1, pw2) {
@@ -146,16 +151,17 @@ func firstLaunchSetup(cfg *config.Config) error {
 
 		cfg.SetKey(pw1)
 		if err := cfg.SetPasswordVerify(pw1); err != nil {
-			return err
+			return nil, err
 		}
 
 		fmt.Println("  Master password set.")
+		masterPassword = pw1
 		break
 	}
 
 	// Save the config to disk
 	if err := config.Save(cfg); err != nil {
-		return fmt.Errorf("saving config: %w", err)
+		return nil, fmt.Errorf("saving config: %w", err)
 	}
 
 	fmt.Println()
@@ -163,7 +169,7 @@ func firstLaunchSetup(cfg *config.Config) error {
 	fmt.Println("  Edit it to customize, or use :add/:edit within the app.")
 	fmt.Println()
 
-	return nil
+	return masterPassword, nil
 }
 
 func handleMasterPassword(cfg *config.Config) ([]byte, error) {
