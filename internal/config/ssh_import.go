@@ -45,6 +45,9 @@ func ImportSSHConfig() ([]Connection, error) {
 				continue
 			}
 			if current != nil {
+				if current.Host == "" {
+					current.Host = current.Name // alias IS the hostname
+				}
 				connections = append(connections, *current)
 			}
 			current = &Connection{
@@ -82,7 +85,10 @@ func ImportSSHConfig() ([]Connection, error) {
 		}
 	}
 
-	if current != nil && current.Host != "" {
+	if current != nil {
+		if current.Host == "" {
+			current.Host = current.Name
+		}
 		connections = append(connections, *current)
 	}
 

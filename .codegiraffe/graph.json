@@ -1,17 +1,5 @@
 {
   "nodes": {
-    "mod:nexus.main": {
-      "id": "mod:nexus.main",
-      "type": "module",
-      "label": "main",
-      "metadata": {
-        "package": "nexus",
-        "source": "production",
-        "language": "go"
-      },
-      "file_path": "cmd/nexus/main.go",
-      "manual": false
-    },
     "mod:nexus-gui.main": {
       "id": "mod:nexus-gui.main",
       "type": "module",
@@ -19,7 +7,10 @@
       "metadata": {
         "package": "nexus-gui",
         "source": "production",
-        "language": "go"
+        "language": "go",
+        "_relevance_score": 0,
+        "_blast_radius_count": 143,
+        "_risk_score": 0.1253
       },
       "file_path": "cmd/nexus-gui/main.go",
       "manual": false
@@ -66,64 +57,15 @@
       "file_path": "internal/audit/audit.go",
       "manual": false
     },
-    "service:Settings": {
-      "id": "service:Settings",
-      "type": "service",
-      "label": "Settings",
-      "metadata": {
-        "struct_name": "Settings"
-      },
-      "file_path": "internal/config/config.go",
-      "manual": false
-    },
-    "service:ConfigTemplate": {
-      "id": "service:ConfigTemplate",
-      "type": "service",
-      "label": "ConfigTemplate",
-      "metadata": {
-        "struct_name": "ConfigTemplate"
-      },
-      "file_path": "internal/config/config.go",
-      "manual": false
-    },
-    "service:Config": {
-      "id": "service:Config",
-      "type": "service",
-      "label": "Config",
-      "metadata": {
-        "struct_name": "Config"
-      },
-      "file_path": "internal/config/config.go",
-      "manual": false
-    },
-    "env:XDG_CONFIG_HOME": {
-      "id": "env:XDG_CONFIG_HOME",
-      "type": "env_var",
-      "label": "XDG_CONFIG_HOME",
-      "metadata": {
-        "variable": "XDG_CONFIG_HOME"
-      },
-      "file_path": "internal/config/config.go",
-      "manual": false
-    },
-    "mod:config.config": {
-      "id": "mod:config.config",
-      "type": "module",
-      "label": "config",
-      "metadata": {
-        "package": "config",
-        "source": "production",
-        "language": "go"
-      },
-      "file_path": "internal/config/config.go",
-      "manual": false
-    },
     "service:PortForward": {
       "id": "service:PortForward",
       "type": "service",
       "label": "PortForward",
       "metadata": {
-        "struct_name": "PortForward"
+        "struct_name": "PortForward",
+        "_relevance_score": 2,
+        "_blast_radius_count": 0,
+        "_risk_score": 0.0014
       },
       "file_path": "internal/config/connection.go",
       "manual": false
@@ -133,7 +75,10 @@
       "type": "service",
       "label": "RDPOptions",
       "metadata": {
-        "struct_name": "RDPOptions"
+        "struct_name": "RDPOptions",
+        "_relevance_score": 2,
+        "_blast_radius_count": 0,
+        "_risk_score": 0.0014
       },
       "file_path": "internal/config/connection.go",
       "manual": false
@@ -143,7 +88,10 @@
       "type": "service",
       "label": "Connection",
       "metadata": {
-        "struct_name": "Connection"
+        "struct_name": "Connection",
+        "_relevance_score": 2,
+        "_blast_radius_count": 0,
+        "_risk_score": 0.0014
       },
       "file_path": "internal/config/connection.go",
       "manual": false
@@ -153,7 +101,10 @@
       "type": "service",
       "label": "Group",
       "metadata": {
-        "struct_name": "Group"
+        "struct_name": "Group",
+        "_relevance_score": 2,
+        "_blast_radius_count": 0,
+        "_risk_score": 0.0014
       },
       "file_path": "internal/config/connection.go",
       "manual": false
@@ -165,21 +116,12 @@
       "metadata": {
         "package": "config",
         "source": "production",
-        "language": "go"
+        "language": "go",
+        "_relevance_score": 2,
+        "_blast_radius_count": 5,
+        "_risk_score": 0.0105
       },
       "file_path": "internal/config/connection.go",
-      "manual": false
-    },
-    "mod:config.ssh_import": {
-      "id": "mod:config.ssh_import",
-      "type": "module",
-      "label": "ssh_import",
-      "metadata": {
-        "package": "config",
-        "source": "production",
-        "language": "go"
-      },
-      "file_path": "internal/config/ssh_import.go",
       "manual": false
     },
     "mod:crypto.crypto": {
@@ -209,7 +151,10 @@
       "type": "service",
       "label": "App",
       "metadata": {
-        "struct_name": "App"
+        "struct_name": "App",
+        "_relevance_score": 0,
+        "_blast_radius_count": 112,
+        "_risk_score": 0.1211
       },
       "file_path": "internal/gui/app.go",
       "manual": false
@@ -763,7 +708,10 @@
       "metadata": {
         "package": "importexport",
         "source": "production",
-        "language": "go"
+        "language": "go",
+        "_relevance_score": 0,
+        "_blast_radius_count": 15,
+        "_risk_score": 0.0205
       },
       "file_path": "internal/importexport/import.go",
       "manual": false
@@ -1353,7 +1301,10 @@
       "metadata": {
         "package": "store",
         "source": "production",
-        "language": "go"
+        "language": "go",
+        "_relevance_score": 0,
+        "_blast_radius_count": 14,
+        "_risk_score": 0.014
       },
       "file_path": "internal/store/sqlite.go",
       "manual": false
@@ -1397,7 +1348,10 @@
       "metadata": {
         "package": "store",
         "source": "production",
-        "language": "go"
+        "language": "go",
+        "_relevance_score": 0,
+        "_blast_radius_count": 4,
+        "_risk_score": 0.0104
       },
       "file_path": "internal/store/yaml.go",
       "manual": false
@@ -1429,7 +1383,10 @@
       "metadata": {
         "package": "template",
         "source": "production",
-        "language": "go"
+        "language": "go",
+        "_relevance_score": 0,
+        "_blast_radius_count": 14,
+        "_risk_score": 0.0168
       },
       "file_path": "internal/template/template.go",
       "manual": false
@@ -1623,7 +1580,10 @@
       "metadata": {
         "package": "tui",
         "source": "production",
-        "language": "go"
+        "language": "go",
+        "_relevance_score": 0,
+        "_blast_radius_count": 123,
+        "_risk_score": 0.1163
       },
       "file_path": "internal/tui/app.go",
       "manual": false
@@ -1697,7 +1657,10 @@
       "type": "service",
       "label": "CommandMsg",
       "metadata": {
-        "struct_name": "CommandMsg"
+        "struct_name": "CommandMsg",
+        "_relevance_score": 1,
+        "_blast_radius_count": 60,
+        "_risk_score": 0.0549
       },
       "file_path": "internal/tui/command.go",
       "manual": false
@@ -1739,7 +1702,7 @@
       "metadata": {
         "variable": "HOME"
       },
-      "file_path": "internal/tui/command.go",
+      "file_path": "internal/config/config_test.go",
       "manual": false
     },
     "mod:tui.command": {
@@ -1749,7 +1712,10 @@
       "metadata": {
         "package": "tui",
         "source": "production",
-        "language": "go"
+        "language": "go",
+        "_relevance_score": 1,
+        "_blast_radius_count": 68,
+        "_risk_score": 0.0592
       },
       "file_path": "internal/tui/command.go",
       "manual": false
@@ -1759,7 +1725,10 @@
       "type": "service",
       "label": "ConfirmResultMsg",
       "metadata": {
-        "struct_name": "ConfirmResultMsg"
+        "struct_name": "ConfirmResultMsg",
+        "_relevance_score": 0,
+        "_blast_radius_count": 25,
+        "_risk_score": 0.0234
       },
       "file_path": "internal/tui/confirm.go",
       "manual": false
@@ -2839,7 +2808,10 @@
       "metadata": {
         "package": "vault",
         "source": "production",
-        "language": "go"
+        "language": "go",
+        "_relevance_score": 0,
+        "_blast_radius_count": 7,
+        "_risk_score": 0.0119
       },
       "file_path": "internal/vault/internal.go",
       "manual": false
@@ -3050,121 +3022,114 @@
       "label": "core",
       "metadata": {
         "domain_name": "core",
-        "member_count": 15
+        "member_count": 15,
+        "_relevance_score": 0,
+        "_blast_radius_count": 0,
+        "_risk_score": 0.0211
       },
       "file_path": null,
       "manual": true
+    },
+    "service:Settings": {
+      "id": "service:Settings",
+      "type": "service",
+      "label": "Settings",
+      "metadata": {
+        "struct_name": "Settings"
+      },
+      "file_path": "internal/config/config.go",
+      "manual": false
+    },
+    "service:ConfigTemplate": {
+      "id": "service:ConfigTemplate",
+      "type": "service",
+      "label": "ConfigTemplate",
+      "metadata": {
+        "struct_name": "ConfigTemplate"
+      },
+      "file_path": "internal/config/config.go",
+      "manual": false
+    },
+    "service:Config": {
+      "id": "service:Config",
+      "type": "service",
+      "label": "Config",
+      "metadata": {
+        "struct_name": "Config"
+      },
+      "file_path": "internal/config/config.go",
+      "manual": false
+    },
+    "env:XDG_CONFIG_HOME": {
+      "id": "env:XDG_CONFIG_HOME",
+      "type": "env_var",
+      "label": "XDG_CONFIG_HOME",
+      "metadata": {
+        "variable": "XDG_CONFIG_HOME"
+      },
+      "file_path": "internal/config/config.go",
+      "manual": false
+    },
+    "mod:config.config": {
+      "id": "mod:config.config",
+      "type": "module",
+      "label": "config",
+      "metadata": {
+        "package": "config",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/config/config.go",
+      "manual": false
+    },
+    "env:MASTER_PASSWORD": {
+      "id": "env:MASTER_PASSWORD",
+      "type": "env_var",
+      "label": "MASTER_PASSWORD",
+      "metadata": {
+        "variable": "MASTER_PASSWORD"
+      },
+      "file_path": "cmd/nexus/main.go",
+      "manual": false
+    },
+    "mod:nexus.main": {
+      "id": "mod:nexus.main",
+      "type": "module",
+      "label": "main",
+      "metadata": {
+        "package": "nexus",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "cmd/nexus/main.go",
+      "manual": false
+    },
+    "mod:config.ssh_import": {
+      "id": "mod:config.ssh_import",
+      "type": "module",
+      "label": "ssh_import",
+      "metadata": {
+        "package": "config",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/config/ssh_import.go",
+      "manual": false
+    },
+    "mod:config.config_test": {
+      "id": "mod:config.config_test",
+      "type": "module",
+      "label": "config_test",
+      "metadata": {
+        "package": "config",
+        "source": "production",
+        "language": "go"
+      },
+      "file_path": "internal/config/config_test.go",
+      "manual": false
     }
   },
   "edges": [
-    {
-      "source": "mod:nexus.main",
-      "target": "mod:config.config",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "handleMasterPassword",
-        "callee": "Save",
-        "receiver": "config",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
-    {
-      "source": "mod:nexus.main",
-      "target": "contract:unix-socket-ipc",
-      "type": "produces",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:nexus.main",
-      "target": "service:OpenTabCmd",
-      "type": "produces",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:nexus.main",
-      "target": "service:CloseTabCmd",
-      "type": "produces",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:nexus.main",
-      "target": "service:FocusTabCmd",
-      "type": "produces",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:nexus.main",
-      "target": "service:TabOpenedEvent",
-      "type": "consumes_contract",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:nexus.main",
-      "target": "service:TabClosedEvent",
-      "type": "consumes_contract",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:nexus.main",
-      "target": "service:TabErrorEvent",
-      "type": "consumes_contract",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:nexus.main",
-      "target": "service:GUIReadyEvent",
-      "type": "consumes_contract",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:nexus.main",
-      "target": "service:LogLineEvent",
-      "type": "consumes_contract",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:nexus.main",
-      "target": "domain:tui",
-      "type": "belongs_to",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:nexus-gui.main",
-      "target": "mod:config.config",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "main",
-        "callee": "Load",
-        "receiver": "config",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
     {
       "source": "mod:nexus-gui.main",
       "target": "mod:termcap.termcap",
@@ -3174,20 +3139,6 @@
         "caller": "main",
         "callee": "Detect",
         "receiver": "termcap",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
-    {
-      "source": "mod:nexus-gui.main",
-      "target": "service:Settings",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "main",
-        "callee": "ColorProfileOverride",
-        "receiver": "Settings",
         "style": "method"
       },
       "manual": false,
@@ -3344,6 +3295,34 @@
       "confidence": 1.0
     },
     {
+      "source": "mod:nexus-gui.main",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "Load",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus-gui.main",
+      "target": "service:Settings",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "ColorProfileOverride",
+        "receiver": "Settings",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
       "source": "mod:audit.audit",
       "target": "service:AuditEvent",
       "type": "contains",
@@ -3375,68 +3354,6 @@
     },
     {
       "source": "mod:audit.audit",
-      "target": "domain:core",
-      "type": "belongs_to",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:config.config",
-      "target": "service:Settings",
-      "type": "contains",
-      "metadata": {
-        "inferred": true
-      },
-      "manual": false,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:config.config",
-      "target": "service:ConfigTemplate",
-      "type": "contains",
-      "metadata": {
-        "inferred": true
-      },
-      "manual": false,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:config.config",
-      "target": "service:Config",
-      "type": "contains",
-      "metadata": {
-        "inferred": true
-      },
-      "manual": false,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:config.config",
-      "target": "env:XDG_CONFIG_HOME",
-      "type": "contains",
-      "metadata": {
-        "inferred": true
-      },
-      "manual": false,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:config.config",
-      "target": "mod:store.yaml",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "Load",
-        "callee": "Unmarshal",
-        "receiver": "yaml",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
-    {
-      "source": "mod:config.config",
       "target": "domain:core",
       "type": "belongs_to",
       "metadata": {},
@@ -3485,14 +3402,6 @@
     },
     {
       "source": "mod:config.connection",
-      "target": "domain:core",
-      "type": "belongs_to",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:config.ssh_import",
       "target": "domain:core",
       "type": "belongs_to",
       "metadata": {},
@@ -3586,20 +3495,6 @@
         "caller": "App.Init",
         "callee": "CheckAll",
         "receiver": "checker",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
-    {
-      "source": "service:App",
-      "target": "service:Settings",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "App.Init",
-        "callee": "HealthInterval",
-        "receiver": "Settings",
         "style": "method"
       },
       "manual": false,
@@ -3817,20 +3712,6 @@
     },
     {
       "source": "service:App",
-      "target": "mod:config.config",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "App.toggleFavorite",
-        "callee": "Save",
-        "receiver": "config",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
-    {
-      "source": "service:App",
       "target": "mod:session.vterm",
       "type": "calls",
       "metadata": {
@@ -3866,6 +3747,34 @@
         "caller": "App.connectManaged",
         "callee": "SetHooks",
         "receiver": "managed",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "service:Settings",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.Init",
+        "callee": "HealthInterval",
+        "receiver": "Settings",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:App",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "App.toggleFavorite",
+        "callee": "Save",
+        "receiver": "config",
         "style": "method"
       },
       "manual": false,
@@ -4573,6 +4482,14 @@
     },
     {
       "source": "mod:importexport.import",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:importexport.import",
       "target": "mod:config.config",
       "type": "calls",
       "metadata": {
@@ -4584,14 +4501,6 @@
       },
       "manual": false,
       "confidence": 0.8
-    },
-    {
-      "source": "mod:importexport.import",
-      "target": "domain:core",
-      "type": "belongs_to",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
     },
     {
       "source": "mod:ipc.client",
@@ -5431,6 +5340,14 @@
     },
     {
       "source": "mod:store.sqlite",
+      "target": "domain:storage",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:store.sqlite",
       "target": "mod:config.config",
       "type": "calls",
       "metadata": {
@@ -5442,14 +5359,6 @@
       },
       "manual": false,
       "confidence": 0.8
-    },
-    {
-      "source": "mod:store.sqlite",
-      "target": "domain:storage",
-      "type": "belongs_to",
-      "metadata": {},
-      "manual": true,
-      "confidence": 1.0
     },
     {
       "source": "mod:store.store",
@@ -5531,20 +5440,6 @@
     },
     {
       "source": "mod:template.template",
-      "target": "mod:config.config",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "Apply",
-        "callee": "Protocol",
-        "receiver": "config",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
-    {
-      "source": "mod:template.template",
       "target": "service:Hooks",
       "type": "calls",
       "metadata": {
@@ -5564,6 +5459,20 @@
       "metadata": {},
       "manual": true,
       "confidence": 1.0
+    },
+    {
+      "source": "mod:template.template",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "Apply",
+        "callee": "Protocol",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
     },
     {
       "source": "service:OSC52Clipboard",
@@ -5751,20 +5660,6 @@
     },
     {
       "source": "mod:tui.app",
-      "target": "mod:config.config",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "NewApp",
-        "callee": "ConfigPath",
-        "receiver": "config",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
-    {
-      "source": "mod:tui.app",
       "target": "mod:audit.audit",
       "type": "calls",
       "metadata": {
@@ -5786,20 +5681,6 @@
         "caller": "NewApp",
         "callee": "NewChecker",
         "receiver": "health",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
-    {
-      "source": "mod:tui.app",
-      "target": "service:Settings",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "NewApp",
-        "callee": "HealthWorkers",
-        "receiver": "Settings",
         "style": "method"
       },
       "manual": false,
@@ -5938,6 +5819,34 @@
       "metadata": {},
       "manual": true,
       "confidence": 1.0
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "NewApp",
+        "callee": "ConfigPath",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:tui.app",
+      "target": "service:Settings",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "NewApp",
+        "callee": "HealthWorkers",
+        "receiver": "Settings",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
     },
     {
       "source": "mod:tui.bracket",
@@ -6223,20 +6132,6 @@
     },
     {
       "source": "service:ConfirmResultMsg",
-      "target": "mod:config.config",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "ConfirmResultMsg.handleConfirmResult",
-        "callee": "Save",
-        "receiver": "config",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
-    {
-      "source": "service:ConfirmResultMsg",
       "target": "mod:tui.sessions",
       "type": "calls",
       "metadata": {
@@ -6244,6 +6139,20 @@
         "caller": "ConfirmResultMsg.handleConfirmResult",
         "callee": "Get",
         "receiver": "sessions",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:ConfirmResultMsg",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "ConfirmResultMsg.handleConfirmResult",
+        "callee": "Save",
+        "receiver": "config",
         "style": "method"
       },
       "manual": false,
@@ -6445,20 +6354,6 @@
     },
     {
       "source": "service:formModel",
-      "target": "mod:config.config",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "formModel.startEdit",
-        "callee": "FormatPortForwards",
-        "receiver": "config",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
-    {
-      "source": "service:formModel",
       "target": "mod:hooks.hooks",
       "type": "calls",
       "metadata": {
@@ -6494,6 +6389,20 @@
         "caller": "formModel.Update",
         "callee": "Update",
         "receiver": "form",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:formModel",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "formModel.startEdit",
+        "callee": "FormatPortForwards",
+        "receiver": "config",
         "style": "method"
       },
       "manual": false,
@@ -6795,6 +6704,20 @@
     },
     {
       "source": "service:LeaderAction",
+      "target": "mod:tui.help",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "LeaderAction.executeLeaderAction",
+        "callee": "toggle",
+        "receiver": "help",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "service:LeaderAction",
       "target": "service:Settings",
       "type": "calls",
       "metadata": {
@@ -6816,20 +6739,6 @@
         "caller": "LeaderAction.executeLeaderAction",
         "callee": "Save",
         "receiver": "config",
-        "style": "method"
-      },
-      "manual": false,
-      "confidence": 0.8
-    },
-    {
-      "source": "service:LeaderAction",
-      "target": "mod:tui.help",
-      "type": "calls",
-      "metadata": {
-        "inferred": true,
-        "caller": "LeaderAction.executeLeaderAction",
-        "callee": "toggle",
-        "receiver": "help",
         "style": "method"
       },
       "manual": false,
@@ -7907,20 +7816,20 @@
     },
     {
       "source": "mod:vault.internal",
+      "target": "domain:storage",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:vault.internal",
       "target": "env:XDG_CONFIG_HOME",
       "type": "contains",
       "metadata": {
         "inferred": true
       },
       "manual": false,
-      "confidence": 1.0
-    },
-    {
-      "source": "mod:vault.internal",
-      "target": "domain:storage",
-      "type": "belongs_to",
-      "metadata": {},
-      "manual": true,
       "confidence": 1.0
     },
     {
@@ -7992,6 +7901,270 @@
       "metadata": {},
       "manual": true,
       "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config",
+      "target": "service:Settings",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config",
+      "target": "service:ConfigTemplate",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config",
+      "target": "service:Config",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config",
+      "target": "env:XDG_CONFIG_HOME",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config",
+      "target": "mod:store.yaml",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "Load",
+        "callee": "Unmarshal",
+        "receiver": "yaml",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "env:MASTER_PASSWORD",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "mod:config.config",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "handleMasterPassword",
+        "callee": "Save",
+        "receiver": "config",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "contract:unix-socket-ipc",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:OpenTabCmd",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:CloseTabCmd",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:FocusTabCmd",
+      "type": "produces",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:TabOpenedEvent",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:TabClosedEvent",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:TabErrorEvent",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:GUIReadyEvent",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:LogLineEvent",
+      "type": "consumes_contract",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "domain:tui",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "mod:termcap.termcap",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "Detect",
+        "receiver": "termcap",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "service:Settings",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "ColorProfileOverride",
+        "receiver": "Settings",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "mod:theme.theme",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "SetProfile",
+        "receiver": "theme",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "mod:tui.whichkey",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "NewApp",
+        "receiver": "tui",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:nexus.main",
+      "target": "mod:launcher.launcher",
+      "type": "calls",
+      "metadata": {
+        "inferred": true,
+        "caller": "main",
+        "callee": "SetProgram",
+        "receiver": "launcher",
+        "style": "method"
+      },
+      "manual": false,
+      "confidence": 0.8
+    },
+    {
+      "source": "mod:config.ssh_import",
+      "target": "domain:core",
+      "type": "belongs_to",
+      "metadata": {},
+      "manual": true,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config_test",
+      "target": "env:HOME",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
+    },
+    {
+      "source": "mod:config.config_test",
+      "target": "env:XDG_CONFIG_HOME",
+      "type": "contains",
+      "metadata": {
+        "inferred": true
+      },
+      "manual": false,
+      "confidence": 1.0
     }
   ],
   "project_path": "/mnt/jon/projects/Nexus",
@@ -7999,1150 +8172,5 @@
   "schema_version": "1.0",
   "_token_estimate": 0,
   "_retrieval_strategy": "",
-  "layout": {
-    "mod:nexus.main": [
-      -1.0,
-      -1.0
-    ],
-    "mod:nexus-gui.main": [
-      -0.875,
-      -1.0
-    ],
-    "service:AuditEvent": [
-      -0.75,
-      -1.0
-    ],
-    "service:AuditFilter": [
-      -0.625,
-      -1.0
-    ],
-    "service:AuditLog": [
-      -0.5,
-      -1.0
-    ],
-    "mod:audit.audit": [
-      -0.375,
-      -1.0
-    ],
-    "service:Settings": [
-      -0.25,
-      -1.0
-    ],
-    "service:ConfigTemplate": [
-      -0.125,
-      -1.0
-    ],
-    "service:Config": [
-      0.0,
-      -1.0
-    ],
-    "env:XDG_CONFIG_HOME": [
-      0.125,
-      -1.0
-    ],
-    "mod:config.config": [
-      0.25,
-      -1.0
-    ],
-    "service:PortForward": [
-      0.375,
-      -1.0
-    ],
-    "service:RDPOptions": [
-      0.5,
-      -1.0
-    ],
-    "service:Connection": [
-      0.625,
-      -1.0
-    ],
-    "service:Group": [
-      0.75,
-      -1.0
-    ],
-    "mod:config.connection": [
-      0.875,
-      -1.0
-    ],
-    "mod:config.ssh_import": [
-      1.0,
-      -1.0
-    ],
-    "mod:crypto.crypto": [
-      -1.0,
-      -0.875
-    ],
-    "service:toolbarButton": [
-      -0.875,
-      -0.875
-    ],
-    "service:App": [
-      -0.75,
-      -0.875
-    ],
-    "env:WAYLAND_DISPLAY": [
-      -0.625,
-      -0.875
-    ],
-    "env:XDG_SESSION_TYPE": [
-      -0.5,
-      -0.875
-    ],
-    "mod:gui.app": [
-      -0.375,
-      -0.875
-    ],
-    "service:clipboardChannel": [
-      -0.25,
-      -0.875
-    ],
-    "mod:gui.clipboard": [
-      -0.125,
-      -0.875
-    ],
-    "mod:gui.clipboard_image": [
-      0.0,
-      -0.875
-    ],
-    "mod:gui.clipboard_image_other": [
-      0.125,
-      -0.875
-    ],
-    "mod:gui.clipboard_image_windows": [
-      0.25,
-      -0.875
-    ],
-    "service:inputState": [
-      0.375,
-      -0.875
-    ],
-    "mod:gui.input": [
-      0.5,
-      -0.875
-    ],
-    "service:IPCManager": [
-      0.625,
-      -0.875
-    ],
-    "mod:gui.ipc": [
-      0.75,
-      -0.875
-    ],
-    "service:hookEvent": [
-      0.875,
-      -0.875
-    ],
-    "mod:gui.keyhook_other": [
-      1.0,
-      -0.875
-    ],
-    "service:kbdllHookStruct": [
-      -1.0,
-      -0.75
-    ],
-    "service:msg": [
-      -0.875,
-      -0.75
-    ],
-    "mod:gui.keyhook_windows": [
-      -0.75,
-      -0.75
-    ],
-    "service:ipcLogger": [
-      -0.625,
-      -0.75
-    ],
-    "mod:gui.logger": [
-      -0.5,
-      -0.75
-    ],
-    "service:RDPSession": [
-      -0.375,
-      -0.75
-    ],
-    "service:decodedBmp": [
-      -0.25,
-      -0.75
-    ],
-    "mod:gui.rdp": [
-      -0.125,
-      -0.75
-    ],
-    "service:Tab": [
-      0.0,
-      -0.75
-    ],
-    "service:TabManager": [
-      0.125,
-      -0.75
-    ],
-    "mod:gui.tabs": [
-      0.25,
-      -0.75
-    ],
-    "service:VNCSession": [
-      0.375,
-      -0.75
-    ],
-    "mod:gui.vnc": [
-      0.5,
-      -0.75
-    ],
-    "service:Result": [
-      0.625,
-      -0.75
-    ],
-    "service:ResultMsg": [
-      0.75,
-      -0.75
-    ],
-    "service:TickMsg": [
-      0.875,
-      -0.75
-    ],
-    "service:Options": [
-      1.0,
-      -0.75
-    ],
-    "service:breaker": [
-      -1.0,
-      -0.625
-    ],
-    "service:Checker": [
-      -0.875,
-      -0.625
-    ],
-    "service:job": [
-      -0.75,
-      -0.625
-    ],
-    "mod:health.checker": [
-      -0.625,
-      -0.625
-    ],
-    "service:Hook": [
-      -0.5,
-      -0.625
-    ],
-    "service:HookResult": [
-      -0.375,
-      -0.625
-    ],
-    "service:Hooks": [
-      -0.25,
-      -0.625
-    ],
-    "service:HookRunner": [
-      -0.125,
-      -0.625
-    ],
-    "mod:hooks.hooks": [
-      0.0,
-      -0.625
-    ],
-    "service:ExportOptions": [
-      0.125,
-      -0.625
-    ],
-    "service:CSVExporter": [
-      0.25,
-      -0.625
-    ],
-    "service:JSONExporter": [
-      0.375,
-      -0.625
-    ],
-    "service:jsonExportConn": [
-      0.5,
-      -0.625
-    ],
-    "service:YAMLExporter": [
-      0.625,
-      -0.625
-    ],
-    "service:yamlExportConn": [
-      0.75,
-      -0.625
-    ],
-    "mod:importexport.export": [
-      0.875,
-      -0.625
-    ],
-    "service:ImportResult": [
-      1.0,
-      -0.625
-    ],
-    "service:CSVImporter": [
-      -1.0,
-      -0.5
-    ],
-    "service:JSONImporter": [
-      -0.875,
-      -0.5
-    ],
-    "service:jsonConnection": [
-      -0.75,
-      -0.5
-    ],
-    "mod:importexport.import": [
-      -0.625,
-      -0.5
-    ],
-    "service:Client": [
-      -0.5,
-      -0.5
-    ],
-    "mod:ipc.client": [
-      -0.375,
-      -0.5
-    ],
-    "service:Envelope": [
-      -0.25,
-      -0.5
-    ],
-    "service:OpenTabCmd": [
-      -0.125,
-      -0.5
-    ],
-    "service:CloseTabCmd": [
-      0.0,
-      -0.5
-    ],
-    "service:FocusTabCmd": [
-      0.125,
-      -0.5
-    ],
-    "service:TabOpenedEvent": [
-      0.25,
-      -0.5
-    ],
-    "service:TabClosedEvent": [
-      0.375,
-      -0.5
-    ],
-    "service:TabErrorEvent": [
-      0.5,
-      -0.5
-    ],
-    "service:GUIReadyEvent": [
-      0.625,
-      -0.5
-    ],
-    "service:LogLineEvent": [
-      0.75,
-      -0.5
-    ],
-    "env:XDG_RUNTIME_DIR": [
-      0.875,
-      -0.5
-    ],
-    "mod:ipc.protocol": [
-      1.0,
-      -0.5
-    ],
-    "service:Server": [
-      -1.0,
-      -0.375
-    ],
-    "mod:ipc.server": [
-      -0.875,
-      -0.375
-    ],
-    "service:LaunchFinishedMsg": [
-      -0.75,
-      -0.375
-    ],
-    "service:GUILogLineMsg": [
-      -0.625,
-      -0.375
-    ],
-    "mod:launcher.launcher": [
-      -0.5,
-      -0.375
-    ],
-    "mod:launcher.procattr_unix": [
-      -0.375,
-      -0.375
-    ],
-    "mod:launcher.procattr_windows": [
-      -0.25,
-      -0.375
-    ],
-    "service:RDPLauncher": [
-      -0.125,
-      -0.375
-    ],
-    "mod:launcher.rdp": [
-      0.0,
-      -0.375
-    ],
-    "service:SSHLauncher": [
-      0.125,
-      -0.375
-    ],
-    "service:hookedSSHSession": [
-      0.25,
-      -0.375
-    ],
-    "mod:launcher.ssh": [
-      0.375,
-      -0.375
-    ],
-    "service:TelnetLauncher": [
-      0.5,
-      -0.375
-    ],
-    "mod:launcher.telnet": [
-      0.625,
-      -0.375
-    ],
-    "mod:launcher.util": [
-      0.75,
-      -0.375
-    ],
-    "service:VNCLauncher": [
-      0.875,
-      -0.375
-    ],
-    "mod:launcher.vnc": [
-      1.0,
-      -0.375
-    ],
-    "service:asciicastHeader": [
-      -1.0,
-      -0.25
-    ],
-    "service:Metadata": [
-      -0.875,
-      -0.25
-    ],
-    "service:Recorder": [
-      -0.75,
-      -0.25
-    ],
-    "mod:recording.recorder": [
-      -0.625,
-      -0.25
-    ],
-    "service:ringBuffer": [
-      -0.5,
-      -0.25
-    ],
-    "service:replayBuffer": [
-      -0.375,
-      -0.25
-    ],
-    "service:stdinResult": [
-      -0.25,
-      -0.25
-    ],
-    "service:ManagedSession": [
-      -0.125,
-      -0.25
-    ],
-    "env:USER": [
-      0.0,
-      -0.25
-    ],
-    "mod:session.managed": [
-      0.125,
-      -0.25
-    ],
-    "service:ActiveForward": [
-      0.25,
-      -0.25
-    ],
-    "service:PortForwardManager": [
-      0.375,
-      -0.25
-    ],
-    "mod:session.portforward": [
-      0.5,
-      -0.25
-    ],
-    "service:SSHSession": [
-      0.625,
-      -0.25
-    ],
-    "mod:session.ssh": [
-      0.75,
-      -0.25
-    ],
-    "mod:session.ssh_auth": [
-      0.875,
-      -0.25
-    ],
-    "service:TelnetSession": [
-      1.0,
-      -0.25
-    ],
-    "mod:session.telnet": [
-      -1.0,
-      -0.125
-    ],
-    "service:CellStyle": [
-      -0.875,
-      -0.125
-    ],
-    "service:Cell": [
-      -0.75,
-      -0.125
-    ],
-    "service:VTermBuffer": [
-      -0.625,
-      -0.125
-    ],
-    "mod:session.vterm": [
-      -0.5,
-      -0.125
-    ],
-    "mod:store.migrate": [
-      -0.375,
-      -0.125
-    ],
-    "service:SQLiteStore": [
-      -0.25,
-      -0.125
-    ],
-    "mod:store.sqlite": [
-      -0.125,
-      -0.125
-    ],
-    "service:ErrNotFound": [
-      0.0,
-      -0.125
-    ],
-    "mod:store.store": [
-      0.125,
-      -0.125
-    ],
-    "service:YAMLStore": [
-      0.25,
-      -0.125
-    ],
-    "mod:store.yaml": [
-      0.375,
-      -0.125
-    ],
-    "service:Template": [
-      0.5,
-      -0.125
-    ],
-    "service:TemplateStore": [
-      0.625,
-      -0.125
-    ],
-    "mod:template.template": [
-      0.75,
-      -0.125
-    ],
-    "service:OSC52Clipboard": [
-      0.875,
-      -0.125
-    ],
-    "service:SystemClipboard": [
-      1.0,
-      -0.125
-    ],
-    "mod:termcap.clipboard": [
-      -1.0,
-      0.0
-    ],
-    "env:TERM_PROGRAM": [
-      -0.875,
-      0.0
-    ],
-    "env:TMUX": [
-      -0.75,
-      0.0
-    ],
-    "env:TERM": [
-      -0.625,
-      0.0
-    ],
-    "env:COLORTERM": [
-      -0.5,
-      0.0
-    ],
-    "mod:termcap.probe": [
-      -0.375,
-      0.0
-    ],
-    "service:Capabilities": [
-      -0.25,
-      0.0
-    ],
-    "mod:termcap.termcap": [
-      -0.125,
-      0.0
-    ],
-    "mod:theme.styles": [
-      0.0,
-      0.0
-    ],
-    "service:Theme": [
-      0.125,
-      0.0
-    ],
-    "mod:theme.theme": [
-      0.25,
-      0.0
-    ],
-    "service:transitionTickMsg": [
-      0.375,
-      0.0
-    ],
-    "service:transition": [
-      0.5,
-      0.0
-    ],
-    "mod:tui.animation": [
-      0.625,
-      0.0
-    ],
-    "service:saveErrorMsg": [
-      0.75,
-      0.0
-    ],
-    "mod:tui.app": [
-      0.875,
-      0.0
-    ],
-    "service:BracketNav": [
-      1.0,
-      0.0
-    ],
-    "mod:tui.bracket": [
-      -1.0,
-      0.125
-    ],
-    "service:BulkOperation": [
-      -0.875,
-      0.125
-    ],
-    "service:BulkProgress": [
-      -0.75,
-      0.125
-    ],
-    "service:BulkResultMsg": [
-      -0.625,
-      0.125
-    ],
-    "mod:tui.bulk": [
-      -0.5,
-      0.125
-    ],
-    "service:CommandMsg": [
-      -0.375,
-      0.125
-    ],
-    "service:CommandDef": [
-      -0.25,
-      0.125
-    ],
-    "service:CommandEngine": [
-      -0.125,
-      0.125
-    ],
-    "service:commandModel": [
-      0.0,
-      0.125
-    ],
-    "env:HOME": [
-      0.125,
-      0.125
-    ],
-    "mod:tui.command": [
-      0.25,
-      0.125
-    ],
-    "service:ConfirmResultMsg": [
-      0.375,
-      0.125
-    ],
-    "service:confirmModel": [
-      0.5,
-      0.125
-    ],
-    "mod:tui.confirm": [
-      0.625,
-      0.125
-    ],
-    "service:detailModel": [
-      0.75,
-      0.125
-    ],
-    "mod:tui.detail": [
-      0.875,
-      0.125
-    ],
-    "mod:tui.favorites": [
-      1.0,
-      0.125
-    ],
-    "service:filterDebounceMsg": [
-      -1.0,
-      0.25
-    ],
-    "service:filterModel": [
-      -0.875,
-      0.25
-    ],
-    "mod:tui.filter": [
-      -0.75,
-      0.25
-    ],
-    "service:FinderEntry": [
-      -0.625,
-      0.25
-    ],
-    "service:FinderModel": [
-      -0.5,
-      0.25
-    ],
-    "mod:tui.finder": [
-      -0.375,
-      0.25
-    ],
-    "service:FormSubmitMsg": [
-      -0.25,
-      0.25
-    ],
-    "service:FormCancelMsg": [
-      -0.125,
-      0.25
-    ],
-    "service:formModel": [
-      0.0,
-      0.25
-    ],
-    "mod:tui.form": [
-      0.125,
-      0.25
-    ],
-    "service:headerModel": [
-      0.25,
-      0.25
-    ],
-    "service:menuItem": [
-      0.375,
-      0.25
-    ],
-    "mod:tui.header": [
-      0.5,
-      0.25
-    ],
-    "service:helpModel": [
-      0.625,
-      0.25
-    ],
-    "service:helpEntry": [
-      0.75,
-      0.25
-    ],
-    "mod:tui.help": [
-      0.875,
-      0.25
-    ],
-    "service:KeyMap": [
-      1.0,
-      0.25
-    ],
-    "mod:tui.keys": [
-      -1.0,
-      0.375
-    ],
-    "service:LeaderTimeoutMsg": [
-      -0.875,
-      0.375
-    ],
-    "service:LeaderAction": [
-      -0.75,
-      0.375
-    ],
-    "service:LeaderItem": [
-      -0.625,
-      0.375
-    ],
-    "service:LeaderGroup": [
-      -0.5,
-      0.375
-    ],
-    "service:leaderModel": [
-      -0.375,
-      0.375
-    ],
-    "mod:tui.leader": [
-      -0.25,
-      0.375
-    ],
-    "service:connStatus": [
-      -0.125,
-      0.375
-    ],
-    "service:listModel": [
-      0.0,
-      0.375
-    ],
-    "mod:tui.list": [
-      0.125,
-      0.375
-    ],
-    "service:logEntry": [
-      0.25,
-      0.375
-    ],
-    "service:logsModel": [
-      0.375,
-      0.375
-    ],
-    "mod:tui.log": [
-      0.5,
-      0.375
-    ],
-    "service:ModeChangedMsg": [
-      0.625,
-      0.375
-    ],
-    "mod:tui.mode": [
-      0.75,
-      0.375
-    ],
-    "service:MotionResult": [
-      0.875,
-      0.375
-    ],
-    "service:MotionEngine": [
-      1.0,
-      0.375
-    ],
-    "mod:tui.motion": [
-      -1.0,
-      0.5
-    ],
-    "service:StateChange": [
-      -0.875,
-      0.5
-    ],
-    "service:NotifyManager": [
-      -0.75,
-      0.5
-    ],
-    "mod:tui.notify": [
-      -0.625,
-      0.5
-    ],
-    "service:panePickerMsg": [
-      -0.5,
-      0.5
-    ],
-    "service:panePickerCancelMsg": [
-      -0.375,
-      0.5
-    ],
-    "service:PaneConnectionPicker": [
-      -0.25,
-      0.5
-    ],
-    "mod:tui.pane_render": [
-      -0.125,
-      0.5
-    ],
-    "service:Pane": [
-      0.0,
-      0.5
-    ],
-    "service:SplitNode": [
-      0.125,
-      0.5
-    ],
-    "service:PaneLayoutModel": [
-      0.25,
-      0.5
-    ],
-    "service:PaneOutputMsg": [
-      0.375,
-      0.5
-    ],
-    "service:PaneDisconnectedMsg": [
-      0.5,
-      0.5
-    ],
-    "service:PaneConnectedMsg": [
-      0.625,
-      0.5
-    ],
-    "service:paneSessionStartedMsg": [
-      0.75,
-      0.5
-    ],
-    "service:tickOutputsMsg": [
-      0.875,
-      0.5
-    ],
-    "service:AllPanesClosedMsg": [
-      1.0,
-      0.5
-    ],
-    "service:panePosition": [
-      -1.0,
-      0.625
-    ],
-    "service:broadcastFlashMsg": [
-      -0.875,
-      0.625
-    ],
-    "mod:tui.panes": [
-      -0.75,
-      0.625
-    ],
-    "service:PulseSummary": [
-      -0.625,
-      0.625
-    ],
-    "service:GroupHealth": [
-      -0.5,
-      0.625
-    ],
-    "service:ProtoDist": [
-      -0.375,
-      0.625
-    ],
-    "service:LatencyEntry": [
-      -0.25,
-      0.625
-    ],
-    "service:PulseModel": [
-      -0.125,
-      0.625
-    ],
-    "service:card": [
-      0.0,
-      0.625
-    ],
-    "mod:tui.pulse": [
-      0.125,
-      0.625
-    ],
-    "service:QuickConnectMsg": [
-      0.25,
-      0.625
-    ],
-    "service:QuickConnect": [
-      0.375,
-      0.625
-    ],
-    "mod:tui.quickconnect": [
-      0.5,
-      0.625
-    ],
-    "service:parsedSearch": [
-      0.625,
-      0.625
-    ],
-    "service:searchModel": [
-      0.75,
-      0.625
-    ],
-    "mod:tui.search": [
-      0.875,
-      0.625
-    ],
-    "service:SessionDetachedMsg": [
-      1.0,
-      0.625
-    ],
-    "service:SessionDiedMsg": [
-      -1.0,
-      0.75
-    ],
-    "service:SessionManager": [
-      -0.875,
-      0.75
-    ],
-    "mod:tui.sessions": [
-      -0.75,
-      0.75
-    ],
-    "service:sessionsViewModel": [
-      -0.625,
-      0.75
-    ],
-    "mod:tui.sessions_view": [
-      -0.5,
-      0.75
-    ],
-    "service:flash": [
-      -0.375,
-      0.75
-    ],
-    "service:FlashExpireMsg": [
-      -0.25,
-      0.75
-    ],
-    "service:statusBarModel": [
-      -0.125,
-      0.75
-    ],
-    "service:keyHint": [
-      0.0,
-      0.75
-    ],
-    "mod:tui.statusbar": [
-      0.125,
-      0.75
-    ],
-    "mod:tui.styles": [
-      0.25,
-      0.75
-    ],
-    "service:Column": [
-      0.375,
-      0.75
-    ],
-    "service:Row": [
-      0.5,
-      0.75
-    ],
-    "service:tableModel": [
-      0.625,
-      0.75
-    ],
-    "mod:tui.table": [
-      0.75,
-      0.75
-    ],
-    "service:TagManager": [
-      0.875,
-      0.75
-    ],
-    "service:TagInfo": [
-      1.0,
-      0.75
-    ],
-    "service:TagFilter": [
-      -1.0,
-      0.875
-    ],
-    "mod:tui.tags": [
-      -0.875,
-      0.875
-    ],
-    "service:Operation": [
-      -0.75,
-      0.875
-    ],
-    "service:UndoStack": [
-      -0.625,
-      0.875
-    ],
-    "mod:tui.undo": [
-      -0.5,
-      0.875
-    ],
-    "service:SelectionSet": [
-      -0.375,
-      0.875
-    ],
-    "mod:tui.visual": [
-      -0.25,
-      0.875
-    ],
-    "mod:tui.whichkey": [
-      -0.125,
-      0.875
-    ],
-    "service:internalEntry": [
-      0.0,
-      0.875
-    ],
-    "service:internalStore": [
-      0.125,
-      0.875
-    ],
-    "service:InternalVault": [
-      0.25,
-      0.875
-    ],
-    "mod:vault.internal": [
-      0.375,
-      0.875
-    ],
-    "service:KeyringVault": [
-      0.5,
-      0.875
-    ],
-    "mod:vault.keyring": [
-      0.625,
-      0.875
-    ],
-    "service:PassVault": [
-      0.75,
-      0.875
-    ],
-    "mod:vault.pass": [
-      0.875,
-      0.875
-    ],
-    "service:CredentialEntry": [
-      1.0,
-      0.875
-    ],
-    "mod:vault.vault": [
-      -1.0,
-      1.0
-    ],
-    "table:connections": [
-      -0.875,
-      1.0
-    ],
-    "table:connections_fts": [
-      -0.75,
-      1.0
-    ],
-    "ext:ssh": [
-      -0.625,
-      1.0
-    ],
-    "ext:rdp": [
-      -0.5,
-      1.0
-    ],
-    "ext:vnc": [
-      -0.375,
-      1.0
-    ],
-    "ext:telnet": [
-      -0.25,
-      1.0
-    ],
-    "contract:unix-socket-ipc": [
-      -0.125,
-      1.0
-    ],
-    "domain:tui": [
-      0.0,
-      1.0
-    ],
-    "domain:gui": [
-      0.125,
-      1.0
-    ],
-    "domain:networking": [
-      0.25,
-      1.0
-    ],
-    "domain:storage": [
-      0.375,
-      1.0
-    ],
-    "domain:ipc": [
-      0.5,
-      1.0
-    ],
-    "domain:core": [
-      0.625,
-      1.0
-    ]
-  }
+  "layout": {}
 }
