@@ -138,14 +138,14 @@ func TestResolveVisualIDs(t *testing.T) {
 		t.Errorf("expected nil for nil visual state, got %v", ids)
 	}
 
-	// inactive visual state
-	vs := NewVisualState()
+	// empty selection set
+	vs := NewSelectionSet()
 	if ids := ResolveVisualIDs(&vs, rows); ids != nil {
-		t.Errorf("expected nil for inactive visual state, got %v", ids)
+		t.Errorf("expected nil for empty selection set, got %v", ids)
 	}
 
-	// active visual state with selection
-	vs.Enter(1)
+	// selection set with items
+	vs.EnterVisual(1)
 	vs.UpdateRange(3)
 	ids := ResolveVisualIDs(&vs, rows)
 	want := []string{"b", "c", "d"}

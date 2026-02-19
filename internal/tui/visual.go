@@ -1,113 +1,139 @@
 package tui
 
-// VisualState tracks the state of Visual mode, supporting both line-visual
-// (V, extending a contiguous range with j/k) and toggle-select (v, for
-// non-contiguous multi-select).
-type VisualState struct {
-	active    bool         // whether visual mode is active
-	anchor    int          // the cursor position when visual mode was entered (line-visual)
-	selection map[int]bool // set of selected row indices
-	toggled   map[int]bool // indices explicitly toggled with v (persisted across range updates)
+// SelectionSet tracks multi-select state, supporting both picker-style Tab
+// toggles and visual-range selection (V mode with j/k navigation).
+//
+// Key design properties:
+//   - A single `selected` map holds all selections regardless of how they
+//     were added (Tab toggle, visual range, SelectAll).
+//   - Visual mode (visualActive) is an overlay: entering/exiting it does NOT
+//     clear the selection map. Selections accumulate.
+//   - UpdateRange is additive: it adds the anchor..cursor range to `selected`
+//     but never removes items that were selected outside the range.
+type SelectionSet struct {
+	visualActive bool         // whether visual (range) mode is active
+	anchor       int          // the cursor position when visual mode was entered
+	selected     map[int]bool // set of all selected row indices
 }
 
-// NewVisualState creates a new, inactive VisualState.
-func NewVisualState() VisualState {
-	return VisualState{
-		selection: make(map[int]bool),
-		toggled:   make(map[int]bool),
+// NewSelectionSet creates a new, empty SelectionSet.
+func NewSelectionSet() SelectionSet {
+	return SelectionSet{
+		selected: make(map[int]bool),
 	}
 }
 
-// Enter activates line-visual mode with the given cursor position as anchor.
-// The anchor row is automatically included in the selection.
-func (v *VisualState) Enter(cursor int) {
-	v.active = true
-	v.anchor = cursor
-	v.selection = map[int]bool{cursor: true}
-	v.toggled = make(map[int]bool)
+// ensureMap lazily initialises the selected map to handle zero-value structs.
+func (s *SelectionSet) ensureMap() {
+	if s.selected == nil {
+		s.selected = make(map[int]bool)
+	}
 }
 
-// Exit deactivates visual mode and clears all selection state.
-func (v *VisualState) Exit() {
-	v.active = false
-	v.anchor = 0
-	v.selection = make(map[int]bool)
-	v.toggled = make(map[int]bool)
+// Toggle adds idx to the selection if it is not already selected, or removes
+// it if it is. Works regardless of whether visual mode is active.
+func (s *SelectionSet) Toggle(idx int) {
+	s.ensureMap()
+	if s.selected[idx] {
+		delete(s.selected, idx)
+	} else {
+		s.selected[idx] = true
+	}
 }
 
-// Active returns true if visual mode is currently active.
-func (v *VisualState) Active() bool {
-	return v.active
+// Deselect unconditionally removes idx from the selection. Idempotent.
+func (s *SelectionSet) Deselect(idx int) {
+	s.ensureMap()
+	delete(s.selected, idx)
 }
 
-// Anchor returns the anchor position (the cursor when V was pressed).
-func (v *VisualState) Anchor() int {
-	return v.anchor
+// SelectAll adds indices 0..count-1 to the selection.
+func (s *SelectionSet) SelectAll(count int) {
+	s.ensureMap()
+	for i := 0; i < count; i++ {
+		s.selected[i] = true
+	}
 }
 
-// IsSelected returns true if the given row index is currently selected.
-func (v *VisualState) IsSelected(idx int) bool {
-	return v.selection[idx]
+// DeselectAll clears all selections. Does NOT change visualActive.
+func (s *SelectionSet) DeselectAll() {
+	s.selected = make(map[int]bool)
+}
+
+// EnterVisual activates visual (range) mode with cursor as the anchor.
+// The cursor row is added to the selection. Existing selections are preserved.
+func (s *SelectionSet) EnterVisual(cursor int) {
+	s.ensureMap()
+	s.visualActive = true
+	s.anchor = cursor
+	s.selected[cursor] = true
+}
+
+// ExitVisual deactivates visual mode. The selected map is NOT cleared.
+func (s *SelectionSet) ExitVisual() {
+	s.visualActive = false
+}
+
+// VisualActive returns true if visual (range) mode is currently active.
+func (s *SelectionSet) VisualActive() bool {
+	return s.visualActive
+}
+
+// Anchor returns the anchor position set when EnterVisual was called.
+func (s *SelectionSet) Anchor() int {
+	return s.anchor
+}
+
+// UpdateRange adds all indices in [min(anchor,cursor)..max(anchor,cursor)] to
+// the selection. This is additive: items selected outside the range are kept.
+// No-op when visual mode is not active.
+func (s *SelectionSet) UpdateRange(cursor int) {
+	if !s.visualActive {
+		return
+	}
+	s.ensureMap()
+
+	lo, hi := s.anchor, cursor
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	for i := lo; i <= hi; i++ {
+		s.selected[i] = true
+	}
+}
+
+// IsSelected returns true if idx is currently selected.
+func (s *SelectionSet) IsSelected(idx int) bool {
+	if s.selected == nil {
+		return false
+	}
+	return s.selected[idx]
 }
 
 // Count returns the number of selected rows.
-func (v *VisualState) Count() int {
-	return len(v.selection)
+func (s *SelectionSet) Count() int {
+	return len(s.selected)
+}
+
+// HasSelection returns true if at least one row is selected.
+func (s *SelectionSet) HasSelection() bool {
+	return s.Count() > 0
 }
 
 // SelectedIndices returns a sorted slice of all selected row indices.
-func (v *VisualState) SelectedIndices() []int {
-	indices := make([]int, 0, len(v.selection))
-	for idx := range v.selection {
+func (s *SelectionSet) SelectedIndices() []int {
+	indices := make([]int, 0, len(s.selected))
+	for idx := range s.selected {
 		indices = append(indices, idx)
 	}
 	sortInts(indices)
 	return indices
 }
 
-// UpdateRange recalculates the contiguous selection range from anchor to cursor.
-// This is used in line-visual mode (V) when the cursor moves with j/k.
-// Items explicitly toggled with v are preserved in addition to the range.
-func (v *VisualState) UpdateRange(cursor int) {
-	if !v.active {
-		return
-	}
-
-	lo, hi := v.anchor, cursor
-	if lo > hi {
-		lo, hi = hi, lo
-	}
-
-	newSel := make(map[int]bool, hi-lo+1+len(v.toggled))
-	for i := lo; i <= hi; i++ {
-		newSel[i] = true
-	}
-	for idx := range v.toggled {
-		newSel[idx] = true
-	}
-
-	v.selection = newSel
-}
-
-// ToggleItem toggles the given row index in/out of the selection set.
-// Used for non-contiguous multi-select (v key). The item is tracked
-// in the toggled set so it persists across range updates.
-func (v *VisualState) ToggleItem(idx int) {
-	if !v.active {
-		return
-	}
-	if v.toggled[idx] {
-		delete(v.toggled, idx)
-		delete(v.selection, idx)
-	} else {
-		v.toggled[idx] = true
-		v.selection[idx] = true
-	}
-}
-
 // SelectedIDs returns the IDs of selected rows from the given rows slice.
-func (v *VisualState) SelectedIDs(rows []Row) []string {
-	indices := v.SelectedIndices()
+// Indices that are out of bounds are silently skipped.
+func (s *SelectionSet) SelectedIDs(rows []Row) []string {
+	indices := s.SelectedIndices()
 	ids := make([]string, 0, len(indices))
 	for _, idx := range indices {
 		if idx >= 0 && idx < len(rows) {
@@ -117,6 +143,7 @@ func (v *VisualState) SelectedIDs(rows []Row) []string {
 	return ids
 }
 
+// ---------------------------------------------------------------------------
 // sortInts sorts a slice of ints in ascending order (simple insertion sort
 // for typically small selection sets).
 func sortInts(a []int) {

@@ -52,7 +52,7 @@ type tableModel struct {
 	highlightText string        // search pattern to highlight in cells
 	motion        *MotionEngine // vim motion engine integration
 	lastOperator  Operator      // tracks the operator that produced the last OpLine/OpRange result
-	visualState   *VisualState   // visual mode selection state (nil when not in visual mode)
+	selectionSet  *SelectionSet  // selection state (nil when nothing is selected)
 }
 
 // newTableModel creates a tableModel with the given columns and an integrated motion engine.
@@ -340,7 +340,7 @@ func (t *tableModel) View() string {
 		row := t.rows[i]
 		isCursor := i == t.cursor
 		isOddRow := (i-t.offset)%2 == 1
-		isSelected := t.visualState != nil && t.visualState.IsSelected(i)
+		isSelected := t.selectionSet != nil && t.selectionSet.IsSelected(i)
 
 		line := t.renderRow(row, colWidths, isCursor, isOddRow, isSelected, th)
 		sb.WriteString(line)
@@ -362,6 +362,7 @@ func (t *tableModel) View() string {
 }
 
 func (t *tableModel) renderRow(row Row, colWidths []int, isCursor, isOddRow, isSelected bool, th *theme.Theme) string {
+	checkStyle := lipgloss.NewStyle().Foreground(th.Success).Bold(true)
 	var cellStrs []string
 	for i, col := range t.columns {
 		cellValue := ""
@@ -372,12 +373,26 @@ func (t *tableModel) renderRow(row Row, colWidths []int, isCursor, isOddRow, isS
 		// Determine style for this cell
 		cellStyle := t.cellStyle(i, cellValue, row.Status, isCursor, isOddRow, th)
 
+		// For selected rows, reduce the first column width by 2 to reserve space for the
+		// checkmark prefix ("✓ "). This prevents the checkmark from widening the row and
+		// shifting all subsequent columns right.
+		colW := colWidths[i]
+		if isSelected && i == 0 {
+			colW -= 2
+		}
+
 		// Apply search highlight if there's an active highlight pattern
 		if t.highlightText != "" && !isCursor {
-			cellStrs = append(cellStrs, t.renderCellHighlighted(cellValue, colWidths[i], col.Align, cellStyle, th))
+			cellStrs = append(cellStrs, t.renderCellHighlighted(cellValue, colW, col.Align, cellStyle, th))
 		} else {
-			cellStrs = append(cellStrs, t.renderCell(cellValue, colWidths[i], col.Align, cellStyle))
+			cellStrs = append(cellStrs, t.renderCell(cellValue, colW, col.Align, cellStyle))
 		}
+	}
+
+	// Prepend checkmark to the first cell for selected rows. The cell was already rendered
+	// to (colWidths[0] - 2) characters wide, so the total first-column width is preserved.
+	if isSelected && len(cellStrs) > 0 {
+		cellStrs[0] = checkStyle.Render("\u2713") + " " + cellStrs[0]
 	}
 
 	line := " " + strings.Join(cellStrs, " ")
