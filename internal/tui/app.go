@@ -652,11 +652,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case VaultCreateMsg:
 		a.vaultFormView = newVaultForm(a.cfg.Groups, nil)
+		a.vaultFormView.setSize(a.width, a.contentHeight())
 		a.pushView(viewVaultForm)
 		return a, a.vaultFormView.form.Init()
 
 	case VaultEditMsg:
 		a.vaultFormView = newVaultForm(a.cfg.Groups, &msg.Profile)
+		a.vaultFormView.setSize(a.width, a.contentHeight())
 		a.pushView(viewVaultForm)
 		return a, a.vaultFormView.form.Init()
 
@@ -691,6 +693,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.handleVaultFormSubmit(msg)
 		a.popView()
 		return a, scheduleFlashClear()
+
+	case VaultFormCancelMsg:
+		a.popView()
+		return a, nil
 
 	case ConfirmResultMsg:
 		return a.handleConfirmResult(msg)
@@ -2428,6 +2434,7 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 			return a, a.openVaultView()
 		case sub == "add":
 			a.vaultFormView = newVaultForm(a.cfg.Groups, nil)
+			a.vaultFormView.setSize(a.width, a.contentHeight())
 			a.pushView(viewVaultForm)
 			return a, a.vaultFormView.form.Init()
 		case strings.HasPrefix(sub, "rename "):
@@ -2692,12 +2699,23 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 // handleVaultKey processes key events while the vault profile list view is active.
 func (a App) handleVaultKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc", "q":
-		a.popView()
+	case " ": // Space = leader key
+		if !a.leader.active {
+			cmd := a.leader.activate()
+			return a, cmd
+		}
+	case "q":
+		a.confirmQuit()
+		return a, nil
+	case "?":
+		a.help.view = "vault"
+		a.help.toggle()
 		return a, nil
 	}
-	// All other keys are handled by vaultView.Update in the pass-through switch.
-	return a, nil
+	// Forward to vault model for navigation and actions (j/k/g/G, enter, p, c, e, d, esc).
+	var cmd tea.Cmd
+	a.vaultView, cmd = a.vaultView.Update(msg)
+	return a, cmd
 }
 
 // refreshVaultView reloads profiles from the store and updates vaultView.
@@ -2887,6 +2905,7 @@ func (a *App) handleProfileSaveFrom() {
 		Group:        conn.Group,
 	}
 	a.vaultFormView = newVaultForm(a.cfg.Groups, profile)
+	a.vaultFormView.setSize(a.width, a.contentHeight())
 	a.vaultFormView.isEdit = false
 	a.vaultFormView.editID = ""
 	a.pushView(viewVaultForm)
@@ -3396,6 +3415,7 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		return a, a.openVaultView()
 	case "profile-create":
 		a.vaultFormView = newVaultForm(a.cfg.Groups, nil)
+		a.vaultFormView.setSize(a.width, a.contentHeight())
 		a.pushView(viewVaultForm)
 		return a, a.vaultFormView.form.Init()
 	case "profile-edit":
@@ -3789,6 +3809,7 @@ func (a *App) layout() {
 	a.detail.setSize(a.width, ch)
 	a.log.setSize(a.width, ch)
 	a.sessionsView.setSize(a.width, ch)
+	a.vaultFormView.setSize(a.width, ch)
 	a.pulse.SetSize(a.width, ch)
 	if a.currentView() == viewPaneLayout {
 		a.paneLayout.SetSize(a.width, ch)
