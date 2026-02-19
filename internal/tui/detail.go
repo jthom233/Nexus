@@ -14,6 +14,7 @@ import (
 
 type detailModel struct {
 	conn         *config.Connection
+	credSources  map[string]string
 	status       health.Status
 	latency      string
 	showPassword bool
@@ -29,6 +30,7 @@ func newDetail() detailModel {
 
 func (d *detailModel) setConnection(conn *config.Connection, status health.Status, latency string) {
 	d.conn = conn
+	d.credSources = nil
 	d.status = status
 	d.latency = latency
 	d.showPassword = false
@@ -59,9 +61,20 @@ func (d *detailModel) updateContent() {
 	title := DetailTitleStyle.Render(fmt.Sprintf("  %s", c.Name))
 	b.WriteString(title + "\n\n")
 
+	// row renders a label/value pair with an optional provenance annotation.
 	row := func(label, value string) {
 		b.WriteString(DetailLabelStyle.Render(label))
 		b.WriteString(DetailValueStyle.Render(value))
+		b.WriteString("\n")
+	}
+
+	// rowWithSource renders a label/value pair followed by a dim provenance label.
+	rowWithSource := func(label, value, sourceKey string) {
+		b.WriteString(DetailLabelStyle.Render(label))
+		b.WriteString(DetailValueStyle.Render(value))
+		if src, ok := d.credSources[sourceKey]; ok {
+			b.WriteString("  " + DetailProvenanceStyle.Render(formatSource(src)))
+		}
 		b.WriteString("\n")
 	}
 
@@ -70,21 +83,41 @@ func (d *detailModel) updateContent() {
 	row("Host:", c.Host)
 	row("Port:", fmt.Sprintf("%d", c.EffectivePort()))
 
+	// Credential profile assignment with dangling-reference warning.
+	if c.CredentialProfile != "" {
+		profileLabel := c.CredentialProfile
+		// If credSources is non-nil (resolved) but none of the credential keys
+		// came from this profile, the reference is dangling.
+		if d.credSources != nil {
+			hasSrc := false
+			for _, v := range d.credSources {
+				if v == "profile:"+c.CredentialProfile {
+					hasSrc = true
+					break
+				}
+			}
+			if !hasSrc {
+				profileLabel += "  " + DetailWarnStyle.Render("[NOT FOUND]")
+			}
+		}
+		row("Cred Profile:", profileLabel)
+	}
+
 	if c.Username != "" {
-		row("Username:", c.Username)
+		rowWithSource("Username:", c.Username, "username")
 	}
 	if c.Password != "" {
 		if d.showPassword {
-			row("Password:", c.Password)
+			rowWithSource("Password:", c.Password, "password")
 		} else {
-			row("Password:", "****")
+			rowWithSource("Password:", "****", "password")
 		}
 	}
 	if c.Domain != "" {
-		row("Domain:", c.Domain)
+		rowWithSource("Domain:", c.Domain, "domain")
 	}
 	if c.IdentityFile != "" {
-		row("Identity File:", c.IdentityFile)
+		rowWithSource("Identity File:", c.IdentityFile, "identity_file")
 	}
 	if c.Group != "" {
 		row("Group:", c.Group)
@@ -114,7 +147,7 @@ func (d *detailModel) updateContent() {
 	if c.Notes != "" {
 		b.WriteString("\n")
 		b.WriteString(DetailTitleStyle.Render("  Notes") + "\n\n")
-		b.WriteString(DetailValueStyle.Render("  " + c.Notes) + "\n")
+		b.WriteString(DetailValueStyle.Render("  "+c.Notes) + "\n")
 	}
 
 	// Custom Fields
@@ -160,9 +193,9 @@ func (d *detailModel) updateContent() {
 		b.WriteString("\n")
 		b.WriteString(DetailTitleStyle.Render("  VNC Options") + "\n\n")
 		if d.showPassword {
-			row("VNC Password:", c.VNCPassword)
+			rowWithSource("VNC Password:", c.VNCPassword, "vnc_password")
 		} else {
-			row("VNC Password:", "****")
+			rowWithSource("VNC Password:", "****", "vnc_password")
 		}
 	}
 
@@ -196,4 +229,24 @@ func statusIndicator(s health.Status) string {
 	default:
 		return StatusUnknownStyle.Render(StatusUnknown)
 	}
+}
+
+// formatSource converts a raw source string from ResolveCredentials into a
+// human-readable provenance label.
+//
+//	"direct"      → "direct"
+//	"profile:X"   → "from profile"
+//	"group:X"     → "from group: X"
+func formatSource(src string) string {
+	if src == "direct" {
+		return "direct"
+	}
+	if strings.HasPrefix(src, "profile:") {
+		return "from profile"
+	}
+	if strings.HasPrefix(src, "group:") {
+		name := strings.TrimPrefix(src, "group:")
+		return "from group: " + name
+	}
+	return src
 }

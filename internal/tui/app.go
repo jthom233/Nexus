@@ -12,13 +12,14 @@ import (
 	"github.com/dr4zz/nexus/internal/termcap"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dr4zz/nexus/internal/audit"
 	"github.com/dr4zz/nexus/internal/config"
 	"github.com/dr4zz/nexus/internal/health"
+	"github.com/dr4zz/nexus/internal/importexport"
 	"github.com/dr4zz/nexus/internal/launcher"
 	"github.com/dr4zz/nexus/internal/session"
-	"github.com/dr4zz/nexus/internal/audit"
 	"github.com/dr4zz/nexus/internal/template"
-	"github.com/dr4zz/nexus/internal/importexport"
+	"github.com/dr4zz/nexus/internal/vault"
 )
 
 type viewKind int
@@ -31,6 +32,8 @@ const (
 	viewSessions
 	viewPulse
 	viewPaneLayout
+	viewVault
+	viewVaultForm
 )
 
 // App is the root bubbletea model.
@@ -63,6 +66,12 @@ type App struct {
 	checker      *health.Checker
 	paneLayout   *PaneLayoutModel
 
+	// Vault
+	vault        vault.Vault
+	profileStore *vault.ProfileStore
+	vaultView     vaultModel
+	vaultFormView vaultFormModel
+
 	// View stack
 	viewStack []viewKind
 
@@ -83,7 +92,7 @@ type App struct {
 }
 
 // NewApp creates the root application model.
-func NewApp(cfg *config.Config) App {
+func NewApp(cfg *config.Config, v vault.Vault) App {
 	l := newLogsModel()
 	l.info("Nexus started")
 	l.info("Loaded %d connections from config", len(cfg.Connections))
@@ -105,8 +114,17 @@ func NewApp(cfg *config.Config) App {
 		l.warn("Could not open audit log: %v", err)
 	}
 
+	var ps *vault.ProfileStore
+	if v != nil {
+		ps = vault.NewProfileStore(v)
+		l.info("Credential vault opened")
+	}
+
 	return App{
 		cfg:          cfg,
+		vault:        v,
+		profileStore: ps,
+		vaultView:    newVaultModel(),
 		keys:         DefaultKeyMap(),
 		header:       h,
 		statusBar:    newStatusBar(),
@@ -115,7 +133,7 @@ func NewApp(cfg *config.Config) App {
 		search:       newSearch(),
 		command:      newCommand(),
 		detail:       newDetail(),
-		form:         newFormPtr(cfg.GroupNames(), tplStore),
+		form:         newFormPtr(cfg.GroupNames(), tplStore, nil),
 		tplStore:     tplStore,
 		help:         newHelp(),
 		confirm:      newConfirm(),
@@ -142,6 +160,23 @@ func NewApp(cfg *config.Config) App {
 		viewTransition:    newTransition(6), // 6 frames @ 16ms = ~96ms
 		animationsEnabled: cfg.Settings.AnimationsEnabled(),
 	}
+}
+
+// profileNames returns a slice of credential profile names from the profile
+// store. Returns nil if the profile store is unavailable or an error occurs.
+func (a *App) profileNames() []string {
+	if a.profileStore == nil {
+		return nil
+	}
+	profiles, err := a.profileStore.List()
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(profiles))
+	for _, p := range profiles {
+		names = append(names, p.Name)
+	}
+	return names
 }
 
 func (a App) currentView() viewKind {
@@ -187,6 +222,10 @@ func (a *App) syncStatusBarView() {
 		a.statusBar.view = "pulse"
 	case viewPaneLayout:
 		a.statusBar.view = "panes"
+	case viewVault:
+		a.statusBar.view = "vault"
+	case viewVaultForm:
+		a.statusBar.view = "vault-form"
 	}
 }
 
@@ -226,6 +265,16 @@ func (a *App) syncHeaderView() {
 	case viewPaneLayout:
 		a.header.setView("Panes", 5)
 		a.header.setItemCount(a.paneLayout.PaneCount())
+	case viewVault:
+		a.header.setView("Profiles", 6)
+		a.header.setItemCount(0)
+	case viewVaultForm:
+		name := "Add Profile"
+		if a.vaultFormView.isEdit {
+			name = "Edit Profile"
+		}
+		a.header.setView(name, 6)
+		a.header.setItemCount(0)
 	}
 }
 
@@ -235,6 +284,20 @@ func (a *App) updateSessionCount() {
 	// Update header item count if currently on sessions view
 	if a.currentView() == viewSessions {
 		a.header.setItemCount(count)
+	}
+}
+
+// setDetailConnection sets the connection on the detail view and, if a
+// profileStore is available, resolves credential provenance so the detail
+// view can render source labels alongside each credential field.
+func (a *App) setDetailConnection(c *config.Connection, status health.Status, latency string) {
+	a.detail.setConnection(c, status, latency)
+	if c != nil && a.profileStore != nil {
+		_, sources, err := vault.ResolveCredentials(*c, a.profileStore)
+		if err == nil {
+			a.detail.credSources = sources
+			a.detail.updateContent()
+		}
 	}
 }
 
@@ -432,6 +495,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, cmd
 		}
 
+		if a.currentView() == viewVaultForm {
+			var cmd tea.Cmd
+			a.vaultFormView, cmd = a.vaultFormView.Update(msg)
+			return a, cmd
+		}
+
 		if a.currentView() == viewLog {
 			return a.handleLogKey(msg)
 		}
@@ -577,6 +646,52 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusBar.mode = ModeNormal
 		return a, a.setMode(ModeNormal)
 
+	case VaultCloseMsg:
+		a.popView()
+		return a, nil
+
+	case VaultCreateMsg:
+		a.vaultFormView = newVaultForm(a.cfg.Groups, nil)
+		a.pushView(viewVaultForm)
+		return a, a.vaultFormView.form.Init()
+
+	case VaultEditMsg:
+		a.vaultFormView = newVaultForm(a.cfg.Groups, &msg.Profile)
+		a.pushView(viewVaultForm)
+		return a, a.vaultFormView.form.Init()
+
+	case VaultDeleteMsg:
+		if a.profileStore != nil {
+			// Count connections that reference this profile (direct or group-inherited).
+			refCount := 0
+			for _, conn := range a.cfg.Connections {
+				if conn.CredentialProfile == msg.Profile.Name {
+					refCount++
+				} else if msg.Profile.Group != "" && conn.Group == msg.Profile.Group && conn.CredentialProfile == "" {
+					refCount++
+				}
+			}
+			if refCount > 0 {
+				prompt := fmt.Sprintf("Profile '%s' is used by %d connection(s). Delete anyway?", msg.Profile.Name, refCount)
+				a.confirm.show(prompt, "delete-profile:"+msg.Profile.Name, msg.Profile.Name)
+				a.confirm.width = a.width
+				a.confirm.height = a.height
+				return a, nil
+			}
+			if err := a.profileStore.Delete(msg.Profile.Name); err != nil {
+				a.statusBar.setFlash("Error deleting profile: "+err.Error(), flashError)
+			} else {
+				a.statusBar.setFlash("Profile '"+msg.Profile.Name+"' deleted", flashInfo)
+				a.refreshVaultView()
+			}
+		}
+		return a, scheduleFlashClear()
+
+	case VaultFormSubmitMsg:
+		a.handleVaultFormSubmit(msg)
+		a.popView()
+		return a, scheduleFlashClear()
+
 	case ConfirmResultMsg:
 		return a.handleConfirmResult(msg)
 
@@ -653,6 +768,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	case viewPulse:
 		// Pulse has no model update needed
+	case viewVault:
+		var cmd tea.Cmd
+		a.vaultView, cmd = a.vaultView.Update(msg)
+		cmds = append(cmds, cmd)
+	case viewVaultForm:
+		var cmd tea.Cmd
+		a.vaultFormView, cmd = a.vaultFormView.Update(msg)
+		cmds = append(cmds, cmd)
 	case viewPaneLayout:
 		updated, cmd := a.paneLayout.Update(msg)
 		a.paneLayout = &updated
@@ -677,6 +800,11 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a.handleSessionsKey(msg)
 	case viewPaneLayout:
 		return a.handlePaneLayoutKey(msg)
+	case viewVault:
+		return a.handleVaultKey(msg)
+	case viewVaultForm:
+		// VaultForm keys are handled via the huh form Update in the pass-through switch.
+		return a, nil
 	}
 	return a, nil
 }
@@ -837,7 +965,7 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return a.connectSelected()
 	case "a":
-		a.form.startAdd(a.cfg.GroupNames())
+		a.form.startAdd(a.cfg.GroupNames(), a.profileNames())
 		a.form.width = a.width
 		a.form.height = a.contentHeight()
 		a.pushView(viewForm)
@@ -847,7 +975,7 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, a.form.form.Init()
 	case "e":
 		if c := a.list.selectedConnection(); c != nil {
-			a.form.startEdit(*c, a.cfg.GroupNames())
+			a.form.startEdit(*c, a.cfg.GroupNames(), a.profileNames())
 			a.form.width = a.width
 			a.form.height = a.contentHeight()
 			a.pushView(viewForm)
@@ -864,7 +992,7 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if st.status == health.Online || st.status == health.Degraded {
 				latStr = st.latency.String()
 			}
-			a.detail.setConnection(c, st.status, latStr)
+			a.setDetailConnection(c, st.status, latStr)
 			a.detail.setSize(a.width, a.contentHeight())
 			a.pushView(viewDetail)
 			a.help.view = "detail"
@@ -1265,7 +1393,7 @@ func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a.connectSelected()
 	case "e":
 		if c := a.list.selectedConnection(); c != nil {
-			a.form.startEdit(*c, a.cfg.GroupNames())
+			a.form.startEdit(*c, a.cfg.GroupNames(), a.profileNames())
 			a.form.width = a.width
 			a.form.height = a.contentHeight()
 			a.pushView(viewForm)
@@ -1861,6 +1989,43 @@ func (a App) connectSelected() (tea.Model, tea.Cmd) {
 }
 
 func (a App) connectManaged(c config.Connection) (tea.Model, tea.Cmd) {
+	// Resolve credentials from profile (group-profile then named-profile then inline).
+	if a.profileStore != nil {
+		resolved, sources, err := vault.ResolveCredentials(c, a.profileStore)
+		if err == nil && resolved != nil {
+			if resolved.Username != "" {
+				c.Username = resolved.Username
+			}
+			if resolved.Password != "" {
+				c.Password = resolved.Password
+			}
+			if resolved.IdentityFile != "" {
+				c.IdentityFile = resolved.IdentityFile
+			}
+			if resolved.Domain != "" {
+				c.Domain = resolved.Domain
+			}
+			if resolved.VNCPassword != "" {
+				c.VNCPassword = resolved.VNCPassword
+			}
+			// Audit log when a profile credential was used.
+			hasProfile := false
+			for _, src := range sources {
+				if src != "direct" {
+					hasProfile = true
+					break
+				}
+			}
+			if hasProfile {
+				a.logAuditEvent(audit.AuditEvent{
+					EventType:      audit.EventCredentialUse,
+					ConnectionID:   c.ID,
+					ConnectionName: c.Name,
+				})
+			}
+		}
+	}
+
 	managed := session.NewManagedSession(
 		"", // ID assigned by SessionManager
 		c.Name,
@@ -1995,7 +2160,7 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		a.confirmQuit()
 		return a, nil
 	case "add":
-		a.form.startAdd(a.cfg.GroupNames())
+		a.form.startAdd(a.cfg.GroupNames(), a.profileNames())
 		a.form.width = a.width
 		a.form.height = a.contentHeight()
 		a.pushView(viewForm)
@@ -2029,7 +2194,7 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		return a, scheduleFlashClear()
 	case "edit":
 		if c := a.cfg.FindConnection(msg.Args); c != nil {
-			a.form.startEdit(*c, a.cfg.GroupNames())
+			a.form.startEdit(*c, a.cfg.GroupNames(), a.profileNames())
 			a.form.width = a.width
 			a.form.height = a.contentHeight()
 			a.pushView(viewForm)
@@ -2256,6 +2421,38 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		a.log.info("Moved %s to group %s", conn.Name, targetGroup)
 		a.statusBar.setFlash("Moved "+conn.Name+" to group "+targetGroup, flashInfo)
 		return a, scheduleFlashClear()
+	case "vault":
+		sub := strings.TrimSpace(msg.Args)
+		switch {
+		case sub == "" || sub == "list":
+			return a, a.openVaultView()
+		case sub == "add":
+			a.vaultFormView = newVaultForm(a.cfg.Groups, nil)
+			a.pushView(viewVaultForm)
+			return a, a.vaultFormView.form.Init()
+		case strings.HasPrefix(sub, "rename "):
+			return a.handleVaultRename(strings.TrimPrefix(sub, "rename "))
+		default:
+			a.statusBar.setFlash("Usage: :vault [list|add|rename <old> <new>]", flashError)
+			return a, scheduleFlashClear()
+		}
+	case "cred":
+		sub := strings.TrimSpace(msg.Args)
+		switch sub {
+		case "", "who":
+			return a, a.openVaultView()
+		case "save":
+			a.handleProfileSaveFrom()
+			return a, a.vaultFormView.form.Init()
+		case "clear":
+			a.handleProfileRemove()
+			return a, scheduleFlashClear()
+		case "orphans":
+			return a.handleCredOrphans()
+		default:
+			a.statusBar.setFlash("Usage: :cred [save|clear|who|orphans]", flashError)
+			return a, scheduleFlashClear()
+		}
 	default:
 		a.log.warn("Unknown command: %s", msg.Name)
 		a.statusBar.setFlash("Unknown command: "+msg.Name, flashError)
@@ -2477,7 +2674,243 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 		return a, scheduleFlashClear()
 	}
 
+	// Handle vault profile deletion confirmation (action = "delete-profile:<name>").
+	if strings.HasPrefix(msg.Action, "delete-profile:") && a.profileStore != nil {
+		profileName := strings.TrimPrefix(msg.Action, "delete-profile:")
+		if err := a.profileStore.Delete(profileName); err != nil {
+			a.statusBar.setFlash("Error deleting profile: "+err.Error(), flashError)
+		} else {
+			a.statusBar.setFlash("Profile '"+profileName+"' deleted", flashInfo)
+			a.refreshVaultView()
+		}
+		return a, scheduleFlashClear()
+	}
+
 	return a, nil
+}
+
+// handleVaultKey processes key events while the vault profile list view is active.
+func (a App) handleVaultKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		a.popView()
+		return a, nil
+	}
+	// All other keys are handled by vaultView.Update in the pass-through switch.
+	return a, nil
+}
+
+// refreshVaultView reloads profiles from the store and updates vaultView.
+func (a *App) refreshVaultView() {
+	if a.profileStore == nil {
+		return
+	}
+	profiles, err := a.profileStore.List()
+	if err != nil {
+		a.statusBar.setFlash("Error loading profiles: "+err.Error(), flashError)
+		return
+	}
+	// Count connections per profile (direct assignment or group inheritance).
+	counts := make(map[string]int)
+	groupProfiles := make(map[string]string)
+	for _, p := range profiles {
+		if p.Group != "" {
+			groupProfiles[p.Group] = p.Name
+		}
+		for _, conn := range a.cfg.Connections {
+			if conn.CredentialProfile == p.Name {
+				counts[p.Name]++
+			} else if p.Group != "" && conn.Group == p.Group && conn.CredentialProfile == "" {
+				counts[p.Name]++
+			}
+		}
+	}
+	a.vaultView.setProfiles(profiles)
+	a.vaultView.setConnCounts(counts)
+	a.list.groupProfiles = groupProfiles
+}
+
+// handleVaultRename renames a credential profile and updates all referencing connections.
+// args is expected to be "<old-name> <new-name>".
+func (a App) handleVaultRename(args string) (tea.Model, tea.Cmd) {
+	if a.profileStore == nil {
+		a.statusBar.setFlash("Vault not available", flashError)
+		return a, scheduleFlashClear()
+	}
+	parts := strings.SplitN(strings.TrimSpace(args), " ", 2)
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		a.statusBar.setFlash("Usage: :vault rename <old-name> <new-name>", flashError)
+		return a, scheduleFlashClear()
+	}
+	oldName := strings.TrimSpace(parts[0])
+	newName := strings.TrimSpace(parts[1])
+
+	profile, err := a.profileStore.Get(oldName)
+	if err != nil {
+		a.statusBar.setFlash("Error looking up profile: "+err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+	if profile == nil {
+		a.statusBar.setFlash("Profile '"+oldName+"' not found", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	profile.Name = newName
+	if err := a.profileStore.Update(*profile); err != nil {
+		a.statusBar.setFlash("Error renaming profile: "+err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+
+	// Update all connections that directly reference the old profile name.
+	updated := 0
+	for i := range a.cfg.Connections {
+		if a.cfg.Connections[i].CredentialProfile == oldName {
+			a.cfg.Connections[i].CredentialProfile = newName
+			updated++
+		}
+	}
+	if updated > 0 {
+		if err := config.Save(a.cfg); err != nil {
+			a.log.error("Failed to save connection references after rename: %v", err)
+		}
+	}
+
+	a.refreshVaultView()
+	a.list.rebuildTable()
+	a.statusBar.setFlash(fmt.Sprintf("Renamed profile '%s' to '%s' (%d connection(s) updated)", oldName, newName, updated), flashInfo)
+	return a, scheduleFlashClear()
+}
+
+// handleCredOrphans finds connections that reference a credential profile that no longer exists.
+func (a App) handleCredOrphans() (tea.Model, tea.Cmd) {
+	if a.profileStore == nil {
+		a.statusBar.setFlash("Vault not available", flashError)
+		return a, scheduleFlashClear()
+	}
+	profiles, err := a.profileStore.List()
+	if err != nil {
+		a.statusBar.setFlash("Error loading profiles: "+err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+
+	// Build a set of known profile names.
+	known := make(map[string]struct{}, len(profiles))
+	for _, p := range profiles {
+		known[p.Name] = struct{}{}
+	}
+
+	// Find connections with a CredentialProfile that is not in the known set.
+	var orphans []string
+	for _, conn := range a.cfg.Connections {
+		if conn.CredentialProfile == "" {
+			continue
+		}
+		if _, ok := known[conn.CredentialProfile]; !ok {
+			orphans = append(orphans, conn.Name+" ("+conn.CredentialProfile+")")
+		}
+	}
+
+	if len(orphans) == 0 {
+		a.statusBar.setFlash("No orphaned references found", flashInfo)
+	} else {
+		a.statusBar.setFlash(fmt.Sprintf("Orphaned connections (%d): %s", len(orphans), strings.Join(orphans, ", ")), flashWarn)
+	}
+	return a, scheduleFlashClear()
+}
+
+// handleVaultFormSubmit persists a submitted vault profile form.
+func (a *App) handleVaultFormSubmit(msg VaultFormSubmitMsg) {
+	if a.profileStore == nil {
+		a.statusBar.setFlash("Vault not available", flashError)
+		return
+	}
+	if msg.IsEdit {
+		if err := a.profileStore.Update(msg.Profile); err != nil {
+			a.statusBar.setFlash("Error updating profile: "+err.Error(), flashError)
+			return
+		}
+		a.statusBar.setFlash("Profile '"+msg.Profile.Name+"' updated", flashInfo)
+	} else {
+		if _, err := a.profileStore.Create(msg.Profile); err != nil {
+			a.statusBar.setFlash("Error creating profile: "+err.Error(), flashError)
+			return
+		}
+		a.statusBar.setFlash("Profile '"+msg.Profile.Name+"' created", flashInfo)
+	}
+	a.refreshVaultView()
+}
+
+// openVaultView refreshes the vault profile list and pushes the vault view.
+func (a *App) openVaultView() tea.Cmd {
+	a.refreshVaultView()
+	a.pushView(viewVault)
+	return nil
+}
+
+// handleProfileAssign opens the vault view so the user can select a profile to assign.
+func (a *App) handleProfileAssign() {
+	if a.profileStore == nil {
+		a.statusBar.setFlash("Vault not available", flashError)
+		return
+	}
+	conn := a.list.selectedConnection()
+	if conn == nil {
+		a.statusBar.setFlash("No connection selected", flashWarn)
+		return
+	}
+	profiles, err := a.profileStore.List()
+	if err != nil || len(profiles) == 0 {
+		a.statusBar.setFlash("No profiles available", flashWarn)
+		return
+	}
+	a.refreshVaultView()
+	a.pushView(viewVault)
+}
+
+// handleProfileSaveFrom pre-populates a new vault form with the selected connection's credentials.
+func (a *App) handleProfileSaveFrom() {
+	if a.profileStore == nil {
+		a.statusBar.setFlash("Vault not available", flashError)
+		return
+	}
+	conn := a.list.selectedConnection()
+	if conn == nil {
+		a.statusBar.setFlash("No connection selected", flashWarn)
+		return
+	}
+	profile := &vault.CredentialProfile{
+		Username:     conn.Username,
+		Password:     conn.Password,
+		IdentityFile: conn.IdentityFile,
+		Domain:       conn.Domain,
+		VNCPassword:  conn.VNCPassword,
+		Group:        conn.Group,
+	}
+	a.vaultFormView = newVaultForm(a.cfg.Groups, profile)
+	a.vaultFormView.isEdit = false
+	a.vaultFormView.editID = ""
+	a.pushView(viewVaultForm)
+}
+
+// handleProfileRemove clears the credential profile assignment from the selected connection.
+func (a *App) handleProfileRemove() {
+	conn := a.list.selectedConnection()
+	if conn == nil {
+		a.statusBar.setFlash("No connection selected", flashWarn)
+		return
+	}
+	if conn.CredentialProfile == "" {
+		a.statusBar.setFlash("No profile assigned", flashWarn)
+		return
+	}
+	for i := range a.cfg.Connections {
+		if a.cfg.Connections[i].ID == conn.ID {
+			a.cfg.Connections[i].CredentialProfile = ""
+			break
+		}
+	}
+	_ = config.Save(a.cfg)
+	a.statusBar.setFlash("Profile removed from '"+conn.Name+"'", flashInfo)
 }
 
 // executeLeaderAction maps leader action command strings to existing app functionality.
@@ -2498,7 +2931,7 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		a.statusBar.mode = ModeInsert
 		return a, a.quickConnect.input.Focus()
 	case "add-connection":
-		a.form.startAdd(a.cfg.GroupNames())
+		a.form.startAdd(a.cfg.GroupNames(), a.profileNames())
 		a.form.width = a.width
 		a.form.height = a.contentHeight()
 		a.pushView(viewForm)
@@ -2507,7 +2940,7 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		return a, a.form.form.Init()
 	case "edit-connection":
 		if c := a.list.selectedConnection(); c != nil {
-			a.form.startEdit(*c, a.cfg.GroupNames())
+			a.form.startEdit(*c, a.cfg.GroupNames(), a.profileNames())
 			a.form.width = a.width
 			a.form.height = a.contentHeight()
 			a.pushView(viewForm)
@@ -2735,7 +3168,7 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 			if st.status == health.Online || st.status == health.Degraded {
 				latStr = st.latency.String()
 			}
-			a.detail.setConnection(c, st.status, latStr)
+			a.setDetailConnection(c, st.status, latStr)
 			a.detail.setSize(a.width, a.contentHeight())
 			a.pushView(viewDetail)
 			a.help.view = "detail"
@@ -2957,6 +3390,29 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		return a.applyPresetAction("2x2")
 	case "preset-main-side":
 		return a.applyPresetAction("main-side")
+
+	// Profile / vault actions
+	case "profile-list":
+		return a, a.openVaultView()
+	case "profile-create":
+		a.vaultFormView = newVaultForm(a.cfg.Groups, nil)
+		a.pushView(viewVaultForm)
+		return a, a.vaultFormView.form.Init()
+	case "profile-edit":
+		return a, a.openVaultView()
+	case "profile-delete":
+		return a, a.openVaultView()
+	case "profile-assign":
+		a.handleProfileAssign()
+		return a, nil
+	case "profile-save-from":
+		a.handleProfileSaveFrom()
+		return a, a.vaultFormView.form.Init()
+	case "profile-remove":
+		a.handleProfileRemove()
+		return a, scheduleFlashClear()
+	case "profile-who":
+		return a, a.openVaultView()
 
 	default:
 		a.statusBar.setFlash(fmt.Sprintf("Action: %s", action.Command), flashInfo)
@@ -3285,6 +3741,10 @@ func (a App) View() string {
 		contentView = a.pulse.View()
 	case viewPaneLayout:
 		contentView = a.paneLayout.View()
+	case viewVault:
+		contentView = a.vaultView.View()
+	case viewVaultForm:
+		contentView = a.vaultFormView.View()
 	}
 
 	// Calculate available height for content and pad/truncate to fill
@@ -3879,7 +4339,7 @@ func (a App) handleNoteCommand(args string) (tea.Model, tea.Cmd) {
 
 	// Refresh detail view if visible
 	if a.currentView() == viewDetail {
-		a.detail.setConnection(c, a.detail.status, a.detail.latency)
+		a.setDetailConnection(c, a.detail.status, a.detail.latency)
 	}
 
 	return a, scheduleFlashClear()
@@ -3942,7 +4402,7 @@ func (a App) handleFieldCommand(args string) (tea.Model, tea.Cmd) {
 
 	// Refresh detail view if visible
 	if a.currentView() == viewDetail {
-		a.detail.setConnection(c, a.detail.status, a.detail.latency)
+		a.setDetailConnection(c, a.detail.status, a.detail.latency)
 	}
 
 	return a, scheduleFlashClear()

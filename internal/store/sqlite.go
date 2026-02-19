@@ -38,6 +38,10 @@ func NewSQLiteStore(path string) (*SQLiteStore, error) {
 		db.Close()
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
+	if err := s.migrateSchema(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate schema: %w", err)
+	}
 	return s, nil
 }
 
@@ -62,8 +66,9 @@ CREATE TABLE IF NOT EXISTS connections (
 	grp           TEXT NOT NULL DEFAULT '',
 	tags          TEXT NOT NULL DEFAULT '[]',
 	rdp_options   TEXT NOT NULL DEFAULT '{}',
-	vnc_password  TEXT NOT NULL DEFAULT '',
-	hooks         TEXT NOT NULL DEFAULT '{}',
+	vnc_password       TEXT NOT NULL DEFAULT '',
+	credential_profile TEXT NOT NULL DEFAULT '',
+	hooks              TEXT NOT NULL DEFAULT '{}',
 	favorite      INTEGER NOT NULL DEFAULT 0,
 	last_connected_at TEXT NOT NULL DEFAULT '',
 	connect_count INTEGER NOT NULL DEFAULT 0
@@ -99,6 +104,28 @@ END;
 `
 	_, err := s.db.Exec(ddl)
 	return err
+}
+
+// migrateSchema applies incremental ALTER TABLE statements to bring existing
+// databases up to the current schema. Each statement is idempotent: SQLite
+// returns "duplicate column name" when the column already exists, which we
+// treat as success.
+func (s *SQLiteStore) migrateSchema() error {
+	migrations := []string{
+		`ALTER TABLE connections ADD COLUMN credential_profile TEXT NOT NULL DEFAULT ''`,
+	}
+	for _, stmt := range migrations {
+		if _, err := s.db.Exec(stmt); err != nil {
+			// SQLite reports duplicate column additions as an error whose message
+			// contains "duplicate column name". Ignore those — the column is
+			// already present (fresh DB created by createSchema, or a previous run).
+			if strings.Contains(err.Error(), "duplicate column name") {
+				continue
+			}
+			return fmt.Errorf("migration %q: %w", stmt, err)
+		}
+	}
+	return nil
 }
 
 // DB returns the underlying database (useful for migrations / testing).
@@ -158,13 +185,13 @@ func (s *SQLiteStore) UpdateConnection(conn config.Connection) error {
 	_, err = s.db.Exec(`UPDATE connections SET
 		position=?, name=?, protocol=?, host=?, port=?, username=?, password=?,
 		identity_file=?, proxy_jump=?, proxy_command=?, port_forwards=?, domain=?,
-		grp=?, tags=?, rdp_options=?, vnc_password=?, hooks=?, favorite=?,
+		grp=?, tags=?, rdp_options=?, vnc_password=?, credential_profile=?, hooks=?, favorite=?,
 		last_connected_at=?, connect_count=?
 		WHERE id=?`,
 		pos, conn.Name, string(conn.Protocol), conn.Host, conn.Port,
 		conn.Username, conn.Password, conn.IdentityFile, conn.ProxyJump,
 		conn.ProxyCommand, string(pfJSON), conn.Domain, conn.Group,
-		string(tagsJSON), string(rdpJSON), conn.VNCPassword, string(hooksJSON),
+		string(tagsJSON), string(rdpJSON), conn.VNCPassword, conn.CredentialProfile, string(hooksJSON),
 		fav, lastConn, conn.ConnectCount, conn.ID,
 	)
 	return err
@@ -248,13 +275,13 @@ func (s *SQLiteStore) insertConn(conn config.Connection, pos int) error {
 	_, err := s.db.Exec(`INSERT INTO connections (
 		id, position, name, protocol, host, port, username, password,
 		identity_file, proxy_jump, proxy_command, port_forwards, domain,
-		grp, tags, rdp_options, vnc_password, hooks, favorite,
+		grp, tags, rdp_options, vnc_password, credential_profile, hooks, favorite,
 		last_connected_at, connect_count
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		conn.ID, pos, conn.Name, string(conn.Protocol), conn.Host, conn.Port,
 		conn.Username, conn.Password, conn.IdentityFile, conn.ProxyJump,
 		conn.ProxyCommand, string(pfJSON), conn.Domain, conn.Group,
-		string(tagsJSON), string(rdpJSON), conn.VNCPassword, string(hooksJSON),
+		string(tagsJSON), string(rdpJSON), conn.VNCPassword, conn.CredentialProfile, string(hooksJSON),
 		fav, lastConn, conn.ConnectCount,
 	)
 	return err
@@ -291,7 +318,7 @@ func scanConnection(row *sql.Row) (config.Connection, error) {
 		&c.ID, &pos, &c.Name, &proto, &c.Host, &c.Port,
 		&c.Username, &c.Password, &c.IdentityFile, &c.ProxyJump,
 		&c.ProxyCommand, &pfJSON, &c.Domain, &c.Group,
-		&tagsJSON, &rdpJSON, &c.VNCPassword, &hooksJSON,
+		&tagsJSON, &rdpJSON, &c.VNCPassword, &c.CredentialProfile, &hooksJSON,
 		&fav, &lastConn, &c.ConnectCount,
 	)
 	if err != nil {
@@ -331,7 +358,7 @@ func scanRow(rows *sql.Rows) (config.Connection, error) {
 		&c.ID, &pos, &c.Name, &proto, &c.Host, &c.Port,
 		&c.Username, &c.Password, &c.IdentityFile, &c.ProxyJump,
 		&c.ProxyCommand, &pfJSON, &c.Domain, &c.Group,
-		&tagsJSON, &rdpJSON, &c.VNCPassword, &hooksJSON,
+		&tagsJSON, &rdpJSON, &c.VNCPassword, &c.CredentialProfile, &hooksJSON,
 		&fav, &lastConn, &c.ConnectCount,
 	)
 	if err != nil {
