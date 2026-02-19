@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -722,8 +723,7 @@ func (m *ManagedSession) attachLoop() error {
 			}
 
 			if n > 0 {
-				data := make([]byte, n)
-				copy(data, buf[:n])
+				data := translateModifyOtherKeys(buf[:n])
 				select {
 				case stdinCh <- stdinResult{data: data}:
 				case <-detachCh:
@@ -955,6 +955,58 @@ func (m *ManagedSession) StartBackground() error {
 	go m.waitDone()
 
 	return nil
+}
+
+// translateModifyOtherKeys replaces xterm modifyOtherKeys escape sequences
+// with the plain character they represent. Terminals with modifyOtherKeys
+// level 2 enabled encode modified keys as \x1b[27;modifier;keycode~ which
+// remote shells typically don't understand. This translates them back to the
+// unmodified character (e.g. Shift+Enter → \r).
+func translateModifyOtherKeys(raw []byte) []byte {
+	// Fast path: no escape character means nothing to translate.
+	if !bytes.ContainsRune(raw, '\x1b') {
+		out := make([]byte, len(raw))
+		copy(out, raw)
+		return out
+	}
+
+	out := make([]byte, 0, len(raw))
+	i := 0
+	for i < len(raw) {
+		// Look for \x1b[27; pattern (modifyOtherKeys).
+		if i+4 < len(raw) && raw[i] == 0x1b && raw[i+1] == '[' && raw[i+2] == '2' && raw[i+3] == '7' && raw[i+4] == ';' {
+			// Parse: \x1b[27;modifier;keycode~
+			j := i + 5
+			// Skip modifier digits
+			for j < len(raw) && raw[j] >= '0' && raw[j] <= '9' {
+				j++
+			}
+			if j < len(raw) && raw[j] == ';' {
+				j++ // skip semicolon
+				// Parse keycode
+				codeStart := j
+				for j < len(raw) && raw[j] >= '0' && raw[j] <= '9' {
+					j++
+				}
+				if j < len(raw) && raw[j] == '~' && j > codeStart {
+					// Extract the keycode and emit it as a plain byte.
+					keycode := 0
+					for _, c := range raw[codeStart:j] {
+						keycode = keycode*10 + int(c-'0')
+					}
+					if keycode > 0 && keycode < 128 {
+						out = append(out, byte(keycode))
+					}
+					i = j + 1 // skip past the '~'
+					continue
+				}
+			}
+		}
+		// No match — copy byte as-is.
+		out = append(out, raw[i])
+		i++
+	}
+	return out
 }
 
 // WriteInput writes data directly to the SSH stdin pipe.

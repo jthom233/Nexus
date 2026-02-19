@@ -3,9 +3,10 @@ package tui
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/dr4zz/nexus/internal/termcap"
@@ -616,6 +617,18 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.paneLayout = &updated
 		a.syncHeaderView()
 		return a, cmd
+
+	default:
+		// Forward unrecognized terminal escape sequences (e.g. Shift+Enter,
+		// Ctrl+Alt+Enter) to the active SSH session when in insert mode.
+		// Bubbletea dispatches unknown CSI sequences as an unexported []byte
+		// type that we can't switch on directly.
+		if a.mode == ModeInsert && a.currentView() == viewPaneLayout {
+			if raw := extractRawBytes(msg); len(raw) > 0 {
+				a.paneLayout.RouteInput(translateModifyOtherKeys(raw))
+				return a, nil
+			}
+		}
 	}
 
 	// Pass through to active view
@@ -1444,6 +1457,58 @@ func (a App) handlePaneLayoutKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // keyMsgToBytes converts a bubbletea KeyMsg to the raw bytes that a terminal
 // program expects. Printable runes are encoded as UTF-8; special keys are
 // mapped to their ANSI/VT100 escape sequences.
+// translateModifyOtherKeys replaces xterm modifyOtherKeys escape sequences
+// (\x1b[27;modifier;keycode~) with the plain character they represent.
+func translateModifyOtherKeys(raw []byte) []byte {
+	out := make([]byte, 0, len(raw))
+	i := 0
+	for i < len(raw) {
+		if i+4 < len(raw) && raw[i] == 0x1b && raw[i+1] == '[' && raw[i+2] == '2' && raw[i+3] == '7' && raw[i+4] == ';' {
+			j := i + 5
+			for j < len(raw) && raw[j] >= '0' && raw[j] <= '9' {
+				j++
+			}
+			if j < len(raw) && raw[j] == ';' {
+				j++
+				codeStart := j
+				for j < len(raw) && raw[j] >= '0' && raw[j] <= '9' {
+					j++
+				}
+				if j < len(raw) && raw[j] == '~' && j > codeStart {
+					keycode := 0
+					for _, c := range raw[codeStart:j] {
+						keycode = keycode*10 + int(c-'0')
+					}
+					if keycode > 0 && keycode < 128 {
+						out = append(out, byte(keycode))
+					}
+					i = j + 1
+					continue
+				}
+			}
+		}
+		out = append(out, raw[i])
+		i++
+	}
+	return out
+}
+
+// extractRawBytes extracts raw byte data from a tea.Msg whose underlying type
+// is []byte (e.g. Bubbletea's unexported unknownCSISequenceMsg) or byte
+// (unknownInputByteMsg). Returns nil for all other message types.
+func extractRawBytes(msg tea.Msg) []byte {
+	v := reflect.ValueOf(msg)
+	switch v.Kind() {
+	case reflect.Slice:
+		if v.Type().Elem().Kind() == reflect.Uint8 {
+			return v.Bytes()
+		}
+	case reflect.Uint8:
+		return []byte{byte(v.Uint())}
+	}
+	return nil
+}
+
 func keyMsgToBytes(msg tea.KeyMsg) []byte {
 	k := msg.String()
 
@@ -1456,6 +1521,11 @@ func keyMsgToBytes(msg tea.KeyMsg) []byte {
 	switch k {
 	case "enter":
 		return []byte{'\r'}
+	case "shift+enter", "ctrl+enter", "alt+enter", "ctrl+alt+enter":
+		// Modified Enter — most remote shells treat these as plain Enter.
+		return []byte{'\r'}
+	case "shift+tab":
+		return []byte{0x1b, '[', 'Z'}
 	case "tab":
 		return []byte{'\t'}
 	case "backspace":
@@ -1530,6 +1600,32 @@ func keyMsgToBytes(msg tea.KeyMsg) []byte {
 		return []byte{0x1b, '[', 'C'}
 	case "left":
 		return []byte{0x1b, '[', 'D'}
+
+	// Modified arrow keys (xterm)
+	case "shift+up":
+		return []byte{0x1b, '[', '1', ';', '2', 'A'}
+	case "shift+down":
+		return []byte{0x1b, '[', '1', ';', '2', 'B'}
+	case "shift+right":
+		return []byte{0x1b, '[', '1', ';', '2', 'C'}
+	case "shift+left":
+		return []byte{0x1b, '[', '1', ';', '2', 'D'}
+	case "alt+up":
+		return []byte{0x1b, '[', '1', ';', '3', 'A'}
+	case "alt+down":
+		return []byte{0x1b, '[', '1', ';', '3', 'B'}
+	case "alt+right":
+		return []byte{0x1b, '[', '1', ';', '3', 'C'}
+	case "alt+left":
+		return []byte{0x1b, '[', '1', ';', '3', 'D'}
+	case "ctrl+up":
+		return []byte{0x1b, '[', '1', ';', '5', 'A'}
+	case "ctrl+down":
+		return []byte{0x1b, '[', '1', ';', '5', 'B'}
+	case "ctrl+right":
+		return []byte{0x1b, '[', '1', ';', '5', 'C'}
+	case "ctrl+left":
+		return []byte{0x1b, '[', '1', ';', '5', 'D'}
 
 	// Navigation keys
 	case "home":

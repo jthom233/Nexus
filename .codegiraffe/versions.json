@@ -1960,5 +1960,17 @@
       "edges_removed": [],
       "attrs_changed": {}
     }
+  },
+  {
+    "version_id": 2,
+    "timestamp": "2026-02-19T03:07:31.725870+00:00",
+    "message": "Rescan",
+    "diff": {
+      "nodes_added": [],
+      "nodes_removed": [],
+      "edges_added": [],
+      "edges_removed": [],
+      "attrs_changed": {}
+    }
   }
 ]
