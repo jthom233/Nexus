@@ -94,11 +94,12 @@ type ConfigTemplate struct {
 
 // Config is the root configuration structure.
 type Config struct {
-	Version     int          `yaml:"version"`
-	Settings    Settings     `yaml:"settings"`
-	Groups      []Group      `yaml:"groups,omitempty"`
-	Connections []Connection     `yaml:"connections,omitempty"`
-	Templates   []ConfigTemplate `yaml:"templates,omitempty"`
+	Version        int              `yaml:"version"`
+	Settings       Settings         `yaml:"settings"`
+	Groups         []Group          `yaml:"groups,omitempty"`
+	Connections    []Connection     `yaml:"connections,omitempty"`
+	Templates      []ConfigTemplate `yaml:"templates,omitempty"`
+	PasswordVerify string           `yaml:"password_verify,omitempty"` // encrypted sentinel for master password verification
 
 	EncryptionKey []byte `yaml:"-"`
 }
@@ -173,24 +174,122 @@ func ConfigPath() string {
 	return filepath.Join(dir, "nexus", "config.yaml")
 }
 
-// Load reads the config from disk. If the file doesn't exist, returns a default config.
-func Load() (*Config, error) {
+// Load reads the config from disk. If the file doesn't exist, returns a default
+// config and true to indicate a fresh install (first launch).
+func Load() (*Config, bool, error) {
 	path := ConfigPath()
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			cfg := defaultConfig()
-			return cfg, nil
+			return cfg, true, nil
 		}
-		return nil, err
+		return nil, false, err
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return &cfg, nil
+	return &cfg, false, nil
+}
+
+// HasMasterPassword returns true if a master password has been configured.
+func (cfg *Config) HasMasterPassword() bool {
+	return cfg.PasswordVerify != ""
+}
+
+// VerifyMasterPassword checks a password against the stored verification sentinel.
+func (cfg *Config) VerifyMasterPassword(password []byte) error {
+	if cfg.PasswordVerify == "" {
+		return fmt.Errorf("no master password configured")
+	}
+	if !crypto.IsEncrypted(cfg.PasswordVerify) {
+		return fmt.Errorf("password_verify field is corrupted")
+	}
+	dec, err := crypto.Decrypt(cfg.PasswordVerify, password)
+	if err != nil {
+		return fmt.Errorf("wrong master password")
+	}
+	if dec != "nexus" {
+		return fmt.Errorf("wrong master password")
+	}
+	return nil
+}
+
+// SetPasswordVerify encrypts a sentinel value with the given password and stores it.
+func (cfg *Config) SetPasswordVerify(password []byte) error {
+	enc, err := crypto.Encrypt("nexus", password)
+	if err != nil {
+		return fmt.Errorf("encrypting password verify: %w", err)
+	}
+	cfg.PasswordVerify = enc
+	return nil
+}
+
+// SampleConfig returns a config populated with example connections for first launch.
+func SampleConfig() *Config {
+	return &Config{
+		Version: 1,
+		Settings: Settings{
+			HealthCheckInterval: "30s",
+			Theme:               "default",
+		},
+		Groups: []Group{
+			{Name: "servers", Color: "#5f87af"},
+			{Name: "network", Color: "#af875f"},
+		},
+		Connections: []Connection{
+			{
+				ID:       "example-ssh",
+				Name:     "Example SSH Server",
+				Protocol: ProtoSSH,
+				Host:     "192.168.1.100",
+				Port:     22,
+				Username: "admin",
+				Group:    "servers",
+				Tags:     []string{"example", "linux"},
+				Notes:    "Sample SSH connection — edit host/username to match your server",
+			},
+			{
+				ID:       "example-rdp",
+				Name:     "Example Windows PC",
+				Protocol: ProtoRDP,
+				Host:     "192.168.1.200",
+				Username: "Administrator",
+				Domain:   "WORKGROUP",
+				Group:    "servers",
+				Tags:     []string{"example", "windows"},
+				RDPOptions: RDPOptions{
+					Resolution:        "1920x1080",
+					DynamicResolution: true,
+				},
+				Notes: "Sample RDP connection — edit host/credentials to match your machine",
+			},
+			{
+				ID:       "example-vnc",
+				Name:     "Example VNC Display",
+				Protocol: ProtoVNC,
+				Host:     "192.168.1.150",
+				Port:     5900,
+				Group:    "servers",
+				Tags:     []string{"example"},
+				Notes:    "Sample VNC connection — edit host and set vnc_password",
+			},
+			{
+				ID:       "example-switch",
+				Name:     "Example Network Switch",
+				Protocol: ProtoTelnet,
+				Host:     "192.168.1.1",
+				Port:     23,
+				Username: "admin",
+				Group:    "network",
+				Tags:     []string{"example", "infrastructure"},
+				Notes:    "Sample Telnet connection — edit to match your network device",
+			},
+		},
+	}
 }
 
 // Save writes the config to disk, creating directories as needed.
