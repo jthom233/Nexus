@@ -34,6 +34,7 @@ const (
 	viewPaneLayout
 	viewVault
 	viewVaultForm
+	viewGroupList
 )
 
 // App is the root bubbletea model.
@@ -71,6 +72,9 @@ type App struct {
 	profileStore *vault.ProfileStore
 	vaultView     vaultModel
 	vaultFormView vaultFormModel
+
+	// Group list
+	groupListView groupListModel
 
 	// View stack
 	viewStack []viewKind
@@ -121,10 +125,11 @@ func NewApp(cfg *config.Config, v vault.Vault) App {
 	}
 
 	return App{
-		cfg:          cfg,
-		vault:        v,
-		profileStore: ps,
-		vaultView:    newVaultModel(),
+		cfg:           cfg,
+		vault:         v,
+		profileStore:  ps,
+		vaultView:     newVaultModel(),
+		groupListView: newGroupListModel(),
 		keys:         DefaultKeyMap(),
 		header:       h,
 		statusBar:    newStatusBar(),
@@ -240,6 +245,8 @@ func (a *App) syncStatusBarView() {
 		a.statusBar.view = "vault"
 	case viewVaultForm:
 		a.statusBar.view = "vault-form"
+	case viewGroupList:
+		a.statusBar.view = "groups"
 	}
 }
 
@@ -289,6 +296,9 @@ func (a *App) syncHeaderView() {
 		}
 		a.header.setView(name, 6)
 		a.header.setItemCount(0)
+	case viewGroupList:
+		a.header.setView("Groups", 7)
+		a.header.setItemCount(len(a.groupListView.groups))
 	}
 }
 
@@ -664,6 +674,32 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.popView()
 		return a, nil
 
+	case GroupListCloseMsg:
+		a.popView()
+		return a, nil
+
+	case GroupListDeleteMsg:
+		connCount := 0
+		for _, conn := range a.cfg.Connections {
+			if conn.Group == msg.GroupName {
+				connCount++
+			}
+		}
+		if connCount > 0 {
+			prompt := fmt.Sprintf("Group '%s' has %d connection(s). Move them to ungrouped and delete?", msg.GroupName, connCount)
+			a.confirm.show(prompt, "delete-group:"+msg.GroupName, msg.GroupName)
+			a.confirm.width = a.width
+			a.confirm.height = a.height
+			return a, nil
+		}
+		if err := a.cfg.DeleteGroup(msg.GroupName); err != nil {
+			a.statusBar.setFlash("Error deleting group: "+err.Error(), flashError)
+		} else {
+			a.statusBar.setFlash("Group '"+msg.GroupName+"' deleted", flashInfo)
+			a.refreshGroupListView()
+		}
+		return a, scheduleFlashClear()
+
 	case VaultCreateMsg:
 		a.vaultFormView = newVaultForm(a.cfg.Groups, nil)
 		a.vaultFormView.setSize(a.width, a.contentHeight())
@@ -797,6 +833,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.vaultFormView, cmd = a.vaultFormView.Update(msg)
 		cmds = append(cmds, cmd)
+	case viewGroupList:
+		var cmd tea.Cmd
+		a.groupListView, cmd = a.groupListView.Update(msg)
+		cmds = append(cmds, cmd)
 	case viewPaneLayout:
 		updated, cmd := a.paneLayout.Update(msg)
 		a.paneLayout = &updated
@@ -826,6 +866,8 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case viewVaultForm:
 		// VaultForm keys are handled via the huh form Update in the pass-through switch.
 		return a, nil
+	case viewGroupList:
+		return a.handleGroupListKey(msg)
 	}
 	return a, nil
 }
@@ -2747,6 +2789,29 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 		return a, scheduleFlashClear()
 	}
 
+	// Handle group deletion confirmation (action = "delete-group:<name>").
+	if strings.HasPrefix(msg.Action, "delete-group:") {
+		groupName := strings.TrimPrefix(msg.Action, "delete-group:")
+		// Unassign all connections from the group
+		for i := range a.cfg.Connections {
+			if a.cfg.Connections[i].Group == groupName {
+				a.cfg.Connections[i].Group = ""
+			}
+		}
+		if err := a.cfg.DeleteGroup(groupName); err != nil {
+			a.statusBar.setFlash("Error deleting group: "+err.Error(), flashError)
+		} else {
+			a.statusBar.setFlash("Group '"+groupName+"' deleted", flashInfo)
+			a.refreshGroupListView()
+			// Rebuild list in case connections were ungrouped
+			a.list.filtered = a.list.groupFilteredConns()
+			a.list.rebuildTable()
+			a.syncHeaderView()
+			a.syncCursorPosition()
+		}
+		return a, scheduleFlashClear()
+	}
+
 	return a, nil
 }
 
@@ -2917,6 +2982,46 @@ func (a *App) openVaultView() tea.Cmd {
 	a.refreshVaultView()
 	a.pushView(viewVault)
 	return nil
+}
+
+// openGroupListView computes connection counts per group, updates the group list model, and pushes the view.
+func (a *App) openGroupListView() {
+	a.refreshGroupListView()
+	a.pushView(viewGroupList)
+}
+
+// refreshGroupListView recomputes connection counts per group and updates the group list model.
+func (a *App) refreshGroupListView() {
+	counts := make(map[string]int)
+	for _, conn := range a.cfg.Connections {
+		if conn.Group != "" {
+			counts[conn.Group]++
+		}
+	}
+	a.groupListView.setGroups(a.cfg.Groups)
+	a.groupListView.setConnCounts(counts)
+}
+
+// handleGroupListKey processes key events while the group list view is active.
+func (a App) handleGroupListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case " ": // Space = leader key
+		if !a.leader.active {
+			cmd := a.leader.activate()
+			return a, cmd
+		}
+	case "q":
+		a.confirmQuit()
+		return a, nil
+	case "?":
+		a.help.view = "groups"
+		a.help.toggle()
+		return a, nil
+	}
+	// Forward to group list model for navigation and actions (j/k/g/G, d, esc).
+	var cmd tea.Cmd
+	a.groupListView, cmd = a.groupListView.Update(msg)
+	return a, cmd
 }
 
 // handleProfileAssign opens the vault view so the user can select a profile to assign.
@@ -3144,13 +3249,9 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		a.mode = ModeCommand
 		a.statusBar.mode = ModeCommand
 		return a, a.command.input.Focus()
-	case "delete-group":
-		a.command.activate()
-		a.command.input.SetValue("rmdir ")
-		a.command.input.SetCursor(6)
-		a.mode = ModeCommand
-		a.statusBar.mode = ModeCommand
-		return a, a.command.input.Focus()
+	case "group-list":
+		a.openGroupListView()
+		return a, nil
 	case "move-to-group":
 		a.command.activate()
 		a.command.input.SetValue("mv ")
@@ -3821,6 +3922,8 @@ func (a App) View() string {
 		contentView = a.vaultView.View()
 	case viewVaultForm:
 		contentView = a.vaultFormView.View()
+	case viewGroupList:
+		contentView = a.groupListView.View()
 	}
 
 	// Calculate available height for content and pad/truncate to fill
@@ -3866,6 +3969,8 @@ func (a *App) layout() {
 	a.log.setSize(a.width, ch)
 	a.sessionsView.setSize(a.width, ch)
 	a.vaultFormView.setSize(a.width, ch)
+	a.groupListView.width = a.width
+	a.groupListView.height = ch
 	a.pulse.SetSize(a.width, ch)
 	if a.currentView() == viewPaneLayout {
 		a.paneLayout.SetSize(a.width, ch)

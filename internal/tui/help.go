@@ -95,6 +95,13 @@ func (h helpModel) entriesForView() []helpEntry {
 			{"d", "Kill/disconnect session"},
 			{"Ctrl+l", "View event log"},
 		}, common...)
+	case "groups":
+		return append([]helpEntry{
+			{"j/k ↑/↓", "Navigate list"},
+			{"g/G", "Jump to top/bottom"},
+			{"d", "Delete selected group"},
+			{"Space", "Leader key (command palette)"},
+		}, common...)
 	case "form":
 		return append([]helpEntry{
 			{"tab", "Next field"},
