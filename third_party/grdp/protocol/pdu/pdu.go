@@ -176,7 +176,9 @@ func (c *Client) sendConfirmActivePDU() {
 	bitmapCapa.PreferredBitsPerPixel = c.clientCoreData.HighColorDepth
 	bitmapCapa.DesktopWidth = c.clientCoreData.DesktopWidth
 	bitmapCapa.DesktopHeight = c.clientCoreData.DesktopHeight
-	bitmapCapa.DrawingFlags = 0x01 | 0x02 | 0x04 // DRAW_ALLOW_DYNAMIC_COLOR_FIDELITY | DRAW_ALLOW_COLOR_SUBSAMPLING | DRAW_ALLOW_SKIP_ALPHA
+	// NOTE: DrawingFlags left at 0 — grdp's bitmap decoder cannot handle
+	// COLOR_SUBSAMPLING or DYNAMIC_COLOR_FIDELITY modes, so we must not
+	// advertise support for them.
 
 	orderCapa := c.clientCapabilities[CAPSTYPE_ORDER].(*OrderCapability)
 	orderCapa.OrderFlags |= ZEROBOUNDSDELTASSUPPORT
@@ -189,22 +191,9 @@ func (c *Client) sendConfirmActivePDU() {
 	inputCapa.KeyboardFunctionKey = c.clientCoreData.KeyboardFnKeys
 	inputCapa.ImeFileName = c.clientCoreData.ImeFileName
 
-	glyphCapa := c.clientCapabilities[CAPSTYPE_GLYPHCACHE].(*GlyphCapability)
-	glyphCapa.SupportLevel = GLYPH_SUPPORT_FULL
-	// Populate glyph cache entries (10 caches with reasonable sizes)
-	glyphCapa.GlyphCache = [10]cacheEntry{
-		{Entries: 254, MaximumCellSize: 4},
-		{Entries: 254, MaximumCellSize: 4},
-		{Entries: 254, MaximumCellSize: 8},
-		{Entries: 254, MaximumCellSize: 8},
-		{Entries: 254, MaximumCellSize: 16},
-		{Entries: 254, MaximumCellSize: 32},
-		{Entries: 254, MaximumCellSize: 64},
-		{Entries: 254, MaximumCellSize: 128},
-		{Entries: 254, MaximumCellSize: 256},
-		{Entries: 64, MaximumCellSize: 2048},
-	}
-	glyphCapa.FragCache = (256 << 16) | 256 // 256 entries, 256 bytes max fragment size
+	// NOTE: GlyphCapability left at GLYPH_SUPPORT_NONE — grdp does not
+	// implement glyph cache order processing, so advertising support would
+	// cause the server to send glyph orders that get silently dropped.
 
 	pdu.SharedId = c.sharedId
 	pdu.NumberCapabilities = uint16(len(c.clientCapabilities))
