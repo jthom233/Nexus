@@ -46,7 +46,6 @@ type formModel struct {
 	resolution   string
 	fullscreen   bool
 	dynamicRes   bool
-	security     string
 	vncPassword  string
 
 	// Hook fields
@@ -95,7 +94,6 @@ func (f *formModel) startAdd(groups []string, profiles []string) {
 	f.resolution = "1920x1080"
 	f.fullscreen = false
 	f.dynamicRes = true
-	f.security = "auto"
 	f.vncPassword = ""
 	f.hookPreConnect = ""
 	f.hookPostConnect = ""
@@ -134,10 +132,6 @@ func (f *formModel) startEdit(conn config.Connection, groups []string, profiles 
 	f.fullscreen = conn.RDPOptions.Fullscreen
 	f.vncPassword = conn.VNCPassword
 	f.dynamicRes = conn.RDPOptions.DynamicResolution
-	f.security = conn.RDPOptions.Security
-	if f.security == "" {
-		f.security = "auto"
-	}
 	f.groups = groups
 	f.profiles = profiles
 	f.credentialProfile = conn.CredentialProfile
@@ -312,15 +306,6 @@ func (f *formModel) buildForm() {
 			huh.NewConfirm().
 				Title("Dynamic Resolution").
 				Value(&f.dynamicRes),
-			huh.NewSelect[string]().
-				Title("Security Protocol").
-				Options(
-					huh.NewOption("Auto-negotiate (default)", "auto"),
-					huh.NewOption("NLA / CredSSP", "nla"),
-					huh.NewOption("TLS only", "tls"),
-					huh.NewOption("Standard RDP", "rdp"),
-				).
-				Value(&f.security),
 		).WithHideFunc(func() bool { return f.protocol != "rdp" }),
 		// VNC-specific
 		huh.NewGroup(
@@ -442,7 +427,6 @@ func (f *formModel) toConnection() config.Connection {
 			Resolution:        f.resolution,
 			Fullscreen:        f.fullscreen,
 			DynamicResolution: f.dynamicRes,
-			Security:          f.security,
 		}
 	case "vnc":
 		conn.VNCPassword = f.vncPassword

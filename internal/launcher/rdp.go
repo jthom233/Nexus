@@ -41,7 +41,6 @@ func (l *RDPLauncher) Launch(conn config.Connection) tea.Cmd {
 			"resolution":         conn.RDPOptions.Resolution,
 			"fullscreen":         conn.RDPOptions.Fullscreen,
 			"dynamic_resolution": conn.RDPOptions.DynamicResolution,
-			"security":           conn.RDPOptions.Security,
 		})
 
 		// Send open-tab command

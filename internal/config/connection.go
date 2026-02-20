@@ -175,7 +175,6 @@ type RDPOptions struct {
 	Resolution        string `yaml:"resolution,omitempty"`
 	Fullscreen        bool   `yaml:"fullscreen,omitempty"`
 	DynamicResolution bool   `yaml:"dynamic_resolution,omitempty"`
-	Security          string `yaml:"security,omitempty"` // "auto", "nla", "tls", "rdp"
 }
 
 // Connection represents a single remote connection.
