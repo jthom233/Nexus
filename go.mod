@@ -9,15 +9,10 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/huh v0.8.0
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/google/uuid v1.6.0
 	github.com/hajimehoshi/ebiten/v2 v2.9.8
 	github.com/tomatome/grdp v0.1.0
 	golang.org/x/crypto v0.48.0
-)
-
-replace github.com/tomatome/grdp => ./third_party/grdp
-
-require (
-	github.com/google/uuid v1.6.0
 	golang.org/x/term v0.40.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.45.0
