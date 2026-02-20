@@ -79,7 +79,6 @@ func NewPDULayer(t core.Transport) *PDULayer {
 			CAPSTYPE_VIRTUALCHANNEL:        &VirtualChannelCapability{},
 			CAPSTYPE_SOUND:                 &SoundCapability{},
 			CAPSETTYPE_MULTIFRAGMENTUPDATE: &MultiFragmentUpdate{},
-			CAPSETTYPE_COMPDESK: &DesktopCompositionCapability{CompDeskSupportLevel: 0x0001},
 			CAPSTYPE_RAIL: &RemoteProgramsCapability{
 				RailSupportLevel: RAIL_LEVEL_SUPPORTED |
 					RAIL_LEVEL_SHELL_INTEGRATION_SUPPORTED |
@@ -196,7 +195,7 @@ func (c *Client) sendConfirmActivePDU() {
 	// cause the server to send glyph orders that get silently dropped.
 
 	pdu.SharedId = c.sharedId
-	pdu.NumberCapabilities = uint16(len(c.clientCapabilities))
+	pdu.NumberCapabilities = c.demandActivePDU.NumberCapabilities
 	for _, v := range c.clientCapabilities {
 		glog.Debugf("clientCapabilities: 0x%04x", v.Type())
 		pdu.CapabilitySets = append(pdu.CapabilitySets, v)
