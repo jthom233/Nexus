@@ -194,7 +194,7 @@ func leaderGroups() []LeaderGroup {
 			Label: "Groups",
 			Items: []LeaderItem{
 				{Key: "c", Label: "Create group", Action: "create-group"},
-				{Key: "d", Label: "Delete group", Action: "delete-group"},
+				{Key: "l", Label: "List groups", Action: "group-list"},
 				{Key: "m", Label: "Move to group", Action: "move-to-group"},
 				{Key: "f", Label: "Filter by group", Action: "filter-by-group"},
 			},
