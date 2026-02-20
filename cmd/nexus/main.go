@@ -216,14 +216,18 @@ func handleMasterPassword(cfg *config.Config) ([]byte, error) {
 	var password []byte
 
 	if hasEncrypted {
-		// Existing encrypted passwords — prompt for master password
-		fmt.Print("Master password: ")
-		pw, err := term.ReadPassword(int(os.Stdin.Fd()))
-		fmt.Println()
-		if err != nil {
-			return nil, fmt.Errorf("reading password: %w", err)
+		// Allow env var for scripting/testing
+		if envPw := os.Getenv("MASTER_PASSWORD"); envPw != "" {
+			password = []byte(envPw)
+		} else {
+			fmt.Print("Master password: ")
+			pw, err := term.ReadPassword(int(os.Stdin.Fd()))
+			fmt.Println()
+			if err != nil {
+				return nil, fmt.Errorf("reading password: %w", err)
+			}
+			password = pw
 		}
-		password = pw
 	} else if hasPlaintext {
 		// Only plaintext passwords — set up encryption
 		fmt.Print("Set a master password to encrypt credentials: ")

@@ -743,6 +743,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 
 	case panePickerMsg:
+		a.resolveProfileCredentials(&msg.Connection)
 		updated, cmd := a.paneLayout.Update(msg)
 		a.paneLayout = &updated
 		return a, cmd
