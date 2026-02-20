@@ -1951,18 +1951,22 @@ func (a App) connectByID(id string) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(connectCmd, saveCmd)
 	}
 
-	l, err := launcher.ForProtocol(c.Protocol)
+	// Resolve credentials from profile before launching non-SSH connections.
+	conn := *c
+	a.resolveProfileCredentials(&conn)
+
+	l, err := launcher.ForProtocol(conn.Protocol)
 	if err != nil {
-		a.log.error("Unsupported protocol %s for %s: %v", c.Protocol, c.Name, err)
+		a.log.error("Unsupported protocol %s for %s: %v", conn.Protocol, conn.Name, err)
 		a.statusBar.setFlash(err.Error(), flashError)
 		return a, scheduleFlashClear()
 	}
 
-	cmdStr := l.Command(*c)
-	a.log.info("Connecting to %s (%s) via %s", c.Name, c.HostPort(), c.Protocol.Label())
+	cmdStr := l.Command(conn)
+	a.log.info("Connecting to %s (%s) via %s", conn.Name, conn.HostPort(), conn.Protocol.Label())
 	a.log.info("Command: %s", cmdStr)
-	a.statusBar.setFlash("Connecting to "+c.Name+"...", flashInfo)
-	return a, tea.Batch(l.Launch(*c), saveCmd)
+	a.statusBar.setFlash("Connecting to "+conn.Name+"...", flashInfo)
+	return a, tea.Batch(l.Launch(conn), saveCmd)
 }
 
 func (a App) connectSelected() (tea.Model, tea.Cmd) {
@@ -1980,57 +1984,65 @@ func (a App) connectSelected() (tea.Model, tea.Cmd) {
 		return m, tea.Batch(connectCmd, saveCmd)
 	}
 
-	l, err := launcher.ForProtocol(c.Protocol)
+	// Resolve credentials from profile before launching non-SSH connections.
+	conn := *c
+	a.resolveProfileCredentials(&conn)
+
+	l, err := launcher.ForProtocol(conn.Protocol)
 	if err != nil {
-		a.log.error("Unsupported protocol %s for %s: %v", c.Protocol, c.Name, err)
+		a.log.error("Unsupported protocol %s for %s: %v", conn.Protocol, conn.Name, err)
 		a.statusBar.setFlash(err.Error(), flashError)
 		return a, scheduleFlashClear()
 	}
 
-	cmdStr := l.Command(*c)
-	a.log.info("Connecting to %s (%s) via %s", c.Name, c.HostPort(), c.Protocol.Label())
+	cmdStr := l.Command(conn)
+	a.log.info("Connecting to %s (%s) via %s", conn.Name, conn.HostPort(), conn.Protocol.Label())
 	a.log.info("Command: %s", cmdStr)
-	a.statusBar.setFlash("Connecting to "+c.Name+"...", flashInfo)
-	return a, tea.Batch(l.Launch(*c), saveCmd)
+	a.statusBar.setFlash("Connecting to "+conn.Name+"...", flashInfo)
+	return a, tea.Batch(l.Launch(conn), saveCmd)
+}
+
+// resolveProfileCredentials merges credentials from the vault profile into the
+// connection. Call this before launching any protocol — SSH, RDP, VNC, or Telnet.
+func (a App) resolveProfileCredentials(c *config.Connection) {
+	if a.profileStore == nil {
+		return
+	}
+	resolved, sources, err := vault.ResolveCredentials(*c, a.profileStore)
+	if err != nil || resolved == nil {
+		return
+	}
+	if resolved.Username != "" {
+		c.Username = resolved.Username
+	}
+	if resolved.Password != "" {
+		c.Password = resolved.Password
+	}
+	if resolved.IdentityFile != "" {
+		c.IdentityFile = resolved.IdentityFile
+	}
+	if resolved.Domain != "" {
+		c.Domain = resolved.Domain
+	}
+	if resolved.VNCPassword != "" {
+		c.VNCPassword = resolved.VNCPassword
+	}
+	// Audit log when a profile credential was used.
+	for _, src := range sources {
+		if src != "direct" {
+			a.logAuditEvent(audit.AuditEvent{
+				EventType:      audit.EventCredentialUse,
+				ConnectionID:   c.ID,
+				ConnectionName: c.Name,
+			})
+			break
+		}
+	}
 }
 
 func (a App) connectManaged(c config.Connection) (tea.Model, tea.Cmd) {
 	// Resolve credentials from profile (group-profile then named-profile then inline).
-	if a.profileStore != nil {
-		resolved, sources, err := vault.ResolveCredentials(c, a.profileStore)
-		if err == nil && resolved != nil {
-			if resolved.Username != "" {
-				c.Username = resolved.Username
-			}
-			if resolved.Password != "" {
-				c.Password = resolved.Password
-			}
-			if resolved.IdentityFile != "" {
-				c.IdentityFile = resolved.IdentityFile
-			}
-			if resolved.Domain != "" {
-				c.Domain = resolved.Domain
-			}
-			if resolved.VNCPassword != "" {
-				c.VNCPassword = resolved.VNCPassword
-			}
-			// Audit log when a profile credential was used.
-			hasProfile := false
-			for _, src := range sources {
-				if src != "direct" {
-					hasProfile = true
-					break
-				}
-			}
-			if hasProfile {
-				a.logAuditEvent(audit.AuditEvent{
-					EventType:      audit.EventCredentialUse,
-					ConnectionID:   c.ID,
-					ConnectionName: c.Name,
-				})
-			}
-		}
-	}
+	a.resolveProfileCredentials(&c)
 
 	managed := session.NewManagedSession(
 		"", // ID assigned by SessionManager
@@ -2178,14 +2190,16 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 			if c.Protocol == config.ProtoSSH {
 				return a.connectManaged(*c)
 			}
-			l, err := launcher.ForProtocol(c.Protocol)
+			conn := *c
+			a.resolveProfileCredentials(&conn)
+			l, err := launcher.ForProtocol(conn.Protocol)
 			if err != nil {
 				a.log.error("Unsupported protocol: %v", err)
 				a.statusBar.setFlash(err.Error(), flashError)
 				return a, scheduleFlashClear()
 			}
-			a.log.info("Connecting to %s via command", c.Name)
-			return a, l.Launch(*c)
+			a.log.info("Connecting to %s via command", conn.Name)
+			return a, l.Launch(conn)
 		}
 		// Not found by name — try quick connect parsing
 		if msg.Args != "" {
