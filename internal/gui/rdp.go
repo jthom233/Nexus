@@ -50,7 +50,6 @@ type RDPSession struct {
 	password string
 	domain   string
 	options  map[string]interface{}
-	security string
 
 	tpktLayer *tpkt.TPKT
 	x224Layer *x224.X224
@@ -88,13 +87,9 @@ type RDPSession struct {
 // NewRDPSession creates a new RDP session.
 func NewRDPSession(host string, port int, username, password, domain string, options map[string]interface{}) *RDPSession {
 	w, h := 1024, 768
-	security := ""
 	if options != nil {
 		if res, ok := options["resolution"].(string); ok && res != "" {
 			fmt.Sscanf(res, "%dx%d", &w, &h)
-		}
-		if s, ok := options["security"].(string); ok {
-			security = strings.ToLower(strings.TrimSpace(s))
 		}
 	}
 	return &RDPSession{
@@ -104,7 +99,6 @@ func NewRDPSession(host string, port int, username, password, domain string, opt
 		password: password,
 		domain:   domain,
 		options:  options,
-		security: security,
 		width:    w,
 		height:   h,
 		fb:       image.NewRGBA(image.Rect(0, 0, w, h)),
@@ -113,8 +107,47 @@ func NewRDPSession(host string, port int, username, password, domain string, opt
 	}
 }
 
-// Connect establishes the RDP connection using grdp protocol layers.
+// Connect establishes the RDP connection, trying security protocols in order:
+// NLA/CredSSP → TLS → Standard RDP. Each attempt uses a fresh TCP connection
+// and protocol stack since a failed negotiation leaves the connection in an
+// undefined state.
 func (r *RDPSession) Connect() error {
+	protocols := []struct {
+		name     string
+		protocol uint32
+	}{
+		{"NLA/CredSSP", x224.PROTOCOL_HYBRID},
+		{"TLS", x224.PROTOCOL_SSL},
+		{"Standard RDP", x224.PROTOCOL_RDP},
+	}
+
+	var lastErr error
+	for _, proto := range protocols {
+		rdpLog.Printf("CONNECT attempting %s — target=%s:%d", proto.name, r.host, r.port)
+
+		err := r.attemptConnect(proto.protocol)
+		if err == nil {
+			rdpLog.Printf("CONNECT %s succeeded", proto.name)
+			return nil
+		}
+
+		rdpLog.Printf("CONNECT %s failed: %v — trying next protocol", proto.name, err)
+		lastErr = err
+
+		// Clean up the failed attempt before retrying with a fresh stack.
+		if r.tpktLayer != nil {
+			r.tpktLayer.Close()
+			r.tpktLayer = nil
+		}
+	}
+
+	return fmt.Errorf("rdp connect: all security protocols failed (last: %w)", lastErr)
+}
+
+// attemptConnect performs a single connection attempt using the given X224 protocol.
+// It dials TCP, builds the full protocol stack, registers event handlers, and
+// calls x224.Connect(). Returns nil on success.
+func (r *RDPSession) attemptConnect(protocol uint32) error {
 	addr := fmt.Sprintf("%s:%d", r.host, r.port)
 	rdpLog.Printf("CONNECT start — target=%s resolution=%dx%d", addr, r.width, r.height)
 
@@ -131,23 +164,7 @@ func (r *RDPSession) Connect() error {
 
 	r.tpktLayer = tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2(domain, user, r.password))
 	r.x224Layer = x224.New(r.tpktLayer)
-
-	// Set X224 security protocol based on connection setting.
-	// Default to auto-negotiate (NLA+TLS+RDP) for best server compatibility.
-	switch r.security {
-	case "tls":
-		rdpLog.Printf("CONNECT security=tls — TLS only")
-		r.x224Layer.SetRequestedProtocol(x224.PROTOCOL_SSL)
-	case "nla":
-		rdpLog.Printf("CONNECT security=nla — NLA/CredSSP only")
-		r.x224Layer.SetRequestedProtocol(x224.PROTOCOL_HYBRID)
-	case "rdp":
-		rdpLog.Printf("CONNECT security=rdp — Standard RDP Security (no TLS/NLA)")
-		r.x224Layer.SetRequestedProtocol(x224.PROTOCOL_RDP)
-	default: // "auto" or ""
-		rdpLog.Printf("CONNECT security=auto — NLA+TLS+RDP (negotiate)")
-		// gordp default: PROTOCOL_RDP | PROTOCOL_SSL | PROTOCOL_HYBRID
-	}
+	r.x224Layer.SetRequestedProtocol(protocol)
 
 	r.mcsLayer = t125.NewMCSClient(r.x224Layer)
 	r.secLayer = sec.NewClient(r.mcsLayer)
@@ -212,7 +229,7 @@ func (r *RDPSession) Connect() error {
 	hsStart := time.Now()
 	if err := r.x224Layer.Connect(); err != nil {
 		rdpLog.Printf("CONNECT handshake FAILED after %v: %v", time.Since(hsStart), err)
-		return fmt.Errorf("rdp connect: %w", err)
+		return fmt.Errorf("handshake: %w", err)
 	}
 	rdpLog.Printf("CONNECT handshake OK in %v — NLA auth completes asynchronously", time.Since(hsStart))
 
