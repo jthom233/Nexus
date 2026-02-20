@@ -629,12 +629,8 @@ func decodeBitmapData(data []byte, w, h, bpp int, bottomUp bool) *image.RGBA {
 				if src+1 >= len(data) {
 					return img
 				}
-				var pixel uint16
-				if bottomUp {
-					pixel = uint16(data[src]) | uint16(data[src+1])<<8
-				} else {
-					pixel = uint16(data[src])<<8 | uint16(data[src+1])
-				}
+				// RDP bitmap data is always little-endian regardless of compression.
+				pixel := uint16(data[src]) | uint16(data[src+1])<<8
 				r := uint8((pixel >> 11) & 0x1F)
 				g := uint8((pixel >> 5) & 0x3F)
 				b := uint8(pixel & 0x1F)
@@ -650,12 +646,8 @@ func decodeBitmapData(data []byte, w, h, bpp int, bottomUp bool) *image.RGBA {
 				if src+1 >= len(data) {
 					return img
 				}
-				var pixel uint16
-				if bottomUp {
-					pixel = uint16(data[src]) | uint16(data[src+1])<<8
-				} else {
-					pixel = uint16(data[src])<<8 | uint16(data[src+1])
-				}
+				// RDP bitmap data is always little-endian regardless of compression.
+				pixel := uint16(data[src]) | uint16(data[src+1])<<8
 				r := uint8((pixel >> 10) & 0x1F)
 				g := uint8((pixel >> 5) & 0x1F)
 				b := uint8(pixel & 0x1F)

@@ -253,7 +253,7 @@ func (a *App) Draw(screen *ebiten.Image) {
 				op := &ebiten.DrawImageOptions{}
 				op.GeoM.Scale(scaleX, scaleY)
 				op.GeoM.Translate(0, float64(chromeHeight))
-				op.Filter = ebiten.FilterLinear
+				op.Filter = ebiten.FilterNearest
 				screen.DrawImage(fb, op)
 			}
 		}
@@ -313,7 +313,7 @@ func (a *App) drawFullscreen(screen *ebiten.Image) {
 				op := &ebiten.DrawImageOptions{}
 				op.GeoM.Scale(scaleX, scaleY)
 				// No Y offset — session fills from y=0
-				op.Filter = ebiten.FilterLinear
+				op.Filter = ebiten.FilterNearest
 				screen.DrawImage(fb, op)
 			}
 		}
@@ -902,6 +902,10 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 		if res, _ := options["resolution"].(string); res == "" {
 			availW := a.width
 			availH := a.height - chromeHeight
+			// In fullscreen mode the session fills the entire screen â no chrome offset.
+			if fs, ok := options["fullscreen"].(bool); ok && fs {
+				availH = a.height
+			}
 			if availW > 0 && availH > 0 {
 				options["resolution"] = fmt.Sprintf("%dx%d", availW, availH)
 			}

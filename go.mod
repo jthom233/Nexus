@@ -12,8 +12,15 @@ require (
 	github.com/hajimehoshi/ebiten/v2 v2.9.8
 	github.com/tomatome/grdp v0.1.0
 	golang.org/x/crypto v0.48.0
+)
+
+replace github.com/tomatome/grdp => ./third_party/grdp
+
+require (
+	github.com/google/uuid v1.6.0
 	golang.org/x/term v0.40.0
 	gopkg.in/yaml.v3 v3.0.1
+	modernc.org/sqlite v1.45.0
 )
 
 require (
@@ -32,7 +39,6 @@ require (
 	github.com/ebitengine/hideconsole v1.0.0 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/huin/asn1ber v0.0.0-20120622192748-af09f62e6358 // indirect
 	github.com/icodeface/tls v0.0.0-20190904083142-17aec93c60e5 // indirect
 	github.com/jezek/xgb v1.1.1 // indirect
@@ -56,5 +62,4 @@ require (
 	modernc.org/libc v1.67.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.45.0 // indirect
 )
