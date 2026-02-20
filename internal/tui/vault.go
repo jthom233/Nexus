@@ -165,7 +165,7 @@ func (m vaultModel) renderList() string {
 	var sb strings.Builder
 
 	// Title line
-	count := fmt.Sprintf("%d profiles", len(m.profiles))
+	count := fmt.Sprintf("%d cred profiles", len(m.profiles))
 	titleLine := titleStyle.Render("  Credential Vault")
 	countRendered := countStyle.Render(count)
 	gap := m.width - lipgloss.Width(titleLine) - lipgloss.Width(countRendered) - 2

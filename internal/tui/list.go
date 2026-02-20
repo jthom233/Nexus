@@ -75,7 +75,7 @@ func wideColumns() []Column {
 		{Title: "USERNAME", MinWidth: 8, Flex: 10, SortKey: "username", Align: 0},
 		{Title: "TAGS", MinWidth: 8, Flex: 15, SortKey: "tags", Align: 0},
 		{Title: "IDENTITY", MinWidth: 8, Flex: 10, SortKey: "identity", Align: 0},
-		{Title: "PROFILE", MinWidth: 8, Flex: 10, SortKey: "profile", Align: 0},
+		{Title: "CRED PROFILE", MinWidth: 12, Flex: 10, SortKey: "profile", Align: 0},
 	}
 }
 

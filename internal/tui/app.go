@@ -179,6 +179,20 @@ func (a *App) profileNames() []string {
 	return names
 }
 
+// inheritGroupProfile fills in conn.CredentialProfile from the group's cred
+// profile when the connection has no explicit profile assigned. This makes
+// group inheritance visible in the edit form and persists the assignment when
+// the connection is saved.
+func (a *App) inheritGroupProfile(conn *config.Connection) {
+	if conn.CredentialProfile != "" || conn.Group == "" || a.profileStore == nil {
+		return
+	}
+	gp, err := a.profileStore.FindByGroup(conn.Group)
+	if err == nil && gp != nil {
+		conn.CredentialProfile = gp.Name
+	}
+}
+
 func (a App) currentView() viewKind {
 	if len(a.viewStack) == 0 {
 		return viewList
@@ -266,12 +280,12 @@ func (a *App) syncHeaderView() {
 		a.header.setView("Panes", 5)
 		a.header.setItemCount(a.paneLayout.PaneCount())
 	case viewVault:
-		a.header.setView("Profiles", 6)
+		a.header.setView("Cred Profiles", 6)
 		a.header.setItemCount(0)
 	case viewVaultForm:
-		name := "Add Profile"
+		name := "Add Cred Profile"
 		if a.vaultFormView.isEdit {
-			name = "Edit Profile"
+			name = "Edit Cred Profile"
 		}
 		a.header.setView(name, 6)
 		a.header.setItemCount(0)
@@ -674,16 +688,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			if refCount > 0 {
-				prompt := fmt.Sprintf("Profile '%s' is used by %d connection(s). Delete anyway?", msg.Profile.Name, refCount)
+				prompt := fmt.Sprintf("Cred profile '%s' is used by %d connection(s). Delete anyway?", msg.Profile.Name, refCount)
 				a.confirm.show(prompt, "delete-profile:"+msg.Profile.Name, msg.Profile.Name)
 				a.confirm.width = a.width
 				a.confirm.height = a.height
 				return a, nil
 			}
 			if err := a.profileStore.Delete(msg.Profile.Name); err != nil {
-				a.statusBar.setFlash("Error deleting profile: "+err.Error(), flashError)
+				a.statusBar.setFlash("Error deleting cred profile: "+err.Error(), flashError)
 			} else {
-				a.statusBar.setFlash("Profile '"+msg.Profile.Name+"' deleted", flashInfo)
+				a.statusBar.setFlash("Cred profile '"+msg.Profile.Name+"' deleted", flashInfo)
 				a.refreshVaultView()
 			}
 		}
@@ -981,7 +995,9 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, a.form.form.Init()
 	case "e":
 		if c := a.list.selectedConnection(); c != nil {
-			a.form.startEdit(*c, a.cfg.GroupNames(), a.profileNames())
+			conn := *c
+			a.inheritGroupProfile(&conn)
+			a.form.startEdit(conn, a.cfg.GroupNames(), a.profileNames())
 			a.form.width = a.width
 			a.form.height = a.contentHeight()
 			a.pushView(viewForm)
@@ -1399,7 +1415,9 @@ func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a.connectSelected()
 	case "e":
 		if c := a.list.selectedConnection(); c != nil {
-			a.form.startEdit(*c, a.cfg.GroupNames(), a.profileNames())
+			conn := *c
+			a.inheritGroupProfile(&conn)
+			a.form.startEdit(conn, a.cfg.GroupNames(), a.profileNames())
 			a.form.width = a.width
 			a.form.height = a.contentHeight()
 			a.pushView(viewForm)
@@ -2006,10 +2024,15 @@ func (a App) connectSelected() (tea.Model, tea.Cmd) {
 // connection. Call this before launching any protocol — SSH, RDP, VNC, or Telnet.
 func (a App) resolveProfileCredentials(c *config.Connection) {
 	if a.profileStore == nil {
+		a.log.warn("Credential vault not available — skipping profile resolution")
 		return
 	}
 	resolved, sources, err := vault.ResolveCredentials(*c, a.profileStore)
-	if err != nil || resolved == nil {
+	if err != nil {
+		a.log.warn("Credential resolve error for %s: %v", c.Name, err)
+		return
+	}
+	if resolved == nil {
 		return
 	}
 	if resolved.Username != "" {
@@ -2028,14 +2051,28 @@ func (a App) resolveProfileCredentials(c *config.Connection) {
 		c.VNCPassword = resolved.VNCPassword
 	}
 	// Audit log when a profile credential was used.
+	hasProfileSource := false
 	for _, src := range sources {
 		if src != "direct" {
+			hasProfileSource = true
 			a.logAuditEvent(audit.AuditEvent{
 				EventType:      audit.EventCredentialUse,
 				ConnectionID:   c.ID,
 				ConnectionName: c.Name,
 			})
 			break
+		}
+	}
+	// Log what was resolved from profiles (skip if everything is direct or missing).
+	if hasProfileSource {
+		var sourceParts []string
+		for _, field := range []string{"username", "password", "identity_file", "domain", "vnc_password"} {
+			if src, ok := sources[field]; ok && src != "direct" {
+				sourceParts = append(sourceParts, fmt.Sprintf("%s from %s", field, src))
+			}
+		}
+		if len(sourceParts) > 0 {
+			a.log.info("Resolved credentials for %s: %s", c.Name, strings.Join(sourceParts, ", "))
 		}
 	}
 }
@@ -2214,7 +2251,9 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		return a, scheduleFlashClear()
 	case "edit":
 		if c := a.cfg.FindConnection(msg.Args); c != nil {
-			a.form.startEdit(*c, a.cfg.GroupNames(), a.profileNames())
+			conn := *c
+			a.inheritGroupProfile(&conn)
+			a.form.startEdit(conn, a.cfg.GroupNames(), a.profileNames())
 			a.form.width = a.width
 			a.form.height = a.contentHeight()
 			a.pushView(viewForm)
@@ -2699,9 +2738,9 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 	if strings.HasPrefix(msg.Action, "delete-profile:") && a.profileStore != nil {
 		profileName := strings.TrimPrefix(msg.Action, "delete-profile:")
 		if err := a.profileStore.Delete(profileName); err != nil {
-			a.statusBar.setFlash("Error deleting profile: "+err.Error(), flashError)
+			a.statusBar.setFlash("Error deleting cred profile: "+err.Error(), flashError)
 		} else {
-			a.statusBar.setFlash("Profile '"+profileName+"' deleted", flashInfo)
+			a.statusBar.setFlash("Cred profile '"+profileName+"' deleted", flashInfo)
 			a.refreshVaultView()
 		}
 		return a, scheduleFlashClear()
@@ -2739,7 +2778,7 @@ func (a *App) refreshVaultView() {
 	}
 	profiles, err := a.profileStore.List()
 	if err != nil {
-		a.statusBar.setFlash("Error loading profiles: "+err.Error(), flashError)
+		a.statusBar.setFlash("Error loading cred profiles: "+err.Error(), flashError)
 		return
 	}
 	// Count connections per profile (direct assignment or group inheritance).
@@ -2779,17 +2818,17 @@ func (a App) handleVaultRename(args string) (tea.Model, tea.Cmd) {
 
 	profile, err := a.profileStore.Get(oldName)
 	if err != nil {
-		a.statusBar.setFlash("Error looking up profile: "+err.Error(), flashError)
+		a.statusBar.setFlash("Error looking up cred profile: "+err.Error(), flashError)
 		return a, scheduleFlashClear()
 	}
 	if profile == nil {
-		a.statusBar.setFlash("Profile '"+oldName+"' not found", flashError)
+		a.statusBar.setFlash("Cred profile '"+oldName+"' not found", flashError)
 		return a, scheduleFlashClear()
 	}
 
 	profile.Name = newName
 	if err := a.profileStore.Update(*profile); err != nil {
-		a.statusBar.setFlash("Error renaming profile: "+err.Error(), flashError)
+		a.statusBar.setFlash("Error renaming cred profile: "+err.Error(), flashError)
 		return a, scheduleFlashClear()
 	}
 
@@ -2821,7 +2860,7 @@ func (a App) handleCredOrphans() (tea.Model, tea.Cmd) {
 	}
 	profiles, err := a.profileStore.List()
 	if err != nil {
-		a.statusBar.setFlash("Error loading profiles: "+err.Error(), flashError)
+		a.statusBar.setFlash("Error loading cred profiles: "+err.Error(), flashError)
 		return a, scheduleFlashClear()
 	}
 
@@ -2858,16 +2897,16 @@ func (a *App) handleVaultFormSubmit(msg VaultFormSubmitMsg) {
 	}
 	if msg.IsEdit {
 		if err := a.profileStore.Update(msg.Profile); err != nil {
-			a.statusBar.setFlash("Error updating profile: "+err.Error(), flashError)
+			a.statusBar.setFlash("Error updating cred profile: "+err.Error(), flashError)
 			return
 		}
-		a.statusBar.setFlash("Profile '"+msg.Profile.Name+"' updated", flashInfo)
+		a.statusBar.setFlash("Cred profile '"+msg.Profile.Name+"' updated", flashInfo)
 	} else {
 		if _, err := a.profileStore.Create(msg.Profile); err != nil {
-			a.statusBar.setFlash("Error creating profile: "+err.Error(), flashError)
+			a.statusBar.setFlash("Error creating cred profile: "+err.Error(), flashError)
 			return
 		}
-		a.statusBar.setFlash("Profile '"+msg.Profile.Name+"' created", flashInfo)
+		a.statusBar.setFlash("Cred profile '"+msg.Profile.Name+"' created", flashInfo)
 	}
 	a.refreshVaultView()
 }
@@ -2943,7 +2982,7 @@ func (a *App) handleProfileRemove() {
 		}
 	}
 	_ = config.Save(a.cfg)
-	a.statusBar.setFlash("Profile removed from '"+conn.Name+"'", flashInfo)
+	a.statusBar.setFlash("Cred profile removed from '"+conn.Name+"'", flashInfo)
 }
 
 // executeLeaderAction maps leader action command strings to existing app functionality.
@@ -2973,7 +3012,9 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		return a, a.form.form.Init()
 	case "edit-connection":
 		if c := a.list.selectedConnection(); c != nil {
-			a.form.startEdit(*c, a.cfg.GroupNames(), a.profileNames())
+			conn := *c
+			a.inheritGroupProfile(&conn)
+			a.form.startEdit(conn, a.cfg.GroupNames(), a.profileNames())
 			a.form.width = a.width
 			a.form.height = a.contentHeight()
 			a.pushView(viewForm)
