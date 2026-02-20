@@ -259,16 +259,16 @@ func leaderGroups() []LeaderGroup {
 		},
 		{
 			Key:   "p",
-			Label: "Profiles",
+			Label: "Cred Profiles",
 			Items: []LeaderItem{
-				{Key: "l", Label: "List profiles", Action: "profile-list"},
-				{Key: "c", Label: "Create profile", Action: "profile-create"},
-				{Key: "e", Label: "Edit profile", Action: "profile-edit"},
-				{Key: "d", Label: "Delete profile", Action: "profile-delete"},
+				{Key: "l", Label: "List cred profiles", Action: "profile-list"},
+				{Key: "c", Label: "Create cred profile", Action: "profile-create"},
+				{Key: "e", Label: "Edit cred profile", Action: "profile-edit"},
+				{Key: "d", Label: "Delete cred profile", Action: "profile-delete"},
 				{Key: "a", Label: "Assign to session", Action: "profile-assign"},
 				{Key: "s", Label: "Save from session", Action: "profile-save-from"},
 				{Key: "r", Label: "Remove from session", Action: "profile-remove"},
-				{Key: "w", Label: "Who uses profile", Action: "profile-who"},
+				{Key: "w", Label: "Who uses cred profile", Action: "profile-who"},
 			},
 		},
 		{

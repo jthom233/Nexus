@@ -101,6 +101,15 @@ func (d *detailModel) updateContent() {
 			}
 		}
 		row("Cred Profile:", profileLabel)
+	} else if d.credSources != nil {
+		// Show group-inherited cred profile when no explicit profile is set.
+		for _, v := range d.credSources {
+			if strings.HasPrefix(v, "group:") {
+				profileName := strings.TrimPrefix(v, "group:")
+				row("Cred Profile:", profileName+"  "+DetailProvenanceStyle.Render("inherited from group"))
+				break
+			}
+		}
 	}
 
 	if c.Username != "" {
@@ -242,7 +251,7 @@ func formatSource(src string) string {
 		return "direct"
 	}
 	if strings.HasPrefix(src, "profile:") {
-		return "from profile"
+		return "from cred profile"
 	}
 	if strings.HasPrefix(src, "group:") {
 		name := strings.TrimPrefix(src, "group:")
