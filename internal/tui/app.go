@@ -596,14 +596,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 			a.statusBar.setFlash("Session ended", flashInfo)
 		}
-		cmds = append(cmds, scheduleFlashClear())
+		cmds = append(cmds, scheduleFlashClear(), tea.ClearScreen)
 		return a, tea.Batch(cmds...)
 
 	case SessionDetachedMsg:
 		a.log.info("Session %s detached (%s)", msg.SessionID, msg.ConnName)
 		a.statusBar.setFlash(fmt.Sprintf("Session detached [s:sessions]"), flashInfo)
 		a.updateSessionCount()
-		cmds = append(cmds, scheduleFlashClear())
+		cmds = append(cmds, scheduleFlashClear(), tea.ClearScreen)
 		// Refresh sessions view so status shows "detached"
 		if a.currentView() == viewSessions {
 			a.sessionsView.setSessions(a.sessions.All())
