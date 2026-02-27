@@ -240,6 +240,9 @@ type ManagedSession struct {
 
 	// Telemetry
 	droppedBytes int64 // bytes dropped due to OutputCh backpressure; accessed via sync/atomic
+
+	// Ghost session (auto-connect / auto-reconnect)
+	IsGhost bool // true when managed by GhostManager
 }
 
 // ManagedSessionOptions holds the parameters for creating a new ManagedSession.

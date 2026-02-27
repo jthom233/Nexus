@@ -111,7 +111,9 @@ CREATE TABLE IF NOT EXISTS connections (
 	last_connected_at TEXT NOT NULL DEFAULT '',
 	connect_count INTEGER NOT NULL DEFAULT 0,
 	notes         TEXT NOT NULL DEFAULT '',
-	custom_fields TEXT NOT NULL DEFAULT '{}'
+	custom_fields TEXT NOT NULL DEFAULT '{}',
+	auto_connect   INTEGER NOT NULL DEFAULT 0,
+	auto_reconnect INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS connections_fts USING fts5(
@@ -155,6 +157,8 @@ func (s *SQLiteStore) migrateSchema() error {
 		`ALTER TABLE connections ADD COLUMN credential_profile TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE connections ADD COLUMN notes TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE connections ADD COLUMN custom_fields TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE connections ADD COLUMN auto_connect INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE connections ADD COLUMN auto_reconnect INTEGER NOT NULL DEFAULT 0`,
 	}
 	for _, stmt := range migrations {
 		if _, err := s.db.Exec(stmt); err != nil {
@@ -236,6 +240,8 @@ func (s *SQLiteStore) UpdateConnection(conn config.Connection) error {
 	cfJSON, _ := json.Marshal(conn.CustomFields)
 	lastConn := formatTime(conn.LastConnectedAt)
 	fav := boolToInt(conn.Favorite)
+	autoConn := boolToInt(conn.AutoConnect)
+	autoReconn := boolToInt(conn.AutoReconnect)
 
 	encPassword, err := s.encryptPassword(conn.Password)
 	if err != nil {
@@ -250,13 +256,13 @@ func (s *SQLiteStore) UpdateConnection(conn config.Connection) error {
 		position=?, name=?, protocol=?, host=?, port=?, username=?, password=?,
 		identity_file=?, proxy_jump=?, proxy_command=?, port_forwards=?, domain=?,
 		grp=?, tags=?, rdp_options=?, vnc_password=?, credential_profile=?, hooks=?, favorite=?,
-		last_connected_at=?, connect_count=?, notes=?, custom_fields=?
+		last_connected_at=?, connect_count=?, notes=?, custom_fields=?, auto_connect=?, auto_reconnect=?
 		WHERE id=?`,
 		pos, conn.Name, string(conn.Protocol), conn.Host, conn.Port,
 		conn.Username, encPassword, conn.IdentityFile, conn.ProxyJump,
 		conn.ProxyCommand, string(pfJSON), conn.Domain, conn.Group,
 		string(tagsJSON), string(rdpJSON), encVNCPassword, conn.CredentialProfile, string(hooksJSON),
-		fav, lastConn, conn.ConnectCount, conn.Notes, string(cfJSON), conn.ID,
+		fav, lastConn, conn.ConnectCount, conn.Notes, string(cfJSON), autoConn, autoReconn, conn.ID,
 	)
 	return err
 }
@@ -360,6 +366,8 @@ func (s *SQLiteStore) insertConnTx(ex sqlExecer, conn config.Connection, pos int
 	cfJSON, _ := json.Marshal(conn.CustomFields)
 	lastConn := formatTime(conn.LastConnectedAt)
 	fav := boolToInt(conn.Favorite)
+	autoConn := boolToInt(conn.AutoConnect)
+	autoReconn := boolToInt(conn.AutoReconnect)
 
 	encPassword, err := s.encryptPassword(conn.Password)
 	if err != nil {
@@ -374,13 +382,13 @@ func (s *SQLiteStore) insertConnTx(ex sqlExecer, conn config.Connection, pos int
 		id, position, name, protocol, host, port, username, password,
 		identity_file, proxy_jump, proxy_command, port_forwards, domain,
 		grp, tags, rdp_options, vnc_password, credential_profile, hooks, favorite,
-		last_connected_at, connect_count, notes, custom_fields
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		last_connected_at, connect_count, notes, custom_fields, auto_connect, auto_reconnect
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		conn.ID, pos, conn.Name, string(conn.Protocol), conn.Host, conn.Port,
 		conn.Username, encPassword, conn.IdentityFile, conn.ProxyJump,
 		conn.ProxyCommand, string(pfJSON), conn.Domain, conn.Group,
 		string(tagsJSON), string(rdpJSON), encVNCPassword, conn.CredentialProfile, string(hooksJSON),
-		fav, lastConn, conn.ConnectCount, conn.Notes, string(cfJSON),
+		fav, lastConn, conn.ConnectCount, conn.Notes, string(cfJSON), autoConn, autoReconn,
 	)
 	return err
 }
@@ -411,6 +419,8 @@ func (s *SQLiteStore) scanConnection(row *sql.Row) (config.Connection, error) {
 		cfJSON     string
 		fav        int
 		lastConn   string
+		autoConn    int
+		autoReconn  int
 	)
 
 	err := row.Scan(
@@ -418,7 +428,7 @@ func (s *SQLiteStore) scanConnection(row *sql.Row) (config.Connection, error) {
 		&c.Username, &c.Password, &c.IdentityFile, &c.ProxyJump,
 		&c.ProxyCommand, &pfJSON, &c.Domain, &c.Group,
 		&tagsJSON, &rdpJSON, &c.VNCPassword, &c.CredentialProfile, &hooksJSON,
-		&fav, &lastConn, &c.ConnectCount, &c.Notes, &cfJSON,
+		&fav, &lastConn, &c.ConnectCount, &c.Notes, &cfJSON, &autoConn, &autoReconn,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -429,6 +439,8 @@ func (s *SQLiteStore) scanConnection(row *sql.Row) (config.Connection, error) {
 
 	c.Protocol = config.Protocol(proto)
 	c.Favorite = fav != 0
+	c.AutoConnect = autoConn != 0
+	c.AutoReconnect = autoReconn != 0
 	c.LastConnectedAt = parseTime(lastConn)
 
 	_ = json.Unmarshal([]byte(tagsJSON), &c.Tags)
@@ -460,6 +472,8 @@ func (s *SQLiteStore) scanRow(rows *sql.Rows) (config.Connection, error) {
 		cfJSON     string
 		fav        int
 		lastConn   string
+		autoConn    int
+		autoReconn  int
 	)
 
 	err := rows.Scan(
@@ -467,7 +481,7 @@ func (s *SQLiteStore) scanRow(rows *sql.Rows) (config.Connection, error) {
 		&c.Username, &c.Password, &c.IdentityFile, &c.ProxyJump,
 		&c.ProxyCommand, &pfJSON, &c.Domain, &c.Group,
 		&tagsJSON, &rdpJSON, &c.VNCPassword, &c.CredentialProfile, &hooksJSON,
-		&fav, &lastConn, &c.ConnectCount, &c.Notes, &cfJSON,
+		&fav, &lastConn, &c.ConnectCount, &c.Notes, &cfJSON, &autoConn, &autoReconn,
 	)
 	if err != nil {
 		return config.Connection{}, err
@@ -475,6 +489,8 @@ func (s *SQLiteStore) scanRow(rows *sql.Rows) (config.Connection, error) {
 
 	c.Protocol = config.Protocol(proto)
 	c.Favorite = fav != 0
+	c.AutoConnect = autoConn != 0
+	c.AutoReconnect = autoReconn != 0
 	c.LastConnectedAt = parseTime(lastConn)
 
 	_ = json.Unmarshal([]byte(tagsJSON), &c.Tags)

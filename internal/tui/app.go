@@ -80,6 +80,9 @@ type App struct {
 	// Tutorial overlay
 	tutorial tutorialModel
 
+	// Ghost session manager (auto-connecting background sessions)
+	ghostMgr *session.GhostManager
+
 	// View stack
 	viewStack []viewKind
 
@@ -133,12 +136,16 @@ func NewApp(cfg *config.Config, v vault.Vault) App {
 		tut.activate()
 	}
 
+	ghostMgr := session.NewGhostManager(cfg)
+	ghostMgr.Start()
+
 	return App{
 		cfg:           cfg,
 		vault:         v,
 		profileStore:  ps,
 		vaultView:     newVaultModel(),
 		groupListView: newGroupListModel(),
+		ghostMgr:      ghostMgr,
 		keys:         DefaultKeyMap(),
 		header:       h,
 		statusBar:    newStatusBar(),
@@ -319,6 +326,15 @@ func (a *App) updateSessionCount() {
 	if a.currentView() == viewSessions {
 		a.header.setItemCount(count)
 	}
+}
+
+// allSessions returns the combined list of interactive sessions plus ghost sessions.
+func (a *App) allSessions() []*session.ManagedSession {
+	all := a.sessions.All()
+	if a.ghostMgr != nil {
+		all = append(all, a.ghostMgr.Sessions()...)
+	}
+	return all
 }
 
 // setDetailConnection sets the connection on the detail view and, if a
@@ -629,7 +645,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, scheduleFlashClear(), tea.ClearScreen)
 		// Refresh sessions view so status shows "detached"
 		if a.currentView() == viewSessions {
-			a.sessionsView.setSessions(a.sessions.All())
+			a.sessionsView.setSessions(a.allSessions())
 		}
 		// Start watching for session death
 		if sess := a.sessions.Get(msg.SessionID); sess != nil {
@@ -644,7 +660,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.statusBar.setFlash(fmt.Sprintf("Session %s ended", msg.ConnName), flashInfo)
 		// Rebuild sessions view if currently visible
 		if a.currentView() == viewSessions {
-			a.sessionsView.setSessions(a.sessions.All())
+			a.sessionsView.setSessions(a.allSessions())
 		}
 		cmds = append(cmds, scheduleFlashClear())
 		return a, tea.Batch(cmds...)
@@ -1094,7 +1110,7 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			scheduleFlashClear(),
 		)
 	case key.Matches(msg, a.keys.Sessions):
-		a.sessionsView.setSessions(a.sessions.All())
+		a.sessionsView.setSessions(a.allSessions())
 		a.sessionsView.setSize(a.width, a.contentHeight())
 		a.pushView(viewSessions)
 		a.help.view = "sessions"
@@ -1499,7 +1515,7 @@ func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.detail.updateContent()
 		return a, nil
 	case key.Matches(msg, a.keys.Sessions):
-		a.sessionsView.setSessions(a.sessions.All())
+		a.sessionsView.setSessions(a.allSessions())
 		a.sessionsView.setSize(a.width, a.contentHeight())
 		a.pushView(viewSessions)
 		a.help.view = "sessions"
@@ -2024,6 +2040,55 @@ func (a App) toggleFavorite() (tea.Model, tea.Cmd) {
 	return a, scheduleFlashClear()
 }
 
+// toggleGhost toggles auto_connect (ghost session) on the selected connection.
+// When auto_connect is enabled the GhostManager starts a persistent background
+// session immediately; when disabled the existing ghost session is killed.
+func (a App) toggleGhost() (tea.Model, tea.Cmd) {
+	c := a.list.selectedConnection()
+	if c == nil {
+		a.statusBar.setFlash("No connection selected", flashError)
+		return a, scheduleFlashClear()
+	}
+	if c.Protocol != config.ProtoSSH {
+		a.statusBar.setFlash("Ghost sessions require SSH protocol", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	for i := range a.cfg.Connections {
+		if a.cfg.Connections[i].ID != c.ID {
+			continue
+		}
+		a.cfg.Connections[i].AutoConnect = !a.cfg.Connections[i].AutoConnect
+		newState := a.cfg.Connections[i].AutoConnect
+		conn := a.cfg.Connections[i]
+
+		if err := config.Save(a.cfg); err != nil {
+			a.log.error("Failed to save ghost toggle: %v", err)
+			a.statusBar.setFlash("Error saving config", flashError)
+			return a, scheduleFlashClear()
+		}
+
+		if newState {
+			// Start the ghost session immediately.
+			if a.ghostMgr != nil {
+				a.ghostMgr.StartConn(conn)
+			}
+			a.log.info("Ghost enabled for %s", conn.Name)
+			a.statusBar.setFlash(conn.Name+": ghost enabled", flashInfo)
+		} else {
+			// Kill the existing ghost session.
+			if a.ghostMgr != nil {
+				a.ghostMgr.StopConn(conn.ID)
+			}
+			a.log.info("Ghost disabled for %s", conn.Name)
+			a.statusBar.setFlash(conn.Name+": ghost disabled", flashInfo)
+		}
+		break
+	}
+
+	return a, scheduleFlashClear()
+}
+
 // connectByID launches a connection by its ID.
 func (a App) connectByID(id string) (tea.Model, tea.Cmd) {
 	c := a.cfg.FindConnection(id)
@@ -2381,7 +2446,7 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 	case "import-ssh":
 		return a.importSSH()
 	case "sessions":
-		a.sessionsView.setSessions(a.sessions.All())
+		a.sessionsView.setSessions(a.allSessions())
 		a.sessionsView.setSize(a.width, a.contentHeight())
 		a.pushView(viewSessions)
 		a.help.view = "sessions"
@@ -2587,6 +2652,8 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		a.tutorial.width = a.width
 		a.tutorial.height = a.height
 		return a, nil
+	case "ghost":
+		return a.toggleGhost()
 	default:
 		a.log.warn("Unknown command: %s", msg.Name)
 		a.statusBar.setFlash("Unknown command: "+msg.Name, flashError)
@@ -2802,7 +2869,7 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 			a.statusBar.setFlash("Killed session "+sess.Name, flashInfo)
 			// Rebuild sessions view
 			if a.currentView() == viewSessions {
-				a.sessionsView.setSessions(a.sessions.All())
+				a.sessionsView.setSessions(a.allSessions())
 			}
 		}
 		return a, scheduleFlashClear()
@@ -3231,7 +3298,7 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 
 	// Sessions
 	case "sessions":
-		a.sessionsView.setSessions(a.sessions.All())
+		a.sessionsView.setSessions(a.allSessions())
 		a.sessionsView.setSize(a.width, a.contentHeight())
 		a.pushView(viewSessions)
 		a.help.view = "sessions"
@@ -3246,7 +3313,7 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 					a.updateSessionCount()
 					a.statusBar.setFlash("Killed session for "+c.Name, flashInfo)
 					if a.currentView() == viewSessions {
-						a.sessionsView.setSessions(a.sessions.All())
+						a.sessionsView.setSessions(a.allSessions())
 					}
 					return a, scheduleFlashClear()
 				}
@@ -3270,9 +3337,11 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		a.updateSessionCount()
 		a.statusBar.setFlash(fmt.Sprintf("Killed %d session(s)", count), flashInfo)
 		if a.currentView() == viewSessions {
-			a.sessionsView.setSessions(a.sessions.All())
+			a.sessionsView.setSessions(a.allSessions())
 		}
 		return a, scheduleFlashClear()
+	case "toggle-ghost":
+		return a.toggleGhost()
 
 	// Groups
 	case "create-group":

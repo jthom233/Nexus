@@ -204,6 +204,10 @@ type Connection struct {
 	LastConnectedAt *time.Time `yaml:"last_connected_at,omitempty"`
 	ConnectCount    int        `yaml:"connect_count,omitempty"`
 
+	// Ghost session (auto-connect on startup)
+	AutoConnect   bool `yaml:"auto_connect,omitempty"`
+	AutoReconnect bool `yaml:"auto_reconnect,omitempty"`
+
 	// Notes and custom metadata
 	Notes        string            `yaml:"notes,omitempty"`
 	CustomFields map[string]string `yaml:"custom_fields,omitempty"`

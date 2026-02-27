@@ -68,9 +68,13 @@ func (v *sessionsViewModel) rebuildTable() {
 
 	rows := make([]table.Row, len(v.sessions))
 	for i, s := range v.sessions {
+		name := s.Name
+		if s.IsGhost {
+			name = "[ghost] " + name
+		}
 		rows[i] = table.Row{
 			s.ID,
-			truncate(s.Name, nameW),
+			truncate(name, nameW),
 			truncate(fmt.Sprintf("%s:%d", s.Host, s.Port), hostW),
 			strings.ToUpper(s.Protocol),
 			statusLabel(s.Status()),

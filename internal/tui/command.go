@@ -65,6 +65,7 @@ func defaultCommands() []CommandDef {
 		{Name: "vault", Aliases: nil, Description: "Manage credential profiles", ArgSpec: "[add|edit|del|show]"},
 		{Name: "cred", Aliases: nil, Description: "Credential shortcuts", ArgSpec: "[save|apply|clear|who]"},
 		{Name: "tutorial", Aliases: nil, Description: "Show the first-run tutorial", ArgSpec: ""},
+		{Name: "ghost", Aliases: nil, Description: "Toggle auto_connect (ghost session) on selected connection", ArgSpec: ""},
 	}
 }
 
