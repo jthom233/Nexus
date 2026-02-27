@@ -19,8 +19,9 @@ type Settings struct {
 	HealthCheckTimeout  string `yaml:"health_check_timeout,omitempty"` // "" = "3s" (default)
 	Theme               string `yaml:"theme,omitempty"`
 	Vault               string `yaml:"vault,omitempty"` // "internal" (default), "pass", or "keyring"
-	ColorProfile string `yaml:"color_profile,omitempty"` // "auto" (default), "truecolor", "256", "16", "mono"
-	Animations   *bool  `yaml:"animations,omitempty"`     // nil = true (default)
+	ColorProfile    string `yaml:"color_profile,omitempty"`    // "auto" (default), "truecolor", "256", "16", "mono"
+	Animations      *bool  `yaml:"animations,omitempty"`       // nil = true (default)
+	TutorialShown   bool   `yaml:"tutorial_shown,omitempty"`   // true once the first-run tutorial has been shown
 }
 
 // HealthInterval returns the parsed health check interval, defaulting to 30s.
@@ -298,7 +299,7 @@ func SampleConfig() *Config {
 func Save(cfg *Config) error {
 	path := ConfigPath()
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 
@@ -313,7 +314,10 @@ func Save(cfg *Config) error {
 		if err != nil {
 			return err
 		}
-		derivedKey := crypto.DeriveKey(string(cfg.EncryptionKey), salt)
+		derivedKey, err := crypto.DeriveKey(string(cfg.EncryptionKey), salt)
+		if err != nil {
+			return fmt.Errorf("deriving encryption key: %w", err)
+		}
 
 		for i := range saveCfg.Connections {
 			if saveCfg.Connections[i].Password != "" {
@@ -338,7 +342,13 @@ func Save(cfg *Config) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0o600)
+	// Write atomically: temp file then rename so a crash mid-write cannot
+	// produce a truncated or partially-written config file.
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 // AddConnection adds a connection and saves.

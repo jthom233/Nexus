@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -68,9 +69,13 @@ func (v *sessionsViewModel) rebuildTable() {
 
 	rows := make([]table.Row, len(v.sessions))
 	for i, s := range v.sessions {
+		name := s.Name
+		if s.IsGhost {
+			name = "[ghost] " + name
+		}
 		rows[i] = table.Row{
 			s.ID,
-			truncate(s.Name, nameW),
+			truncate(name, nameW),
 			truncate(fmt.Sprintf("%s:%d", s.Host, s.Port), hostW),
 			strings.ToUpper(s.Protocol),
 			statusLabel(s.Status()),
@@ -163,4 +168,61 @@ func formatUptime(d time.Duration) string {
 		return fmt.Sprintf("%dm%02ds", m, s)
 	}
 	return fmt.Sprintf("%ds", s)
+}
+
+// handleSessionsKey processes key events while the sessions view is active.
+func (a App) handleSessionsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	k := msg.String()
+	switch {
+	case k == " ": // Space = leader key
+		if !a.leader.active {
+			cmd := a.leader.activate()
+			return a, cmd
+		}
+	case key.Matches(msg, a.keys.Quit):
+		a.confirmQuit()
+		return a, nil
+	case key.Matches(msg, a.keys.Help):
+		a.help.view = "sessions"
+		a.help.toggle()
+		return a, nil
+	case key.Matches(msg, a.keys.Escape):
+		a.popView()
+		a.help.view = "list"
+		return a, nil
+	case key.Matches(msg, a.keys.Enter):
+		return a.reattachSelected()
+	case key.Matches(msg, a.keys.KillSession):
+		if sess := a.sessionsView.selectedSession(); sess != nil {
+			a.confirm.show(
+				"Kill session '"+sess.Name+"' ("+sess.ID+")?",
+				"kill-session",
+				sess.ID,
+			)
+			a.confirm.width = a.width
+			a.confirm.height = a.height
+		}
+		return a, nil
+	case k == "ctrl+l":
+		a.log.setSize(a.width, a.contentHeight())
+		a.pushView(viewLog)
+		return a, nil
+	case key.Matches(msg, a.keys.Down):
+		a.sessionsView.table.MoveDown(1)
+		return a, nil
+	case key.Matches(msg, a.keys.Up):
+		a.sessionsView.table.MoveUp(1)
+		return a, nil
+	case k == "g":
+		a.sessionsView.table.GotoTop()
+		return a, nil
+	case k == "G":
+		a.sessionsView.table.GotoBottom()
+		return a, nil
+	}
+
+	// Pass remaining keys to table
+	var cmd tea.Cmd
+	a.sessionsView, cmd = a.sessionsView.Update(msg)
+	return a, cmd
 }

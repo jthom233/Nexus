@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -236,28 +237,49 @@ type ManagedSession struct {
 	PaneHeight     int         // current pane height for SSH WindowChange
 	resizeTimer    *time.Timer // debounce timer for SetPaneSize
 	resizeMu       sync.Mutex  // protects resizeTimer
+
+	// Telemetry
+	droppedBytes int64 // bytes dropped due to OutputCh backpressure; accessed via sync/atomic
+
+	// Ghost session (auto-connect / auto-reconnect)
+	IsGhost bool // true when managed by GhostManager
+}
+
+// ManagedSessionOptions holds the parameters for creating a new ManagedSession.
+type ManagedSessionOptions struct {
+	ID           string
+	Name         string
+	ConnID       string
+	Protocol     string
+	Host         string
+	Port         int
+	Username     string
+	Password     string
+	IdentityFile string
+	ProxyJump    string
+	ProxyCommand string
 }
 
 // NewManagedSession creates a new managed session ready to connect.
-func NewManagedSession(id, name, connID, protocol, host string, port int, username, password, identityFile, proxyJump, proxyCommand string) *ManagedSession {
+func NewManagedSession(opts ManagedSessionOptions) *ManagedSession {
 	return &ManagedSession{
-		ID:           id,
-		Name:         name,
-		ConnID:       connID,
-		Protocol:     protocol,
-		Host:         host,
-		Port:         port,
-		Username:     username,
-		Password:     password,
-		IdentityFile: identityFile,
-		ProxyJump:    proxyJump,
-		ProxyCommand: proxyCommand,
+		ID:           opts.ID,
+		Name:         opts.Name,
+		ConnID:       opts.ConnID,
+		Protocol:     opts.Protocol,
+		Host:         opts.Host,
+		Port:         opts.Port,
+		Username:     opts.Username,
+		Password:     opts.Password,
+		IdentityFile: opts.IdentityFile,
+		ProxyJump:    opts.ProxyJump,
+		ProxyCommand: opts.ProxyCommand,
 		outputBuf:    newRingBuffer(1000),
 		stderrBuf:    newRingBuffer(100),
 		replayBuf:    newReplayBuffer(256 * 1024), // 256KB session history
 		doneCh:       make(chan struct{}),
 		status:       StatusConnecting,
-		OutputCh:     make(chan []byte, 256),
+		OutputCh:     make(chan []byte, 1024),
 	}
 }
 
@@ -398,7 +420,7 @@ func (m *ManagedSession) connect() error {
 	config := &ssh.ClientConfig{
 		User:            m.Username,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: HostKeyCallback(),
 		Timeout:         10 * time.Second,
 	}
 
@@ -446,7 +468,7 @@ func (m *ManagedSession) connectViaJumpHosts() error {
 		ncc, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(hopHost, hopPort), &ssh.ClientConfig{
 			User:            hopUser,
 			Auth:            authMethods,
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			HostKeyCallback: HostKeyCallback(),
 			Timeout:         10 * time.Second,
 		})
 		if err != nil {
@@ -478,7 +500,7 @@ func (m *ManagedSession) connectViaJumpHosts() error {
 	ncc, chans, reqs, err := ssh.NewClientConn(conn, targetAddr, &ssh.ClientConfig{
 		User:            m.Username,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: HostKeyCallback(),
 		Timeout:         10 * time.Second,
 	})
 	if err != nil {
@@ -576,8 +598,14 @@ func (m *ManagedSession) readOutput() {
 				copy(dataCopy, data)
 				select {
 				case m.OutputCh <- dataCopy:
-				default:
-					// Channel full — drop the chunk to avoid blocking the reader.
+					// sent successfully
+				case <-time.After(50 * time.Millisecond):
+					// Consumer too slow — record dropped bytes and continue reading
+					// so the SSH pipe never stalls. VTerm state may drift, but the
+					// reader goroutine stays alive and the session doesn't deadlock.
+					atomic.AddInt64(&m.droppedBytes, int64(len(dataCopy)))
+				case <-m.doneCh:
+					return
 				}
 			} else {
 				m.outputBuf.Write(data) // incremental: drained by ticker while attached
@@ -1052,4 +1080,12 @@ func (m *ManagedSession) SetPaneSize(width, height int) {
 // Only valid when the session was started with StartBackground(). (T014)
 func (m *ManagedSession) OutputChan() <-chan []byte {
 	return m.OutputCh
+}
+
+// DroppedBytes returns the cumulative number of bytes that were dropped
+// because OutputCh was full and the consumer did not drain it within the
+// backpressure timeout. A non-zero value indicates the pane consumer is
+// falling behind SSH output throughput.
+func (m *ManagedSession) DroppedBytes() int64 {
+	return atomic.LoadInt64(&m.droppedBytes)
 }

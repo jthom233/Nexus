@@ -42,13 +42,19 @@ func (s *YAMLStore) load() error {
 	return nil
 }
 
-// save writes the current config to disk.
+// save writes the current config to disk atomically.
+// It writes to a temp file then renames into place so a crash mid-write
+// cannot produce a truncated or partially-written data file.
 func (s *YAMLStore) save() error {
 	data, err := yaml.Marshal(s.cfg)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, data, 0o600)
+	tmpPath := s.path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, s.path)
 }
 
 // Config returns the underlying Config (useful for migrations).

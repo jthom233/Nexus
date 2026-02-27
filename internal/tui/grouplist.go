@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dr4zz/nexus/internal/config"
@@ -237,4 +238,45 @@ func (m groupListModel) columnWidths() (nameW, connW int) {
 	}
 	nameW = remaining
 	return
+}
+
+// openGroupListView computes connection counts per group, updates the group list model, and pushes the view.
+func (a *App) openGroupListView() {
+	a.refreshGroupListView()
+	a.pushView(viewGroupList)
+}
+
+// refreshGroupListView recomputes connection counts per group and updates the group list model.
+func (a *App) refreshGroupListView() {
+	counts := make(map[string]int)
+	for _, conn := range a.cfg.Connections {
+		if conn.Group != "" {
+			counts[conn.Group]++
+		}
+	}
+	a.groupListView.setGroups(a.cfg.Groups)
+	a.groupListView.setConnCounts(counts)
+}
+
+// handleGroupListKey processes key events while the group list view is active.
+func (a App) handleGroupListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	k := msg.String()
+	switch {
+	case k == " ": // Space = leader key
+		if !a.leader.active {
+			cmd := a.leader.activate()
+			return a, cmd
+		}
+	case key.Matches(msg, a.keys.Quit):
+		a.confirmQuit()
+		return a, nil
+	case key.Matches(msg, a.keys.Help):
+		a.help.view = "groups"
+		a.help.toggle()
+		return a, nil
+	}
+	// Forward to group list model for navigation and actions (j/k/g/G, d, esc).
+	var cmd tea.Cmd
+	a.groupListView, cmd = a.groupListView.Update(msg)
+	return a, cmd
 }

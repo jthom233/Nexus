@@ -5,8 +5,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dr4zz/nexus/internal/config"
 	"github.com/dr4zz/nexus/internal/theme"
 	"github.com/dr4zz/nexus/internal/vault"
 )
@@ -425,3 +427,173 @@ func relativeTime(t time.Time) string {
 	}
 }
 
+
+// handleVaultKey processes key events while the vault profile list view is active.
+func (a App) handleVaultKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	k := msg.String()
+	switch {
+	case k == " ": // Space = leader key
+		if !a.leader.active {
+			cmd := a.leader.activate()
+			return a, cmd
+		}
+	case key.Matches(msg, a.keys.Quit):
+		a.confirmQuit()
+		return a, nil
+	case key.Matches(msg, a.keys.Help):
+		a.help.view = "vault"
+		a.help.toggle()
+		return a, nil
+	}
+	// Forward to vault model for navigation and actions (j/k/g/G, enter, p, c, e, d, esc).
+	var cmd tea.Cmd
+	a.vaultView, cmd = a.vaultView.Update(msg)
+	return a, cmd
+}
+
+// refreshVaultView reloads profiles from the store and updates vaultView.
+func (a *App) refreshVaultView() {
+	if a.profileStore == nil {
+		return
+	}
+	profiles, err := a.profileStore.List()
+	if err != nil {
+		a.statusBar.setFlash("Error loading cred profiles: "+err.Error(), flashError)
+		return
+	}
+	// Count connections per profile (direct assignment or group inheritance).
+	counts := make(map[string]int)
+	groupProfiles := make(map[string]string)
+	for _, p := range profiles {
+		if p.Group != "" {
+			groupProfiles[p.Group] = p.Name
+		}
+		for _, conn := range a.cfg.Connections {
+			if conn.CredentialProfile == p.Name {
+				counts[p.Name]++
+			} else if p.Group != "" && conn.Group == p.Group && conn.CredentialProfile == "" {
+				counts[p.Name]++
+			}
+		}
+	}
+	a.vaultView.setProfiles(profiles)
+	a.vaultView.setConnCounts(counts)
+	a.list.groupProfiles = groupProfiles
+}
+
+// handleVaultRename renames a credential profile and updates all referencing connections.
+// args is expected to be "<old-name> <new-name>".
+func (a App) handleVaultRename(args string) (tea.Model, tea.Cmd) {
+	if a.profileStore == nil {
+		a.statusBar.setFlash("Vault not available", flashError)
+		return a, scheduleFlashClear()
+	}
+	parts := strings.SplitN(strings.TrimSpace(args), " ", 2)
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		a.statusBar.setFlash("Usage: :vault rename <old-name> <new-name>", flashError)
+		return a, scheduleFlashClear()
+	}
+	oldName := strings.TrimSpace(parts[0])
+	newName := strings.TrimSpace(parts[1])
+
+	profile, err := a.profileStore.Get(oldName)
+	if err != nil {
+		a.statusBar.setFlash("Error looking up cred profile: "+err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+	if profile == nil {
+		a.statusBar.setFlash("Cred profile '"+oldName+"' not found", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	profile.Name = newName
+	if err := a.profileStore.Update(*profile); err != nil {
+		a.statusBar.setFlash("Error renaming cred profile: "+err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+
+	// Update all connections that directly reference the old profile name.
+	updated := 0
+	for i := range a.cfg.Connections {
+		if a.cfg.Connections[i].CredentialProfile == oldName {
+			a.cfg.Connections[i].CredentialProfile = newName
+			updated++
+		}
+	}
+	if updated > 0 {
+		if err := config.Save(a.cfg); err != nil {
+			a.log.error("Failed to save connection references after rename: %v", err)
+		}
+	}
+
+	a.refreshVaultView()
+	a.list.rebuildTable()
+	a.statusBar.setFlash(fmt.Sprintf("Renamed profile '%s' to '%s' (%d connection(s) updated)", oldName, newName, updated), flashInfo)
+	return a, scheduleFlashClear()
+}
+
+// handleCredOrphans finds connections that reference a credential profile that no longer exists.
+func (a App) handleCredOrphans() (tea.Model, tea.Cmd) {
+	if a.profileStore == nil {
+		a.statusBar.setFlash("Vault not available", flashError)
+		return a, scheduleFlashClear()
+	}
+	profiles, err := a.profileStore.List()
+	if err != nil {
+		a.statusBar.setFlash("Error loading cred profiles: "+err.Error(), flashError)
+		return a, scheduleFlashClear()
+	}
+
+	// Build a set of known profile names.
+	known := make(map[string]struct{}, len(profiles))
+	for _, p := range profiles {
+		known[p.Name] = struct{}{}
+	}
+
+	// Find connections with a CredentialProfile that is not in the known set.
+	var orphans []string
+	for _, conn := range a.cfg.Connections {
+		if conn.CredentialProfile == "" {
+			continue
+		}
+		if _, ok := known[conn.CredentialProfile]; !ok {
+			orphans = append(orphans, conn.Name+" ("+conn.CredentialProfile+")")
+		}
+	}
+
+	if len(orphans) == 0 {
+		a.statusBar.setFlash("No orphaned references found", flashInfo)
+	} else {
+		a.statusBar.setFlash(fmt.Sprintf("Orphaned connections (%d): %s", len(orphans), strings.Join(orphans, ", ")), flashWarn)
+	}
+	return a, scheduleFlashClear()
+}
+
+// handleVaultFormSubmit persists a submitted vault profile form.
+func (a *App) handleVaultFormSubmit(msg VaultFormSubmitMsg) {
+	if a.profileStore == nil {
+		a.statusBar.setFlash("Vault not available", flashError)
+		return
+	}
+	if msg.IsEdit {
+		if err := a.profileStore.Update(msg.Profile); err != nil {
+			a.statusBar.setFlash("Error updating cred profile: "+err.Error(), flashError)
+			return
+		}
+		a.statusBar.setFlash("Cred profile '"+msg.Profile.Name+"' updated", flashInfo)
+	} else {
+		if _, err := a.profileStore.Create(msg.Profile); err != nil {
+			a.statusBar.setFlash("Error creating cred profile: "+err.Error(), flashError)
+			return
+		}
+		a.statusBar.setFlash("Cred profile '"+msg.Profile.Name+"' created", flashInfo)
+	}
+	a.refreshVaultView()
+}
+
+// openVaultView refreshes the vault profile list and pushes the vault view.
+func (a *App) openVaultView() tea.Cmd {
+	a.refreshVaultView()
+	a.pushView(viewVault)
+	return nil
+}

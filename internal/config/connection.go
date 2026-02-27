@@ -204,6 +204,10 @@ type Connection struct {
 	LastConnectedAt *time.Time `yaml:"last_connected_at,omitempty"`
 	ConnectCount    int        `yaml:"connect_count,omitempty"`
 
+	// Ghost session (auto-connect on startup)
+	AutoConnect   bool `yaml:"auto_connect,omitempty"`
+	AutoReconnect bool `yaml:"auto_reconnect,omitempty"`
+
 	// Notes and custom metadata
 	Notes        string            `yaml:"notes,omitempty"`
 	CustomFields map[string]string `yaml:"custom_fields,omitempty"`
@@ -220,6 +224,16 @@ func (c Connection) EffectivePort() int {
 // HostPort returns host:port string.
 func (c Connection) HostPort() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.EffectivePort())
+}
+
+// SanitizeID produces a kebab-cased ID from a connection name.
+// It replaces spaces and dots with hyphens and lowercases the result.
+// The optional prefix is prepended (e.g., "ssh-").
+func SanitizeID(name, prefix string) string {
+	id := strings.ToLower(name)
+	id = strings.ReplaceAll(id, " ", "-")
+	id = strings.ReplaceAll(id, ".", "-")
+	return prefix + id
 }
 
 // Group represents a named group with a display color.

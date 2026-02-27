@@ -98,7 +98,10 @@ func TestEncryptWithDerivedKeyRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateSalt failed: %v", err)
 	}
-	derivedKey := DeriveKey(string(key), salt)
+	derivedKey, err := DeriveKey(string(key), salt)
+	if err != nil {
+		t.Fatalf("DeriveKey failed: %v", err)
+	}
 
 	encrypted, err := EncryptWithDerivedKey(plaintext, derivedKey, salt)
 	if err != nil {

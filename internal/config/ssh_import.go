@@ -111,10 +111,7 @@ func parseSSHLine(line string) (key, value string, ok bool) {
 }
 
 func sanitizeID(name string) string {
-	id := strings.ToLower(name)
-	id = strings.ReplaceAll(id, " ", "-")
-	id = strings.ReplaceAll(id, ".", "-")
-	return "ssh-" + id
+	return SanitizeID(name, "ssh-")
 }
 
 func expandTilde(path string) string {

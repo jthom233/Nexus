@@ -3,6 +3,7 @@ package ipc
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"sync"
@@ -50,6 +51,11 @@ func (s *Server) Serve() error {
 			default:
 				return fmt.Errorf("ipc accept: %w", err)
 			}
+		}
+		if err := verifyPeer(conn); err != nil {
+			log.Printf("ipc: peer verification failed: %v", err)
+			conn.Close()
+			continue
 		}
 		s.mu.Lock()
 		s.clients = append(s.clients, conn)

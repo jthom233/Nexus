@@ -250,8 +250,5 @@ func ApplyMerge(existing, imported []config.Connection, strategy MergeStrategy) 
 
 // sanitizeID produces a kebab-cased ID from a connection name.
 func sanitizeID(name string) string {
-	id := strings.ToLower(name)
-	id = strings.ReplaceAll(id, " ", "-")
-	id = strings.ReplaceAll(id, ".", "-")
-	return id
+	return config.SanitizeID(name, "")
 }

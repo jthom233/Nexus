@@ -111,6 +111,11 @@ type App struct {
 	overlayVisible bool    // whether the expanded overlay bar is showing
 	overlayPinned  bool    // whether the overlay is pinned open
 	overlayAlpha   float64 // fade animation target (0.0 = hidden, 1.0 = visible)
+
+	// shouldQuit is set by goroutines/callbacks that cannot return to Ebiten
+	// directly (e.g. IPC handlers, click handlers). Update() checks this flag
+	// and returns ebiten.Termination to trigger a clean shutdown.
+	shouldQuit atomic.Bool
 }
 
 // NewApp creates a new GUI application.
@@ -151,6 +156,10 @@ func (a *App) Update() error {
 		if !ebiten.IsFullscreen() && !isWayland() {
 			ebiten.MinimizeWindow()
 		}
+	}
+
+	if a.shouldQuit.Load() {
+		return ebiten.Termination
 	}
 
 	a.mu.RLock()
@@ -737,7 +746,8 @@ func (a *App) handleTabClicks() {
 		// Close button
 		closeBtnX := a.width - winBtnWidth - winBtnGap
 		if mx >= closeBtnX && mx < closeBtnX+winBtnWidth {
-			os.Exit(0)
+			a.shouldQuit.Store(true)
+			return
 		}
 	}
 
@@ -875,7 +885,7 @@ func (a *App) closeTabFromGUI(connID string) {
 	a.tabs.Remove(connID)
 
 	if a.tabs.Count() == 0 {
-		os.Exit(0)
+		a.shouldQuit.Store(true)
 	}
 }
 
@@ -981,7 +991,7 @@ func (a *App) CloseTab(connID string) {
 	a.tabs.Remove(connID)
 
 	if a.tabs.Count() == 0 {
-		os.Exit(0)
+		a.shouldQuit.Store(true)
 	}
 }
 

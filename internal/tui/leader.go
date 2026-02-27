@@ -163,6 +163,7 @@ func leaderGroups() []LeaderGroup {
 				{Key: "a", Label: "Add connection", Action: "add-connection"},
 				{Key: "e", Label: "Edit connection", Action: "edit-connection"},
 				{Key: "d", Label: "Delete connection", Action: "delete-connection"},
+				{Key: "f", Label: "SFTP browser", Action: "sftp-browser"},
 			},
 		},
 		{
@@ -187,6 +188,7 @@ func leaderGroups() []LeaderGroup {
 				{Key: "l", Label: "List sessions", Action: "sessions"},
 				{Key: "k", Label: "Kill session", Action: "kill-session-prompt"},
 				{Key: "a", Label: "Kill all", Action: "kill-all-sessions"},
+				{Key: "g", Label: "Toggle ghost (auto-connect)", Action: "toggle-ghost"},
 			},
 		},
 		{

@@ -27,6 +27,17 @@ const (
 	optTT   byte = 24 // Terminal Type
 )
 
+// iacState represents the current position in the IAC state machine.
+type iacState int
+
+const (
+	iacNone   iacState = iota // normal data
+	iacGotIAC                 // saw IAC byte, waiting for command
+	iacGotCmd                 // saw 3-byte command (DO/DONT/WILL/WONT), waiting for option
+	iacInSub                  // inside subnegotiation (after IAC SB)
+	iacSubIAC                 // inside subneg, saw IAC (could be IAC SE or IAC IAC)
+)
+
 // TelnetSession is a native telnet client with IAC negotiation.
 // It implements tea.ExecCommand (Run, SetStdin, SetStdout, SetStderr).
 type TelnetSession struct {
@@ -37,6 +48,12 @@ type TelnetSession struct {
 	stdin  io.Reader
 	stdout io.Writer
 	stderr io.Writer
+
+	// Persistent IAC parser state — survives across conn.Read() calls so that
+	// IAC sequences split across chunk boundaries are handled correctly.
+	parseState iacState
+	pendingCmd byte   // the command byte (DO/DONT/WILL/WONT) when in iacGotCmd
+	subBuf     []byte // subnegotiation accumulator
 }
 
 // SetStdin sets the stdin reader (called by bubbletea before Run).
@@ -117,65 +134,107 @@ func (t *TelnetSession) readLoop(fd int, hasTerminal bool) error {
 	}
 }
 
+// processData feeds bytes from a single Read() call through the persistent IAC
+// state machine. Because parseState, pendingCmd, and subBuf survive across
+// calls, an IAC sequence that is split across two Read() calls is handled
+// correctly — the first call leaves the machine in a mid-sequence state and the
+// second call continues from there.
 func (t *TelnetSession) processData(data []byte, fd int, hasTerminal bool) {
-	i := 0
-	for i < len(data) {
-		if data[i] == iacByte {
-			if i+1 >= len(data) {
-				break
-			}
-			switch data[i+1] {
-			case iacByte:
-				t.stdout.Write([]byte{0xFF})
-				i += 2
-			case iacDo:
-				if i+2 < len(data) {
-					t.handleDo(data[i+2], fd, hasTerminal)
-					i += 3
-				} else {
-					i = len(data)
-				}
-			case iacDont:
-				if i+2 < len(data) {
-					t.handleDont(data[i+2])
-					i += 3
-				} else {
-					i = len(data)
-				}
-			case iacWill:
-				if i+2 < len(data) {
-					t.handleWill(data[i+2])
-					i += 3
-				} else {
-					i = len(data)
-				}
-			case iacWont:
-				if i+2 < len(data) {
-					i += 3
-				} else {
-					i = len(data)
-				}
-			case iacSB:
-				j := i + 2
-				for j+1 < len(data) {
-					if data[j] == iacByte && data[j+1] == iacSE {
-						j += 2
-						break
-					}
-					j++
-				}
-				i = j
-			default:
-				i += 2
-			}
-		} else {
-			start := i
-			for i < len(data) && data[i] != iacByte {
-				i++
-			}
-			t.stdout.Write(data[start:i])
+	// plainStart marks the beginning of a run of non-IAC bytes that can be
+	// forwarded to stdout in a single Write call rather than byte-by-byte.
+	plainStart := -1
+
+	flushPlain := func(end int) {
+		if plainStart >= 0 && end > plainStart {
+			t.stdout.Write(data[plainStart:end])
+			plainStart = -1
 		}
 	}
+
+	for i, b := range data {
+		switch t.parseState {
+
+		case iacNone:
+			if b == iacByte {
+				flushPlain(i)
+				t.parseState = iacGotIAC
+			} else {
+				// Accumulate plain bytes for a bulk write.
+				if plainStart < 0 {
+					plainStart = i
+				}
+			}
+
+		case iacGotIAC:
+			switch b {
+			case iacByte:
+				// IAC IAC → literal 0xFF in the data stream.
+				t.stdout.Write([]byte{0xFF})
+				t.parseState = iacNone
+			case iacSB:
+				t.subBuf = t.subBuf[:0]
+				t.parseState = iacInSub
+			case iacSE:
+				// Unexpected IAC SE outside subneg — ignore and return to normal.
+				t.parseState = iacNone
+			case iacDo, iacDont, iacWill, iacWont:
+				t.pendingCmd = b
+				t.parseState = iacGotCmd
+			default:
+				// NOP, GA, or other single-byte commands — consume and continue.
+				t.parseState = iacNone
+			}
+
+		case iacGotCmd:
+			// b is the option byte for the pending 3-byte command.
+			switch t.pendingCmd {
+			case iacDo:
+				t.handleDo(b, fd, hasTerminal)
+			case iacDont:
+				t.handleDont(b)
+			case iacWill:
+				t.handleWill(b)
+			case iacWont:
+				// We do not currently advertise any options, so a WONT from the
+				// server needs no action.
+			}
+			t.parseState = iacNone
+
+		case iacInSub:
+			if b == iacByte {
+				t.parseState = iacSubIAC
+			} else {
+				t.subBuf = append(t.subBuf, b)
+			}
+
+		case iacSubIAC:
+			switch b {
+			case iacSE:
+				// End of subnegotiation — process the accumulated buffer.
+				t.processSubneg(t.subBuf)
+				t.subBuf = t.subBuf[:0]
+				t.parseState = iacNone
+			case iacByte:
+				// IAC IAC inside subneg → literal 0xFF in subneg data.
+				t.subBuf = append(t.subBuf, 0xFF)
+				t.parseState = iacInSub
+			default:
+				// Malformed subneg; treat the IAC as a fresh command start.
+				t.parseState = iacInSub
+			}
+		}
+	}
+
+	// Flush any trailing plain bytes.
+	flushPlain(len(data))
+}
+
+// processSubneg handles a completed subnegotiation payload (option byte first).
+func (t *TelnetSession) processSubneg(payload []byte) {
+	// Currently we have no subnegotiation handling that requires parsing the
+	// payload — NAWS is initiated by us, not the server. This hook is provided
+	// for future extension (e.g., terminal-type subneg).
+	_ = payload
 }
 
 func (t *TelnetSession) handleDo(option byte, fd int, hasTerminal bool) {

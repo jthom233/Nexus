@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dr4zz/nexus/internal/config"
 	"github.com/dr4zz/nexus/internal/health"
@@ -393,4 +395,24 @@ func formatLatency(d time.Duration) string {
 		return fmt.Sprintf("%dms", d.Milliseconds())
 	}
 	return fmt.Sprintf("%.1fs", d.Seconds())
+}
+
+// handlePulseKey processes key events while the pulse dashboard is active.
+func (a App) handlePulseKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, a.keys.Quit):
+		a.confirmQuit()
+		return a, nil
+	case key.Matches(msg, a.keys.Escape):
+		a.popView()
+		return a, nil
+	case key.Matches(msg, a.keys.Refresh):
+		a.log.info("Manual health check refresh from pulse view")
+		a.statusBar.setFlash("Refreshing...", flashInfo)
+		return a, tea.Batch(
+			a.checker.CheckAll(a.list.healthTargets()),
+			scheduleFlashClear(),
+		)
+	}
+	return a, nil
 }

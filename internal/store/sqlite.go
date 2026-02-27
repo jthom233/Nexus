@@ -3,11 +3,13 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/dr4zz/nexus/internal/config"
+	"github.com/dr4zz/nexus/internal/crypto"
 	"github.com/dr4zz/nexus/internal/hooks"
 
 	_ "modernc.org/sqlite"
@@ -17,6 +19,7 @@ import (
 type SQLiteStore struct {
 	db   *sql.DB
 	path string
+	key  []byte
 }
 
 // NewSQLiteStore opens (or creates) a SQLite-backed store at the given path.
@@ -33,6 +36,17 @@ func NewSQLiteStore(path string) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("set WAL mode: %w", err)
 	}
 
+	// Limit to a single open connection so that concurrent callers serialize
+	// through the database/sql pool rather than racing at the SQLite level.
+	db.SetMaxOpenConns(1)
+
+	// Wait up to 5 s instead of returning SQLITE_BUSY immediately when
+	// another statement holds the write lock.
+	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("set busy_timeout: %w", err)
+	}
+
 	s := &SQLiteStore{db: db, path: path}
 	if err := s.createSchema(); err != nil {
 		db.Close()
@@ -43,6 +57,30 @@ func NewSQLiteStore(path string) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("migrate schema: %w", err)
 	}
 	return s, nil
+}
+
+// WithEncryptionKey sets an optional encryption key on the store. When set,
+// password fields are encrypted on write and decrypted on read using AES-256-GCM.
+func (s *SQLiteStore) WithEncryptionKey(key []byte) {
+	s.key = key
+}
+
+// encryptPassword encrypts a password string if an encryption key is set.
+// Returns the original value unchanged when no key is configured.
+func (s *SQLiteStore) encryptPassword(plaintext string) (string, error) {
+	if s.key == nil || plaintext == "" {
+		return plaintext, nil
+	}
+	return crypto.Encrypt(plaintext, s.key)
+}
+
+// decryptPassword decrypts a password string if an encryption key is set.
+// Non-encrypted strings are returned unchanged (handles migration from plaintext).
+func (s *SQLiteStore) decryptPassword(encoded string) (string, error) {
+	if s.key == nil || encoded == "" {
+		return encoded, nil
+	}
+	return crypto.Decrypt(encoded, s.key)
 }
 
 // createSchema creates the connections table and FTS5 virtual table if they
@@ -71,7 +109,11 @@ CREATE TABLE IF NOT EXISTS connections (
 	hooks              TEXT NOT NULL DEFAULT '{}',
 	favorite      INTEGER NOT NULL DEFAULT 0,
 	last_connected_at TEXT NOT NULL DEFAULT '',
-	connect_count INTEGER NOT NULL DEFAULT 0
+	connect_count INTEGER NOT NULL DEFAULT 0,
+	notes         TEXT NOT NULL DEFAULT '',
+	custom_fields TEXT NOT NULL DEFAULT '{}',
+	auto_connect   INTEGER NOT NULL DEFAULT 0,
+	auto_reconnect INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS connections_fts USING fts5(
@@ -113,6 +155,10 @@ END;
 func (s *SQLiteStore) migrateSchema() error {
 	migrations := []string{
 		`ALTER TABLE connections ADD COLUMN credential_profile TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE connections ADD COLUMN notes TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE connections ADD COLUMN custom_fields TEXT NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE connections ADD COLUMN auto_connect INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE connections ADD COLUMN auto_reconnect INTEGER NOT NULL DEFAULT 0`,
 	}
 	for _, stmt := range migrations {
 		if _, err := s.db.Exec(stmt); err != nil {
@@ -143,25 +189,37 @@ func (s *SQLiteStore) ListConnections() ([]config.Connection, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanConnections(rows)
+	return s.scanConnections(rows)
 }
 
 func (s *SQLiteStore) GetConnection(id string) (config.Connection, error) {
 	row := s.db.QueryRow("SELECT * FROM connections WHERE id = ?", id)
-	return scanConnection(row)
+	return s.scanConnection(row)
 }
 
 func (s *SQLiteStore) AddConnection(conn config.Connection) error {
-	// Append: position = max(position) + 1
+	// Wrap the MAX(position) SELECT and INSERT in a transaction to prevent a
+	// TOCTOU race where two concurrent callers both read the same MAX and then
+	// both insert at the same position.
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
 	var maxPos sql.NullInt64
-	if err := s.db.QueryRow("SELECT MAX(position) FROM connections").Scan(&maxPos); err != nil {
+	if err := tx.QueryRow("SELECT MAX(position) FROM connections").Scan(&maxPos); err != nil {
 		return err
 	}
 	pos := int64(0)
 	if maxPos.Valid {
 		pos = maxPos.Int64 + 1
 	}
-	return s.insertConn(conn, int(pos))
+
+	if err := s.insertConnTx(tx, conn, int(pos)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *SQLiteStore) UpdateConnection(conn config.Connection) error {
@@ -169,7 +227,7 @@ func (s *SQLiteStore) UpdateConnection(conn config.Connection) error {
 	var pos int
 	err := s.db.QueryRow("SELECT position FROM connections WHERE id = ?", conn.ID).Scan(&pos)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return &ErrNotFound{ID: conn.ID}
 		}
 		return err
@@ -179,20 +237,32 @@ func (s *SQLiteStore) UpdateConnection(conn config.Connection) error {
 	pfJSON, _ := json.Marshal(conn.PortForwards)
 	rdpJSON, _ := json.Marshal(conn.RDPOptions)
 	hooksJSON, _ := json.Marshal(conn.Hooks)
+	cfJSON, _ := json.Marshal(conn.CustomFields)
 	lastConn := formatTime(conn.LastConnectedAt)
 	fav := boolToInt(conn.Favorite)
+	autoConn := boolToInt(conn.AutoConnect)
+	autoReconn := boolToInt(conn.AutoReconnect)
+
+	encPassword, err := s.encryptPassword(conn.Password)
+	if err != nil {
+		return fmt.Errorf("encrypt password: %w", err)
+	}
+	encVNCPassword, err := s.encryptPassword(conn.VNCPassword)
+	if err != nil {
+		return fmt.Errorf("encrypt vnc_password: %w", err)
+	}
 
 	_, err = s.db.Exec(`UPDATE connections SET
 		position=?, name=?, protocol=?, host=?, port=?, username=?, password=?,
 		identity_file=?, proxy_jump=?, proxy_command=?, port_forwards=?, domain=?,
 		grp=?, tags=?, rdp_options=?, vnc_password=?, credential_profile=?, hooks=?, favorite=?,
-		last_connected_at=?, connect_count=?
+		last_connected_at=?, connect_count=?, notes=?, custom_fields=?, auto_connect=?, auto_reconnect=?
 		WHERE id=?`,
 		pos, conn.Name, string(conn.Protocol), conn.Host, conn.Port,
-		conn.Username, conn.Password, conn.IdentityFile, conn.ProxyJump,
+		conn.Username, encPassword, conn.IdentityFile, conn.ProxyJump,
 		conn.ProxyCommand, string(pfJSON), conn.Domain, conn.Group,
-		string(tagsJSON), string(rdpJSON), conn.VNCPassword, conn.CredentialProfile, string(hooksJSON),
-		fav, lastConn, conn.ConnectCount, conn.ID,
+		string(tagsJSON), string(rdpJSON), encVNCPassword, conn.CredentialProfile, string(hooksJSON),
+		fav, lastConn, conn.ConnectCount, conn.Notes, string(cfJSON), autoConn, autoReconn, conn.ID,
 	)
 	return err
 }
@@ -210,9 +280,18 @@ func (s *SQLiteStore) DeleteConnection(id string) error {
 }
 
 func (s *SQLiteStore) InsertConnectionAt(conn config.Connection, index int) error {
-	// Count existing rows.
+	// Wrap the position-shift UPDATE and the INSERT in a single transaction so
+	// that a crash between the two statements cannot leave the table with a gap
+	// or duplicate position value.
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	// Count existing rows inside the transaction.
 	var count int
-	if err := s.db.QueryRow("SELECT COUNT(*) FROM connections").Scan(&count); err != nil {
+	if err := tx.QueryRow("SELECT COUNT(*) FROM connections").Scan(&count); err != nil {
 		return err
 	}
 
@@ -221,11 +300,15 @@ func (s *SQLiteStore) InsertConnectionAt(conn config.Connection, index int) erro
 		pos = count // append
 	} else {
 		// Shift everything at pos and above up by 1.
-		if _, err := s.db.Exec("UPDATE connections SET position = position + 1 WHERE position >= ?", pos); err != nil {
+		if _, err := tx.Exec("UPDATE connections SET position = position + 1 WHERE position >= ?", pos); err != nil {
 			return err
 		}
 	}
-	return s.insertConn(conn, pos)
+
+	if err := s.insertConnTx(tx, conn, pos); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *SQLiteStore) SearchConnections(query string) ([]config.Connection, error) {
@@ -253,7 +336,7 @@ func (s *SQLiteStore) SearchConnections(query string) ([]config.Connection, erro
 		return nil, err
 	}
 	defer rows.Close()
-	return scanConnections(rows)
+	return s.scanConnections(rows)
 }
 
 func (s *SQLiteStore) Close() error {
@@ -264,34 +347,57 @@ func (s *SQLiteStore) Close() error {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// sqlExecer is the common Exec interface shared by *sql.DB and *sql.Tx.
+type sqlExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
 func (s *SQLiteStore) insertConn(conn config.Connection, pos int) error {
+	return s.insertConnTx(s.db, conn, pos)
+}
+
+// insertConnTx inserts a connection using the provided execer — either a
+// *sql.DB for standalone calls or a *sql.Tx for transactional callers.
+func (s *SQLiteStore) insertConnTx(ex sqlExecer, conn config.Connection, pos int) error {
 	tagsJSON, _ := json.Marshal(conn.Tags)
 	pfJSON, _ := json.Marshal(conn.PortForwards)
 	rdpJSON, _ := json.Marshal(conn.RDPOptions)
 	hooksJSON, _ := json.Marshal(conn.Hooks)
+	cfJSON, _ := json.Marshal(conn.CustomFields)
 	lastConn := formatTime(conn.LastConnectedAt)
 	fav := boolToInt(conn.Favorite)
+	autoConn := boolToInt(conn.AutoConnect)
+	autoReconn := boolToInt(conn.AutoReconnect)
 
-	_, err := s.db.Exec(`INSERT INTO connections (
+	encPassword, err := s.encryptPassword(conn.Password)
+	if err != nil {
+		return fmt.Errorf("encrypt password: %w", err)
+	}
+	encVNCPassword, err := s.encryptPassword(conn.VNCPassword)
+	if err != nil {
+		return fmt.Errorf("encrypt vnc_password: %w", err)
+	}
+
+	_, err = ex.Exec(`INSERT INTO connections (
 		id, position, name, protocol, host, port, username, password,
 		identity_file, proxy_jump, proxy_command, port_forwards, domain,
 		grp, tags, rdp_options, vnc_password, credential_profile, hooks, favorite,
-		last_connected_at, connect_count
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		last_connected_at, connect_count, notes, custom_fields, auto_connect, auto_reconnect
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		conn.ID, pos, conn.Name, string(conn.Protocol), conn.Host, conn.Port,
-		conn.Username, conn.Password, conn.IdentityFile, conn.ProxyJump,
+		conn.Username, encPassword, conn.IdentityFile, conn.ProxyJump,
 		conn.ProxyCommand, string(pfJSON), conn.Domain, conn.Group,
-		string(tagsJSON), string(rdpJSON), conn.VNCPassword, conn.CredentialProfile, string(hooksJSON),
-		fav, lastConn, conn.ConnectCount,
+		string(tagsJSON), string(rdpJSON), encVNCPassword, conn.CredentialProfile, string(hooksJSON),
+		fav, lastConn, conn.ConnectCount, conn.Notes, string(cfJSON), autoConn, autoReconn,
 	)
 	return err
 }
 
 // scanConnections reads all rows into a Connection slice.
-func scanConnections(rows *sql.Rows) ([]config.Connection, error) {
+func (s *SQLiteStore) scanConnections(rows *sql.Rows) ([]config.Connection, error) {
 	var out []config.Connection
 	for rows.Next() {
-		c, err := scanRow(rows)
+		c, err := s.scanRow(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -301,7 +407,7 @@ func scanConnections(rows *sql.Rows) ([]config.Connection, error) {
 }
 
 // scanConnection reads a single row from QueryRow.
-func scanConnection(row *sql.Row) (config.Connection, error) {
+func (s *SQLiteStore) scanConnection(row *sql.Row) (config.Connection, error) {
 	var (
 		c          config.Connection
 		pos        int
@@ -310,8 +416,11 @@ func scanConnection(row *sql.Row) (config.Connection, error) {
 		pfJSON     string
 		rdpJSON    string
 		hooksJSON  string
+		cfJSON     string
 		fav        int
 		lastConn   string
+		autoConn    int
+		autoReconn  int
 	)
 
 	err := row.Scan(
@@ -319,10 +428,10 @@ func scanConnection(row *sql.Row) (config.Connection, error) {
 		&c.Username, &c.Password, &c.IdentityFile, &c.ProxyJump,
 		&c.ProxyCommand, &pfJSON, &c.Domain, &c.Group,
 		&tagsJSON, &rdpJSON, &c.VNCPassword, &c.CredentialProfile, &hooksJSON,
-		&fav, &lastConn, &c.ConnectCount,
+		&fav, &lastConn, &c.ConnectCount, &c.Notes, &cfJSON, &autoConn, &autoReconn,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return config.Connection{}, &ErrNotFound{}
 		}
 		return config.Connection{}, err
@@ -330,18 +439,28 @@ func scanConnection(row *sql.Row) (config.Connection, error) {
 
 	c.Protocol = config.Protocol(proto)
 	c.Favorite = fav != 0
+	c.AutoConnect = autoConn != 0
+	c.AutoReconnect = autoReconn != 0
 	c.LastConnectedAt = parseTime(lastConn)
 
 	_ = json.Unmarshal([]byte(tagsJSON), &c.Tags)
 	_ = json.Unmarshal([]byte(pfJSON), &c.PortForwards)
 	_ = json.Unmarshal([]byte(rdpJSON), &c.RDPOptions)
 	_ = json.Unmarshal([]byte(hooksJSON), &c.Hooks)
+	_ = json.Unmarshal([]byte(cfJSON), &c.CustomFields)
+
+	if c.Password, err = s.decryptPassword(c.Password); err != nil {
+		return config.Connection{}, fmt.Errorf("decrypt password: %w", err)
+	}
+	if c.VNCPassword, err = s.decryptPassword(c.VNCPassword); err != nil {
+		return config.Connection{}, fmt.Errorf("decrypt vnc_password: %w", err)
+	}
 
 	return c, nil
 }
 
 // scanRow scans a single row from a Rows cursor.
-func scanRow(rows *sql.Rows) (config.Connection, error) {
+func (s *SQLiteStore) scanRow(rows *sql.Rows) (config.Connection, error) {
 	var (
 		c          config.Connection
 		pos        int
@@ -350,8 +469,11 @@ func scanRow(rows *sql.Rows) (config.Connection, error) {
 		pfJSON     string
 		rdpJSON    string
 		hooksJSON  string
+		cfJSON     string
 		fav        int
 		lastConn   string
+		autoConn    int
+		autoReconn  int
 	)
 
 	err := rows.Scan(
@@ -359,7 +481,7 @@ func scanRow(rows *sql.Rows) (config.Connection, error) {
 		&c.Username, &c.Password, &c.IdentityFile, &c.ProxyJump,
 		&c.ProxyCommand, &pfJSON, &c.Domain, &c.Group,
 		&tagsJSON, &rdpJSON, &c.VNCPassword, &c.CredentialProfile, &hooksJSON,
-		&fav, &lastConn, &c.ConnectCount,
+		&fav, &lastConn, &c.ConnectCount, &c.Notes, &cfJSON, &autoConn, &autoReconn,
 	)
 	if err != nil {
 		return config.Connection{}, err
@@ -367,12 +489,22 @@ func scanRow(rows *sql.Rows) (config.Connection, error) {
 
 	c.Protocol = config.Protocol(proto)
 	c.Favorite = fav != 0
+	c.AutoConnect = autoConn != 0
+	c.AutoReconnect = autoReconn != 0
 	c.LastConnectedAt = parseTime(lastConn)
 
 	_ = json.Unmarshal([]byte(tagsJSON), &c.Tags)
 	_ = json.Unmarshal([]byte(pfJSON), &c.PortForwards)
 	_ = json.Unmarshal([]byte(rdpJSON), &c.RDPOptions)
 	_ = json.Unmarshal([]byte(hooksJSON), &c.Hooks)
+	_ = json.Unmarshal([]byte(cfJSON), &c.CustomFields)
+
+	if c.Password, err = s.decryptPassword(c.Password); err != nil {
+		return config.Connection{}, fmt.Errorf("decrypt password: %w", err)
+	}
+	if c.VNCPassword, err = s.decryptPassword(c.VNCPassword); err != nil {
+		return config.Connection{}, fmt.Errorf("decrypt vnc_password: %w", err)
+	}
 
 	return c, nil
 }
