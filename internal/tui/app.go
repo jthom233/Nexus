@@ -11,6 +11,7 @@ import (
 
 	"github.com/dr4zz/nexus/internal/termcap"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dr4zz/nexus/internal/audit"
 	"github.com/dr4zz/nexus/internal/config"
@@ -538,7 +539,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case filterDebounceMsg:
 		// Only apply if this tick matches the latest keystroke sequence.
 		if a.filter.active && msg.seq == a.filter.debounceSeq {
-			a.clearAllSelection()
 			a.list.applyFilter(a.filter.value())
 			a.header.setFilter(a.filter.value())
 			a.header.setItemCount(len(a.list.filtered))
@@ -869,8 +869,6 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case viewGroupList:
 		return a.handleGroupListKey(msg)
-	case viewPulse:
-		return a.handlePulseKey(msg)
 	}
 	return a, nil
 }
@@ -911,10 +909,10 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// When items are selected via Tab/Ctrl+A and no motion sequence is pending,
 	// the d and y keys operate on the full selection instead of the single cursor row.
 	if a.selectionSet.HasSelection() && !a.list.table.motion.Pending() {
-		switch k {
-		case "d":
+		switch {
+		case key.Matches(msg, a.keys.Delete):
 			return a.bulkDeleteSelected()
-		case "y":
+		case key.Matches(msg, a.keys.Yank):
 			return a.bulkYankSelected()
 		}
 	}
@@ -941,8 +939,8 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// --- App-level key handlers (non-motion keys) ---
-	switch k {
-	case "ctrl+a":
+	switch {
+	case k == "ctrl+a":
 		// Toggle select-all / deselect-all for the visible (filtered) rows.
 		rowCount := len(a.list.table.rows)
 		if a.selectionSet.HasSelection() {
@@ -957,7 +955,7 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.statusBar.visualCount = a.selectionSet.Count()
 		return a, nil
 
-	case "esc":
+	case key.Matches(msg, a.keys.Escape):
 		// In Normal mode with a picker selection (but not visual mode), clear the selection.
 		if a.selectionSet.HasSelection() && !a.selectionSet.VisualActive() {
 			a.selectionSet.DeselectAll()
@@ -967,7 +965,7 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		// Otherwise fall through (no further esc handling at list level in normal mode).
 
-	case "tab": // Toggle selection on current row
+	case k == "tab": // Toggle selection on current row
 		if len(a.list.table.rows) == 0 {
 			return a, nil
 		}
@@ -981,7 +979,7 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.statusBar.visualCount = a.selectionSet.Count()
 		return a, nil
 
-	case "shift+tab": // Deselect current row (idempotent; no-op on empty list)
+	case k == "shift+tab": // Deselect current row (idempotent; no-op on empty list)
 		if len(a.list.table.rows) == 0 {
 			return a, nil
 		}
@@ -995,42 +993,42 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.statusBar.visualCount = a.selectionSet.Count()
 		return a, nil
 
-	case " ": // Space = leader key
+	case k == " ": // Space = leader key
 		if !a.leader.active {
 			cmd := a.leader.activate()
 			return a, cmd
 		}
-	case "q":
+	case key.Matches(msg, a.keys.Quit):
 		a.confirmQuit()
 		return a, nil
-	case "/":
+	case k == "/":
 		a.search.activate(SearchForward)
 		a.search.width = a.width
 		a.list.table.highlightText = ""
 		a.mode = ModeInsert
 		a.statusBar.mode = ModeInsert
 		return a, a.setMode(ModeInsert)
-	case "?":
+	case k == "?":
 		a.search.activate(SearchReverse)
 		a.search.width = a.width
 		a.list.table.highlightText = ""
 		a.mode = ModeInsert
 		a.statusBar.mode = ModeInsert
 		return a, a.setMode(ModeInsert)
-	case "n":
+	case k == "n":
 		return a.searchNextMatch(true)
-	case "*":
+	case k == "*":
 		return a.searchUnderCursor(SearchForward)
-	case "#":
+	case k == "#":
 		return a.searchUnderCursor(SearchReverse)
-	case ":":
+	case key.Matches(msg, a.keys.Command):
 		a.command.activate()
 		a.mode = ModeCommand
 		a.statusBar.mode = ModeCommand
 		return a, a.command.input.Focus()
-	case "enter":
+	case key.Matches(msg, a.keys.Enter):
 		return a.connectSelected()
-	case "a":
+	case key.Matches(msg, a.keys.Add):
 		a.form.startAdd(a.cfg.GroupNames(), a.profileNames())
 		a.form.width = a.width
 		a.form.height = a.contentHeight()
@@ -1039,7 +1037,7 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.mode = ModeInsert
 		a.statusBar.mode = ModeInsert
 		return a, a.form.form.Init()
-	case "e":
+	case key.Matches(msg, a.keys.Edit):
 		if c := a.list.selectedConnection(); c != nil {
 			conn := *c
 			a.inheritGroupProfile(&conn)
@@ -1053,7 +1051,7 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return a, a.form.form.Init()
 		}
 		return a, nil
-	case "D":
+	case key.Matches(msg, a.keys.Detail):
 		if c := a.list.selectedConnection(); c != nil {
 			st := a.list.statuses[c.ID]
 			latStr := ""
@@ -1066,36 +1064,36 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.help.view = "detail"
 		}
 		return a, nil
-	case "r":
+	case key.Matches(msg, a.keys.Refresh):
 		a.log.info("Manual health check refresh")
 		a.statusBar.setFlash("Refreshing...", flashInfo)
 		return a, tea.Batch(
 			a.checker.CheckAll(a.list.healthTargets()),
 			scheduleFlashClear(),
 		)
-	case "s":
+	case key.Matches(msg, a.keys.Sessions):
 		a.sessionsView.setSessions(a.sessions.All())
 		a.sessionsView.setSize(a.width, a.contentHeight())
 		a.pushView(viewSessions)
 		a.help.view = "sessions"
 		return a, nil
 
-	case "ctrl+l": // View event log
+	case k == "ctrl+l": // View event log
 		a.log.setSize(a.width, a.contentHeight())
 		a.pushView(viewLog)
 		return a, nil
 
-	case "V": // Enter line-visual mode
+	case k == "V": // Enter line-visual mode
 		return a.enterVisualMode()
 
-	case "N": // Jump to previous search match (opposite direction of n)
+	case k == "N": // Jump to previous search match (opposite direction of n)
 		return a.searchNextMatch(false)
-	case "S": // Sort by Status
+	case k == "S": // Sort by Status
 		if idx := a.list.sortKeyToColumnIndex("status"); idx >= 0 {
 			a.list.table.CycleSort(idx)
 		}
 		return a, nil
-	case "P": // Sort by Protocol
+	case k == "P": // Sort by Protocol
 		if idx := a.list.sortKeyToColumnIndex("protocol"); idx >= 0 {
 			a.list.table.CycleSort(idx)
 		}
@@ -1103,14 +1101,14 @@ func (a App) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Wide mode toggle
 
-	case "u": // Undo
+	case k == "u": // Undo
 		return a.performUndo()
-	case "ctrl+r": // Redo
+	case k == "ctrl+r": // Redo
 		return a.performRedo()
-	case "ctrl+w":
+	case k == "ctrl+w":
 		a.list.toggleWideMode()
 		return a, nil
-	case "ctrl+p":
+	case k == "ctrl+p":
 		a.finder.SetSize(a.width, a.height)
 		a.finder.Activate(PickerConnections, a.cfg.Connections)
 		a.mode = ModeInsert
@@ -1179,67 +1177,20 @@ func (a App) handleOperatorLine(result *MotionResult) (tea.Model, tea.Cmd) {
 // handleOperatorRange handles operator+motion range results (e.g., dG, ygg).
 func (a App) handleOperatorRange(result *MotionResult) (tea.Model, tea.Cmd) {
 	op := a.list.table.lastOperator
-
-	// Collect IDs for the range [result.From, result.To] from table rows.
-	rows := a.list.table.rows
-	var ids []string
-	for i := result.From; i <= result.To && i < len(rows); i++ {
-		if rows[i].ID != "" {
-			ids = append(ids, rows[i].ID)
-		}
-	}
-	if len(ids) == 0 {
-		return a, nil
-	}
-
 	switch op {
 	case OpDelete:
-		if len(ids) == 1 {
-			c := a.cfg.FindConnection(ids[0])
-			if c != nil {
-				a.confirm.show(
-					"Delete connection '"+c.Name+"'?",
-					"delete",
-					c.ID,
-				)
-				a.confirm.width = a.width
-				a.confirm.height = a.height
-			}
-		} else {
-			prompt := fmt.Sprintf("Delete %d connections?", len(ids))
-			idStr := strings.Join(ids, ",")
-			a.confirm.show(prompt, "delete-visual", idStr)
+		// For range delete, still confirm for the selected connection
+		if c := a.list.selectedConnection(); c != nil {
+			a.confirm.show(
+				"Delete connection '"+c.Name+"'?",
+				"delete",
+				c.ID,
+			)
 			a.confirm.width = a.width
 			a.confirm.height = a.height
 		}
 	case OpYank:
-		if len(ids) == 1 {
-			return a.yankCommand()
-		}
-		var lines []string
-		for _, id := range ids {
-			c := a.cfg.FindConnection(id)
-			if c == nil {
-				continue
-			}
-			l, err := launcher.ForProtocol(c.Protocol)
-			if err != nil {
-				continue
-			}
-			lines = append(lines, l.Command(*c))
-		}
-		if len(lines) == 0 {
-			return a, nil
-		}
-		text := strings.Join(lines, "\n")
-		if err := termcap.DefaultClipboard().WriteAll(text); err != nil {
-			a.log.error("Clipboard error: %v", err)
-			a.statusBar.setFlash("Clipboard error: "+err.Error(), flashError)
-		} else {
-			a.log.info("Copied %d connection commands to clipboard", len(lines))
-			a.statusBar.setFlash(fmt.Sprintf("Copied %d commands", len(lines)), flashInfo)
-		}
-		return a, scheduleFlashClear()
+		return a.yankCommand()
 	}
 	return a, nil
 }
@@ -1292,12 +1243,12 @@ func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	cursor := a.list.table.Cursor()
 	total := len(a.list.table.rows)
 
-	switch k {
-	case "esc":
+	switch {
+	case key.Matches(msg, a.keys.Escape):
 		cmd := a.exitVisualMode()
 		return a, cmd
 
-	case "j", "down":
+	case key.Matches(msg, a.keys.Down):
 		// Move cursor down and extend selection range
 		newCursor := min(cursor+1, total-1)
 		a.list.table.MoveCursor(newCursor)
@@ -1307,7 +1258,7 @@ func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.syncCursorPosition()
 		return a, nil
 
-	case "k", "up":
+	case key.Matches(msg, a.keys.Up):
 		// Move cursor up and extend/contract selection range
 		newCursor := max(cursor-1, 0)
 		a.list.table.MoveCursor(newCursor)
@@ -1317,7 +1268,7 @@ func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.syncCursorPosition()
 		return a, nil
 
-	case "G":
+	case k == "G":
 		// Jump to last row, extend selection
 		a.list.table.MoveCursor(total - 1)
 		a.selectionSet.UpdateRange(total - 1)
@@ -1326,14 +1277,14 @@ func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.syncCursorPosition()
 		return a, nil
 
-	case "tab":
+	case k == "tab":
 		// Cherry-pick / deselect individual items while staying in Visual mode.
 		a.selectionSet.Toggle(cursor)
 		a.list.table.selectionSet = &a.selectionSet
 		a.syncVisualStatus()
 		return a, nil
 
-	case "ctrl+d":
+	case k == "ctrl+d":
 		// Half-page down; extend selection range addditively.
 		pageHalf := max(a.list.table.height/2, 1)
 		newCursor := min(cursor+pageHalf, total-1)
@@ -1344,7 +1295,7 @@ func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.syncCursorPosition()
 		return a, nil
 
-	case "ctrl+u":
+	case k == "ctrl+u":
 		// Half-page up; extend selection range additively.
 		pageHalf := max(a.list.table.height/2, 1)
 		newCursor := max(cursor-pageHalf, 0)
@@ -1355,14 +1306,14 @@ func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.syncCursorPosition()
 		return a, nil
 
-	case "v":
+	case k == "v":
 		// Toggle current item in/out of selection (non-contiguous)
 		a.selectionSet.Toggle(cursor)
 		a.list.table.selectionSet = &a.selectionSet
 		a.syncVisualStatus()
 		return a, nil
 
-	case "d":
+	case key.Matches(msg, a.keys.Delete):
 		// Delete all selected connections (with confirmation)
 		count := a.selectionSet.Count()
 		if count == 0 {
@@ -1381,7 +1332,7 @@ func (a App) handleVisualKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.confirm.height = a.height
 		return a, nil
 
-	case "y":
+	case key.Matches(msg, a.keys.Yank):
 		// Yank all selected connection details to clipboard
 		return a.yankVisualSelection()
 	}
@@ -1487,26 +1438,27 @@ func (a App) yankVisualSelection() (tea.Model, tea.Cmd) {
 }
 
 func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case " ": // Space = leader key
+	k := msg.String()
+	switch {
+	case k == " ": // Space = leader key
 		if !a.leader.active {
 			cmd := a.leader.activate()
 			return a, cmd
 		}
-	case "q":
+	case key.Matches(msg, a.keys.Quit):
 		a.confirmQuit()
 		return a, nil
-	case "?":
+	case key.Matches(msg, a.keys.Help):
 		a.help.view = "detail"
 		a.help.toggle()
 		return a, nil
-	case "esc":
+	case key.Matches(msg, a.keys.Escape):
 		a.popView()
 		a.help.view = "list"
 		return a, nil
-	case "enter":
+	case key.Matches(msg, a.keys.Enter):
 		return a.connectSelected()
-	case "e":
+	case key.Matches(msg, a.keys.Edit):
 		if c := a.list.selectedConnection(); c != nil {
 			conn := *c
 			a.inheritGroupProfile(&conn)
@@ -1520,17 +1472,17 @@ func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return a, a.form.form.Init()
 		}
 		return a, nil
-	case "p":
+	case key.Matches(msg, a.keys.ShowPassword):
 		a.detail.showPassword = !a.detail.showPassword
 		a.detail.updateContent()
 		return a, nil
-	case "s":
+	case key.Matches(msg, a.keys.Sessions):
 		a.sessionsView.setSessions(a.sessions.All())
 		a.sessionsView.setSize(a.width, a.contentHeight())
 		a.pushView(viewSessions)
 		a.help.view = "sessions"
 		return a, nil
-	case "ctrl+l":
+	case k == "ctrl+l":
 		a.log.setSize(a.width, a.contentHeight())
 		a.pushView(viewLog)
 		return a, nil
@@ -1542,26 +1494,27 @@ func (a App) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) handleSessionsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case " ": // Space = leader key
+	k := msg.String()
+	switch {
+	case k == " ": // Space = leader key
 		if !a.leader.active {
 			cmd := a.leader.activate()
 			return a, cmd
 		}
-	case "q":
+	case key.Matches(msg, a.keys.Quit):
 		a.confirmQuit()
 		return a, nil
-	case "?":
+	case key.Matches(msg, a.keys.Help):
 		a.help.view = "sessions"
 		a.help.toggle()
 		return a, nil
-	case "esc":
+	case key.Matches(msg, a.keys.Escape):
 		a.popView()
 		a.help.view = "list"
 		return a, nil
-	case "enter":
+	case key.Matches(msg, a.keys.Enter):
 		return a.reattachSelected()
-	case "d":
+	case key.Matches(msg, a.keys.KillSession):
 		if sess := a.sessionsView.selectedSession(); sess != nil {
 			a.confirm.show(
 				"Kill session '"+sess.Name+"' ("+sess.ID+")?",
@@ -1572,20 +1525,20 @@ func (a App) handleSessionsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.confirm.height = a.height
 		}
 		return a, nil
-	case "ctrl+l":
+	case k == "ctrl+l":
 		a.log.setSize(a.width, a.contentHeight())
 		a.pushView(viewLog)
 		return a, nil
-	case "j", "down":
+	case key.Matches(msg, a.keys.Down):
 		a.sessionsView.table.MoveDown(1)
 		return a, nil
-	case "k", "up":
+	case key.Matches(msg, a.keys.Up):
 		a.sessionsView.table.MoveUp(1)
 		return a, nil
-	case "g":
+	case k == "g":
 		a.sessionsView.table.GotoTop()
 		return a, nil
-	case "G":
+	case k == "G":
 		a.sessionsView.table.GotoBottom()
 		return a, nil
 	}
@@ -1623,14 +1576,14 @@ func (a App) handlePaneLayoutKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// When the active pane has an open connection picker, route picker keys
 	// before the normal mode handler so j/k/Enter/Esc go to the picker.
 	if active := a.paneLayout.ActivePane(); active != nil && active.Picker != nil && active.Picker.Active {
-		switch k {
-		case "j", "down":
+		switch {
+		case key.Matches(msg, a.keys.Down):
 			active.Picker.MoveDown()
 			return a, nil
-		case "k", "up":
+		case key.Matches(msg, a.keys.Up):
 			active.Picker.MoveUp()
 			return a, nil
-		case "enter":
+		case key.Matches(msg, a.keys.Enter):
 			conn := active.Picker.Confirm()
 			if conn != nil {
 				// Deliver the selection as a message so PaneLayoutModel.Update
@@ -1644,7 +1597,7 @@ func (a App) handlePaneLayoutKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// No connections available — just close the picker.
 			active.Picker = nil
 			return a, nil
-		case "esc":
+		case key.Matches(msg, a.keys.Escape):
 			active.Picker.Cancel()
 			active.Picker = nil
 			return a, nil
@@ -1653,26 +1606,26 @@ func (a App) handlePaneLayoutKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Normal mode key handling
-	switch k {
-	case " ": // Space = leader key
+	switch {
+	case k == " ": // Space = leader key
 		if !a.leader.active {
 			cmd := a.leader.activate()
 			return a, cmd
 		}
-	case "esc":
+	case key.Matches(msg, a.keys.Escape):
 		// Pop the pane layout view (return to connection list)
 		a.popView()
 		return a, nil
-	case "q":
+	case key.Matches(msg, a.keys.Quit):
 		a.confirmQuit()
 		return a, nil
-	case "i":
+	case k == "i":
 		// Enter insert mode to send input to the active pane.
 		// Do not pre-set a.mode — let setMode() perform the transition so that
 		// a ModeChangedMsg is properly emitted for any listeners.
 		a.statusBar.mode = ModeInsert
 		return a, a.setMode(ModeInsert)
-	case "enter":
+	case key.Matches(msg, a.keys.Enter):
 		active := a.paneLayout.ActivePane()
 		if active == nil {
 			return a, nil
@@ -1922,17 +1875,18 @@ func keyMsgToBytes(msg tea.KeyMsg) []byte {
 }
 
 func (a App) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "q":
+	k := msg.String()
+	switch {
+	case key.Matches(msg, a.keys.Quit):
 		a.confirmQuit()
 		return a, nil
-	case "esc":
+	case key.Matches(msg, a.keys.Escape):
 		a.popView()
 		return a, nil
-	case "tab":
+	case k == "tab":
 		a.log.nextType()
 		return a, nil
-	case "y":
+	case key.Matches(msg, a.keys.Yank):
 		// Yank (copy) all log entries to system clipboard
 		text := a.log.plainText()
 		if err := termcap.DefaultClipboard().WriteAll(text); err != nil {
@@ -1949,14 +1903,14 @@ func (a App) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) handlePulseKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "q":
+	switch {
+	case key.Matches(msg, a.keys.Quit):
 		a.confirmQuit()
 		return a, nil
-	case "esc":
+	case key.Matches(msg, a.keys.Escape):
 		a.popView()
 		return a, nil
-	case "r":
+	case key.Matches(msg, a.keys.Refresh):
 		a.log.info("Manual health check refresh from pulse view")
 		a.statusBar.setFlash("Refreshing...", flashInfo)
 		return a, tea.Batch(
@@ -2175,7 +2129,7 @@ func (a App) connectManaged(c config.Connection) (tea.Model, tea.Cmd) {
 	a.resolveProfileCredentials(&c)
 
 	managed := session.NewManagedSession(session.ManagedSessionOptions{
-		ID:           "", // ID assigned by SessionManager
+		ID:           "",
 		Name:         c.Name,
 		ConnID:       c.ID,
 		Protocol:     string(c.Protocol),
@@ -2867,16 +2821,17 @@ func (a App) handleConfirmResult(msg ConfirmResultMsg) (tea.Model, tea.Cmd) {
 
 // handleVaultKey processes key events while the vault profile list view is active.
 func (a App) handleVaultKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case " ": // Space = leader key
+	k := msg.String()
+	switch {
+	case k == " ": // Space = leader key
 		if !a.leader.active {
 			cmd := a.leader.activate()
 			return a, cmd
 		}
-	case "q":
+	case key.Matches(msg, a.keys.Quit):
 		a.confirmQuit()
 		return a, nil
-	case "?":
+	case key.Matches(msg, a.keys.Help):
 		a.help.view = "vault"
 		a.help.toggle()
 		return a, nil
@@ -3054,16 +3009,17 @@ func (a *App) refreshGroupListView() {
 
 // handleGroupListKey processes key events while the group list view is active.
 func (a App) handleGroupListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case " ": // Space = leader key
+	k := msg.String()
+	switch {
+	case k == " ": // Space = leader key
 		if !a.leader.active {
 			cmd := a.leader.activate()
 			return a, cmd
 		}
-	case "q":
+	case key.Matches(msg, a.keys.Quit):
 		a.confirmQuit()
 		return a, nil
-	case "?":
+	case key.Matches(msg, a.keys.Help):
 		a.help.view = "groups"
 		a.help.toggle()
 		return a, nil
