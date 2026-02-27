@@ -64,6 +64,7 @@ func defaultCommands() []CommandDef {
 		{Name: "layout", Aliases: nil, Description: "Apply pane layout preset", ArgSpec: "<2h|2v|3v|2x2|main-side>"},
 		{Name: "vault", Aliases: nil, Description: "Manage credential profiles", ArgSpec: "[add|edit|del|show]"},
 		{Name: "cred", Aliases: nil, Description: "Credential shortcuts", ArgSpec: "[save|apply|clear|who]"},
+		{Name: "tutorial", Aliases: nil, Description: "Show the first-run tutorial", ArgSpec: ""},
 	}
 }
 

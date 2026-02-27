@@ -77,6 +77,9 @@ type App struct {
 	// Group list
 	groupListView groupListModel
 
+	// Tutorial overlay
+	tutorial tutorialModel
+
 	// View stack
 	viewStack []viewKind
 
@@ -125,6 +128,11 @@ func NewApp(cfg *config.Config, v vault.Vault) App {
 		l.info("Credential vault opened")
 	}
 
+	tut := newTutorial()
+	if !cfg.Settings.TutorialShown {
+		tut.activate()
+	}
+
 	return App{
 		cfg:           cfg,
 		vault:         v,
@@ -152,6 +160,7 @@ func NewApp(cfg *config.Config, v vault.Vault) App {
 		auditLog:     al,
 		finder:       finder,
 		paneLayout:   NewPaneLayoutModel(),
+		tutorial:     tut,
 		viewStack:    []viewKind{viewList},
 		undoStack:    NewUndoStack(),
 		bracketNav:   NewBracketNav(),
@@ -359,6 +368,19 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tea.KeyMsg:
+		// Tutorial overlay intercepts all keys until dismissed.
+		if a.tutorial.active {
+			var done bool
+			a.tutorial, done = a.tutorial.Update(msg)
+			if done {
+				a.cfg.Settings.TutorialShown = true
+				if err := config.Save(a.cfg); err != nil {
+					a.log.warn("Could not save tutorial state: %v", err)
+				}
+			}
+			return a, nil
+		}
+
 		// Global key handling that bypasses sub-models
 		if a.confirm.active {
 			var cmd tea.Cmd
@@ -2560,6 +2582,11 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 			a.statusBar.setFlash("Usage: :cred [save|clear|who|orphans]", flashError)
 			return a, scheduleFlashClear()
 		}
+	case "tutorial":
+		a.tutorial.activate()
+		a.tutorial.width = a.width
+		a.tutorial.height = a.height
+		return a, nil
 	default:
 		a.log.warn("Unknown command: %s", msg.Name)
 		a.statusBar.setFlash("Unknown command: "+msg.Name, flashError)
@@ -3882,6 +3909,11 @@ func (a App) View() string {
 		return "Loading..."
 	}
 
+	// Tutorial overlay — takes full screen on first launch.
+	if a.tutorial.active {
+		return a.tutorial.View()
+	}
+
 	// Overlay help or confirm on top — takes full screen
 	if a.confirm.active {
 		return a.confirm.View()
@@ -3965,6 +3997,8 @@ func (a *App) layout() {
 	a.help.height = a.height
 	a.confirm.width = a.width
 	a.confirm.height = a.height
+	a.tutorial.width = a.width
+	a.tutorial.height = a.height
 	a.leader.width = a.width
 	a.quickConnect.width = a.width
 	a.leader.height = a.height

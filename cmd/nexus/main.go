@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -19,10 +20,18 @@ import (
 )
 
 func main() {
+	noTutorial := flag.Bool("no-tutorial", false, "Skip the first-run tutorial overlay")
+	flag.Parse()
+
 	cfg, isNew, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
 		os.Exit(1)
+	}
+
+	// --no-tutorial suppresses the tutorial even on first launch.
+	if *noTutorial {
+		cfg.Settings.TutorialShown = true
 	}
 
 	var masterPassword []byte

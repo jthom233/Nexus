@@ -19,8 +19,9 @@ type Settings struct {
 	HealthCheckTimeout  string `yaml:"health_check_timeout,omitempty"` // "" = "3s" (default)
 	Theme               string `yaml:"theme,omitempty"`
 	Vault               string `yaml:"vault,omitempty"` // "internal" (default), "pass", or "keyring"
-	ColorProfile string `yaml:"color_profile,omitempty"` // "auto" (default), "truecolor", "256", "16", "mono"
-	Animations   *bool  `yaml:"animations,omitempty"`     // nil = true (default)
+	ColorProfile    string `yaml:"color_profile,omitempty"`    // "auto" (default), "truecolor", "256", "16", "mono"
+	Animations      *bool  `yaml:"animations,omitempty"`       // nil = true (default)
+	TutorialShown   bool   `yaml:"tutorial_shown,omitempty"`   // true once the first-run tutorial has been shown
 }
 
 // HealthInterval returns the parsed health check interval, defaulting to 30s.
