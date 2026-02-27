@@ -163,6 +163,7 @@ func leaderGroups() []LeaderGroup {
 				{Key: "a", Label: "Add connection", Action: "add-connection"},
 				{Key: "e", Label: "Edit connection", Action: "edit-connection"},
 				{Key: "d", Label: "Delete connection", Action: "delete-connection"},
+				{Key: "f", Label: "SFTP browser", Action: "sftp-browser"},
 			},
 		},
 		{

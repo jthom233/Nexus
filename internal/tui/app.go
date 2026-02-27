@@ -36,6 +36,7 @@ const (
 	viewVault
 	viewVaultForm
 	viewGroupList
+	viewFileBrowser
 )
 
 // App is the root bubbletea model.
@@ -82,6 +83,9 @@ type App struct {
 
 	// Ghost session manager (auto-connecting background sessions)
 	ghostMgr *session.GhostManager
+
+	// File browser (SFTP)
+	fileBrowser fileBrowserModel
 
 	// View stack
 	viewStack []viewKind
@@ -146,6 +150,7 @@ func NewApp(cfg *config.Config, v vault.Vault) App {
 		vaultView:     newVaultModel(),
 		groupListView: newGroupListModel(),
 		ghostMgr:      ghostMgr,
+		fileBrowser:   newFileBrowserModel(),
 		keys:         DefaultKeyMap(),
 		header:       h,
 		statusBar:    newStatusBar(),
@@ -264,6 +269,8 @@ func (a *App) syncStatusBarView() {
 		a.statusBar.view = "vault-form"
 	case viewGroupList:
 		a.statusBar.view = "groups"
+	case viewFileBrowser:
+		a.statusBar.view = "sftp"
 	}
 }
 
@@ -316,6 +323,13 @@ func (a *App) syncHeaderView() {
 	case viewGroupList:
 		a.header.setView("Groups", 7)
 		a.header.setItemCount(len(a.groupListView.groups))
+	case viewFileBrowser:
+		name := "SFTP Browser"
+		if a.fileBrowser.connName != "" {
+			name = "SFTP: " + a.fileBrowser.connName
+		}
+		a.header.setView(name, 8)
+		a.header.setItemCount(0)
 	}
 }
 
@@ -717,6 +731,40 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.popView()
 		return a, nil
 
+	case fileBrowserCloseMsg:
+		a.popView()
+		return a, nil
+
+	case fileBrowserOpenMsg:
+		var cmd tea.Cmd
+		cmd = a.fileBrowser.open(msg)
+		a.fileBrowser.width = a.width
+		a.fileBrowser.height = a.contentHeight()
+		a.pushView(viewFileBrowser)
+		a.syncHeaderView()
+		return a, cmd
+
+	case fileBrowserReadyMsg:
+		var cmd tea.Cmd
+		a.fileBrowser, cmd = a.fileBrowser.Update(msg)
+		a.syncHeaderView()
+		return a, cmd
+
+	case fileBrowserErrMsg:
+		var cmd tea.Cmd
+		a.fileBrowser, cmd = a.fileBrowser.Update(msg)
+		return a, cmd
+
+	case fileBrowserListDoneMsg:
+		var cmd tea.Cmd
+		a.fileBrowser, cmd = a.fileBrowser.Update(msg)
+		return a, cmd
+
+	case fileBrowserOpDoneMsg:
+		var cmd tea.Cmd
+		a.fileBrowser, cmd = a.fileBrowser.Update(msg)
+		return a, cmd
+
 	case GroupListDeleteMsg:
 		connCount := 0
 		for _, conn := range a.cfg.Connections {
@@ -876,6 +924,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.groupListView, cmd = a.groupListView.Update(msg)
 		cmds = append(cmds, cmd)
+	case viewFileBrowser:
+		var cmd tea.Cmd
+		a.fileBrowser, cmd = a.fileBrowser.Update(msg)
+		cmds = append(cmds, cmd)
 	case viewPaneLayout:
 		updated, cmd := a.paneLayout.Update(msg)
 		a.paneLayout = &updated
@@ -907,6 +959,8 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case viewGroupList:
 		return a.handleGroupListKey(msg)
+	case viewFileBrowser:
+		return a.handleFileBrowserKey(msg)
 	}
 	return a, nil
 }
@@ -2654,6 +2708,19 @@ func (a App) handleCommand(msg CommandMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case "ghost":
 		return a.toggleGhost()
+	case "sftp":
+		// :sftp [connection-name] — open SFTP file browser
+		var c *config.Connection
+		if msg.Args != "" {
+			c = a.cfg.FindConnection(msg.Args)
+			if c == nil {
+				a.statusBar.setFlash("Connection not found: "+msg.Args, flashError)
+				return a, scheduleFlashClear()
+			}
+		} else {
+			c = a.list.selectedConnection()
+		}
+		return a.openFileBrowser(c)
 	default:
 		a.log.warn("Unknown command: %s", msg.Name)
 		a.statusBar.setFlash("Unknown command: "+msg.Name, flashError)
@@ -3124,6 +3191,37 @@ func (a App) handleGroupListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, cmd
 }
 
+// handleFileBrowserKey forwards key events to the file browser model.
+func (a App) handleFileBrowserKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	a.fileBrowser, cmd = a.fileBrowser.Update(msg)
+	return a, cmd
+}
+
+// openFileBrowser opens the SFTP file browser for the given connection.
+func (a App) openFileBrowser(c *config.Connection) (tea.Model, tea.Cmd) {
+	if c == nil {
+		a.statusBar.setFlash("No SSH connection selected", flashError)
+		return a, scheduleFlashClear()
+	}
+	if c.Protocol != config.ProtoSSH {
+		a.statusBar.setFlash("SFTP requires an SSH connection", flashError)
+		return a, scheduleFlashClear()
+	}
+	a.resolveProfileCredentials(c)
+	return a, func() tea.Msg {
+		return fileBrowserOpenMsg{
+			connName:     c.Name,
+			host:         c.Host,
+			port:         c.EffectivePort(),
+			username:     c.Username,
+			password:     c.Password,
+			identityFile: c.IdentityFile,
+			proxyJump:    c.ProxyJump,
+		}
+	}
+}
+
 // handleProfileAssign opens the vault view so the user can select a profile to assign.
 func (a *App) handleProfileAssign() {
 	if a.profileStore == nil {
@@ -3239,6 +3337,9 @@ func (a App) executeLeaderAction(action *LeaderAction) (tea.Model, tea.Cmd) {
 		}
 		a.statusBar.setFlash("No connection selected", flashError)
 		return a, scheduleFlashClear()
+	case "sftp-browser":
+		c := a.list.selectedConnection()
+		return a.openFileBrowser(c)
 
 	// Find
 	case "fuzzy-find":
@@ -4031,6 +4132,8 @@ func (a App) View() string {
 		contentView = a.vaultFormView.View()
 	case viewGroupList:
 		contentView = a.groupListView.View()
+	case viewFileBrowser:
+		contentView = a.fileBrowser.View()
 	}
 
 	// Calculate available height for content and pad/truncate to fill
@@ -4080,6 +4183,8 @@ func (a *App) layout() {
 	a.vaultFormView.setSize(a.width, ch)
 	a.groupListView.width = a.width
 	a.groupListView.height = ch
+	a.fileBrowser.width = a.width
+	a.fileBrowser.height = ch
 	a.pulse.SetSize(a.width, ch)
 	if a.currentView() == viewPaneLayout {
 		a.paneLayout.SetSize(a.width, ch)
