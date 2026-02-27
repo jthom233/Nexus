@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dr4zz/nexus/internal/config"
@@ -33,6 +34,9 @@ type SSHSession struct {
 	stdin       io.Reader
 	stdout      io.Writer
 	stderr      io.Writer
+
+	doneCh    chan struct{}
+	closeOnce sync.Once
 }
 
 // SetStdin sets the stdin reader (called by bubbletea before Run).
@@ -47,6 +51,7 @@ func (s *SSHSession) SetStderr(w io.Writer) { s.stderr = w }
 // Run connects to the SSH server and runs an interactive shell.
 // This satisfies tea.ExecCommand and blocks until the shell exits.
 func (s *SSHSession) Run() error {
+	s.doneCh = make(chan struct{})
 	if err := s.connect(); err != nil {
 		return err
 	}
@@ -264,6 +269,11 @@ func (s *SSHSession) shell() error {
 }
 
 func (s *SSHSession) close() {
+	// Signal watchResize goroutine to stop
+	if s.doneCh != nil {
+		s.closeOnce.Do(func() { close(s.doneCh) })
+	}
+
 	// Stop all port forwards first
 	if s.pfManager != nil {
 		s.pfManager.StopAll()
@@ -283,16 +293,22 @@ func (s *SSHSession) close() {
 }
 
 func (s *SSHSession) watchResize(fd int, session *ssh.Session) {
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
 	prevW, prevH, _ := term.GetSize(fd)
 	for {
-		time.Sleep(250 * time.Millisecond)
-		w, h, err := term.GetSize(fd)
-		if err != nil {
+		select {
+		case <-s.doneCh:
 			return
-		}
-		if w != prevW || h != prevH {
-			_ = session.WindowChange(h, w)
-			prevW, prevH = w, h
+		case <-ticker.C:
+			w, h, err := term.GetSize(fd)
+			if err != nil {
+				return
+			}
+			if w != prevW || h != prevH {
+				_ = session.WindowChange(h, w)
+				prevW, prevH = w, h
+			}
 		}
 	}
 }
