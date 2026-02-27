@@ -45,6 +45,7 @@ func newList(cfg *config.Config) listModel {
 		table:    newTableModel(normalColumns()),
 	}
 	m.filtered = cfg.Connections
+	m.table.CycleSort(2) // default sort by name (ascending)
 	return m
 }
 
