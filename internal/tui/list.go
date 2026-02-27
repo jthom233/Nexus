@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -44,7 +45,12 @@ func newList(cfg *config.Config) listModel {
 		statuses: make(map[string]connStatus),
 		table:    newTableModel(normalColumns()),
 	}
-	m.filtered = cfg.Connections
+	conns := make([]config.Connection, len(cfg.Connections))
+	copy(conns, cfg.Connections)
+	sort.Slice(conns, func(i, j int) bool {
+		return strings.ToLower(conns[i].Name) < strings.ToLower(conns[j].Name)
+	})
+	m.filtered = conns
 	m.table.CycleSort(2) // default sort by name (ascending)
 	return m
 }
