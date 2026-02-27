@@ -22,9 +22,12 @@ const (
 )
 
 // DeriveKey derives a 32-byte AES key from a password and salt using scrypt.
-func DeriveKey(password string, salt []byte) []byte {
-	key, _ := scrypt.Key([]byte(password), salt, scryptN, scryptR, scryptP, keyLen)
-	return key
+func DeriveKey(password string, salt []byte) ([]byte, error) {
+	key, err := scrypt.Key([]byte(password), salt, scryptN, scryptR, scryptP, keyLen)
+	if err != nil {
+		return nil, fmt.Errorf("deriving key: %w", err)
+	}
+	return key, nil
 }
 
 // Encrypt encrypts plaintext using AES-256-GCM and returns an "ENC:base64(...)" string.
@@ -39,7 +42,10 @@ func Encrypt(plaintext string, key []byte) (string, error) {
 		return "", fmt.Errorf("generating salt: %w", err)
 	}
 
-	derivedKey := DeriveKey(string(key), salt)
+	derivedKey, err := DeriveKey(string(key), salt)
+	if err != nil {
+		return "", fmt.Errorf("deriving key: %w", err)
+	}
 
 	block, err := aes.NewCipher(derivedKey)
 	if err != nil {
@@ -88,7 +94,10 @@ func Decrypt(encoded string, key []byte) (string, error) {
 	nonce := combined[saltLen : saltLen+nonceLen]
 	ciphertext := combined[saltLen+nonceLen:]
 
-	derivedKey := DeriveKey(string(key), salt)
+	derivedKey, err := DeriveKey(string(key), salt)
+	if err != nil {
+		return "", fmt.Errorf("deriving key: %w", err)
+	}
 
 	block, err := aes.NewCipher(derivedKey)
 	if err != nil {

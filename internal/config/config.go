@@ -313,7 +313,10 @@ func Save(cfg *Config) error {
 		if err != nil {
 			return err
 		}
-		derivedKey := crypto.DeriveKey(string(cfg.EncryptionKey), salt)
+		derivedKey, err := crypto.DeriveKey(string(cfg.EncryptionKey), salt)
+		if err != nil {
+			return err
+		}
 
 		for i := range saveCfg.Connections {
 			if saveCfg.Connections[i].Password != "" {
