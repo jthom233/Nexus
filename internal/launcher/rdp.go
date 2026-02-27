@@ -111,69 +111,86 @@ var (
 )
 
 // ensureGUI starts the nexus-gui process if it's not already running.
+// The mutex is never held across sleeps or blocking calls to avoid deadlocks.
 func ensureGUI() error {
-	guiMu.Lock()
-	defer guiMu.Unlock()
-
-	// If GUI is already running and responsive, we're done
+	// Fast path: GUI already up, no lock needed.
 	if ipc.Probe() {
 		return nil
 	}
 
-	// If a previous launch failed, report it
+	// Launch phase: briefly acquire lock to check/update shared state.
+	logPath := filepath.Join(os.TempDir(), "nexus-gui.log")
+
+	guiMu.Lock()
+
+	// If a previous launch failed, report it and reset state.
 	if guiCmd != nil && guiError != nil {
 		err := guiError
 		guiCmd = nil
 		guiError = nil
+		guiMu.Unlock()
 		return fmt.Errorf("nexus-gui exited: %w", err)
 	}
 
-	// Find nexus-gui binary
-	guiBinary, err := findGUIBinary()
-	if err != nil {
-		return err
+	// Another goroutine already started the process — fall through to wait loop.
+	if guiCmd == nil {
+		// Find nexus-gui binary (no blocking I/O expected here).
+		guiBinary, err := findGUIBinary()
+		if err != nil {
+			guiMu.Unlock()
+			return err
+		}
+
+		logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			guiMu.Unlock()
+			return fmt.Errorf("create gui log: %w", err)
+		}
+
+		cmd := exec.Command(guiBinary)
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+		cmd.Stdin = nil
+		cmd.Env = os.Environ()
+		// Start in its own process group so it survives TUI exit.
+		setProcGroup(cmd)
+
+		if err := cmd.Start(); err != nil {
+			logFile.Close()
+			guiMu.Unlock()
+			return fmt.Errorf("start nexus-gui: %w", err)
+		}
+		guiCmd = cmd
+
+		// Monitor the process in background.
+		go func() {
+			waitErr := cmd.Wait()
+			logFile.Close()
+			guiMu.Lock()
+			guiError = waitErr
+			guiMu.Unlock()
+		}()
 	}
 
-	logPath := filepath.Join(os.TempDir(), "nexus-gui.log")
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		return fmt.Errorf("create gui log: %w", err)
-	}
+	// Unlock before entering the wait loop — never sleep while holding the lock.
+	guiMu.Unlock()
 
-	cmd := exec.Command(guiBinary)
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
-	cmd.Stdin = nil
-	cmd.Env = os.Environ()
-	// Start in its own process group so it survives TUI exit
-	setProcGroup(cmd)
-
-	if err := cmd.Start(); err != nil {
-		logFile.Close()
-		return fmt.Errorf("start nexus-gui: %w", err)
-	}
-	guiCmd = cmd
-
-	// Monitor the process in background
-	go func() {
-		waitErr := cmd.Wait()
-		logFile.Close()
-		guiMu.Lock()
-		guiError = waitErr
-		guiMu.Unlock()
-	}()
-
-	// Wait for GUI to be ready (socket available)
+	// Wait loop: sleep without the lock; snapshot guiError briefly each iteration.
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		// Check if process already died
-		guiMu.Unlock()
 		time.Sleep(100 * time.Millisecond)
+
+		// Snapshot error state under lock, then release immediately.
 		guiMu.Lock()
-		if guiError != nil {
+		err := guiError
+		guiMu.Unlock()
+
+		if err != nil {
 			logData, _ := os.ReadFile(logPath)
-			return fmt.Errorf("nexus-gui crashed: %v\n%s", guiError, string(logData))
+			return fmt.Errorf("nexus-gui crashed: %v\n%s", err, string(logData))
 		}
+
+		// Check IPC availability without the lock.
 		if ipc.Probe() {
 			return nil
 		}
