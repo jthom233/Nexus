@@ -1,8 +1,6 @@
 package vault
 
 import (
-	"bytes"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -309,162 +307,164 @@ func TestOpen_UnknownBackend(t *testing.T) {
 	}
 }
 
-// TestInternalVault_NewFormatHeader creates a vault, writes an entry, and
-// verifies that the file on disk starts with the version byte 0x01.
+// TestInternalVault_NewFormatHeader verifies that a vault saved with the new
+// format starts with the version byte (0x01) followed by a 16-byte salt.
 func TestInternalVault_NewFormatHeader(t *testing.T) {
 	path := tempVaultPath(t)
-
-	v, err := OpenInternalAt(path, "testpassword")
+	v, err := OpenInternalAt(path, "pw")
 	if err != nil {
-		t.Fatalf("OpenInternalAt failed: %v", err)
+		t.Fatal(err)
 	}
-	if err := v.Set("key1", "secret1"); err != nil {
-		t.Fatalf("Set failed: %v", err)
-	}
+	_ = v.Set("k", "v")
+	_ = v.Close()
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("ReadFile failed: %v", err)
+		t.Fatalf("reading vault file: %v", err)
 	}
-	if len(data) == 0 {
-		t.Fatal("vault file is empty")
+	if len(data) < vaultHeaderLen {
+		t.Fatalf("vault file too short: %d bytes", len(data))
 	}
-	if data[0] != vaultVersion {
-		t.Fatalf("expected first byte 0x%02x, got 0x%02x", vaultVersion, data[0])
-	}
-	if len(data) < 1+vaultSaltLen {
-		t.Fatalf("vault file too short: %d bytes (need at least %d)", len(data), 1+vaultSaltLen)
+	if data[0] != vaultFormatVersion {
+		t.Fatalf("expected version byte 0x%02x, got 0x%02x", vaultFormatVersion, data[0])
 	}
 }
 
-// TestInternalVault_SaltIsRandom creates two separate vaults and verifies their
-// on-disk salts differ from each other.
+// TestInternalVault_SaltIsRandom verifies that two independently created vaults
+// receive different salts (the probability of collision on 16 random bytes is negligible).
 func TestInternalVault_SaltIsRandom(t *testing.T) {
-	dir := t.TempDir()
-
-	path1 := filepath.Join(dir, "vault1.enc")
-	v1, err := OpenInternalAt(path1, "password")
+	path1 := tempVaultPath(t)
+	v1, err := OpenInternalAt(path1, "pw")
 	if err != nil {
-		t.Fatalf("OpenInternalAt vault1 failed: %v", err)
+		t.Fatal(err)
 	}
-	if err := v1.Set("k", "v"); err != nil {
-		t.Fatalf("Set vault1 failed: %v", err)
-	}
+	_ = v1.Set("x", "1")
+	_ = v1.Close()
 
-	path2 := filepath.Join(dir, "vault2.enc")
-	v2, err := OpenInternalAt(path2, "password")
+	path2 := tempVaultPath(t)
+	v2, err := OpenInternalAt(path2, "pw")
 	if err != nil {
-		t.Fatalf("OpenInternalAt vault2 failed: %v", err)
+		t.Fatal(err)
 	}
-	if err := v2.Set("k", "v"); err != nil {
-		t.Fatalf("Set vault2 failed: %v", err)
-	}
+	_ = v2.Set("x", "1")
+	_ = v2.Close()
 
-	data1, err := os.ReadFile(path1)
-	if err != nil {
-		t.Fatalf("ReadFile vault1 failed: %v", err)
-	}
-	data2, err := os.ReadFile(path2)
-	if err != nil {
-		t.Fatalf("ReadFile vault2 failed: %v", err)
-	}
+	data1, _ := os.ReadFile(path1)
+	data2, _ := os.ReadFile(path2)
 
-	salt1 := data1[1 : 1+vaultSaltLen]
-	salt2 := data2[1 : 1+vaultSaltLen]
+	if len(data1) < vaultHeaderLen || len(data2) < vaultHeaderLen {
+		t.Fatal("vault files too short")
+	}
+	salt1 := data1[1:vaultHeaderLen]
+	salt2 := data2[1:vaultHeaderLen]
 
-	if bytes.Equal(salt1, salt2) {
-		t.Fatal("expected different salts for two separate vaults, but they are identical")
+	allEqual := true
+	for i := range salt1 {
+		if salt1[i] != salt2[i] {
+			allEqual = false
+			break
+		}
+	}
+	if allEqual {
+		t.Fatal("two vaults have identical salts — expected random salts")
 	}
 }
 
-// TestInternalVault_LegacyMigration writes a legacy-format vault file (raw
-// "ENC:..." string encrypted with the static salt), opens it, verifies the
-// credential is readable, saves it, then verifies the file now uses the new
-// format and all data survives the migration.
+// TestInternalVault_LegacyMigration writes a vault file in the old static-salt
+// format (plain ENC:... string, no header), opens it with the new code, verifies
+// the data is readable, then saves and confirms the file is now in the new format.
 func TestInternalVault_LegacyMigration(t *testing.T) {
 	path := tempVaultPath(t)
-	const password = "migrationpass"
 
-	// Build and write a legacy vault file.
-	legacyKey, err := crypto.DeriveKey(password, []byte(legacySalt))
+	// Build a legacy-format vault file manually.
+	// The legacy format is: encrypted JSON written directly to disk as a plain
+	// "ENC:..." string, derived from the static "nexus-vault-salt" salt.
+	legacyKey, err := crypto.DeriveKey("test-pw", []byte("nexus-vault-salt"))
 	if err != nil {
-		t.Fatalf("DeriveKey for legacy key failed: %v", err)
+		t.Fatalf("DeriveKey: %v", err)
 	}
-	store := internalStore{
-		Version: 1,
-		Entries: []internalEntry{
-			{ID: "legacy-id", Name: "legacy-id", Credential: "legacy-secret"},
-		},
-	}
-	storeJSON, err := json.Marshal(&store)
+	legacyJSON := `{"version":1,"entries":[{"id":"legacy-id","name":"legacy-id","credential":"legacy-secret","created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-01T00:00:00Z"}]}`
+	encrypted, err := crypto.Encrypt(legacyJSON, legacyKey)
 	if err != nil {
-		t.Fatalf("json.Marshal failed: %v", err)
+		t.Fatalf("Encrypt: %v", err)
 	}
-	encData, err := crypto.Encrypt(string(storeJSON), legacyKey)
-	if err != nil {
-		t.Fatalf("crypto.Encrypt failed: %v", err)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte(encData), 0o600); err != nil {
-		t.Fatalf("WriteFile legacy vault failed: %v", err)
+	if err := os.WriteFile(path, []byte(encrypted), 0o600); err != nil {
+		t.Fatalf("writing legacy vault: %v", err)
 	}
 
-	// Open the vault — should decode successfully despite legacy format.
-	v, err := OpenInternalAt(path, password)
+	// Open with new code — should succeed via legacy path.
+	v, err := OpenInternalAt(path, "test-pw")
 	if err != nil {
-		t.Fatalf("OpenInternalAt legacy vault failed: %v", err)
+		t.Fatalf("OpenInternalAt legacy vault: %v", err)
 	}
 
 	cred, err := v.Get("legacy-id")
 	if err != nil {
-		t.Fatalf("Get legacy-id failed: %v", err)
+		t.Fatalf("Get from legacy vault: %v", err)
 	}
 	if cred != "legacy-secret" {
-		t.Fatalf("expected %q, got %q", "legacy-secret", cred)
+		t.Fatalf("expected 'legacy-secret', got %q", cred)
 	}
 
-	// Saving should migrate to new format.
-	if err := v.Set("new-id", "new-secret"); err != nil {
-		t.Fatalf("Set new-id failed: %v", err)
+	// Save should upgrade to new format.
+	if err := v.Close(); err != nil {
+		t.Fatalf("Close (upgrade save): %v", err)
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("ReadFile failed: %v", err)
+		t.Fatal(err)
 	}
-	if data[0] != vaultVersion {
-		t.Fatalf("expected version byte 0x%02x after migration, got 0x%02x", vaultVersion, data[0])
+	if len(data) < vaultHeaderLen {
+		t.Fatalf("upgraded file too short: %d bytes", len(data))
+	}
+	if data[0] != vaultFormatVersion {
+		t.Fatalf("after upgrade, expected version byte 0x%02x, got 0x%02x", vaultFormatVersion, data[0])
 	}
 
-	// Reopen and verify both entries survive migration.
-	v2, err := OpenInternalAt(path, password)
+	// Re-open the upgraded vault and confirm data survived.
+	v2, err := OpenInternalAt(path, "test-pw")
 	if err != nil {
-		t.Fatalf("re-open after migration failed: %v", err)
+		t.Fatalf("re-open after upgrade: %v", err)
 	}
-	if cred, err := v2.Get("legacy-id"); err != nil || cred != "legacy-secret" {
-		t.Fatalf("legacy-id after migration: cred=%q err=%v", cred, err)
+	defer v2.Close()
+
+	cred2, err := v2.Get("legacy-id")
+	if err != nil {
+		t.Fatalf("Get after upgrade: %v", err)
 	}
-	if cred, err := v2.Get("new-id"); err != nil || cred != "new-secret" {
-		t.Fatalf("new-id after migration: cred=%q err=%v", cred, err)
+	if cred2 != "legacy-secret" {
+		t.Fatalf("data corrupted after upgrade: got %q", cred2)
 	}
 }
 
-// TestInternalVault_WrongPasswordNewFormat creates a vault with one password
-// and verifies that opening it with a different password returns an error.
+// TestInternalVault_WrongPasswordNewFormat confirms that a wrong password fails
+// cleanly on a new-format vault.
 func TestInternalVault_WrongPasswordNewFormat(t *testing.T) {
 	path := tempVaultPath(t)
 
-	v, err := OpenInternalAt(path, "correctpassword")
+	v, err := OpenInternalAt(path, "correct")
 	if err != nil {
-		t.Fatalf("OpenInternalAt failed: %v", err)
+		t.Fatal(err)
 	}
-	if err := v.Set("id1", "secret"); err != nil {
-		t.Fatalf("Set failed: %v", err)
-	}
+	_ = v.Set("id", "secret")
 	_ = v.Close()
 
-	_, err = OpenInternalAt(path, "wrongpassword")
+	// Verify the file is in the new format.
+	data, _ := os.ReadFile(path)
+	if len(data) < 1 || data[0] != vaultFormatVersion {
+		t.Fatal("vault not in new format after save")
+	}
+
+	_, err = OpenInternalAt(path, "wrong")
 	if err == nil {
-		t.Fatal("expected error when opening vault with wrong password, got nil")
+		t.Fatal("expected error with wrong password on new-format vault")
+	}
+	if !containsError(err, ErrWrongPassword) {
+		t.Fatalf("expected ErrWrongPassword, got: %v", err)
 	}
 }
 

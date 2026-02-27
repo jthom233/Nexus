@@ -3,9 +3,12 @@ package vault
 import (
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 )
+
+var validVaultID = regexp.MustCompile(`^[a-zA-Z0-9_\-\.]+$`)
 
 const passPrefix = "nexus/"
 
@@ -26,8 +29,18 @@ func OpenPass() (*PassVault, error) {
 	return &PassVault{}, nil
 }
 
+func validatePassID(id string) error {
+	if !validVaultID.MatchString(id) {
+		return fmt.Errorf("invalid credential ID: %q", id)
+	}
+	return nil
+}
+
 // Get retrieves a credential via `pass show nexus/<id>`.
 func (p *PassVault) Get(id string) (string, error) {
+	if err := validatePassID(id); err != nil {
+		return "", err
+	}
 	out, err := exec.Command("pass", "show", passPrefix+id).CombinedOutput()
 	if err != nil {
 		if strings.Contains(string(out), "not in the password store") ||
@@ -43,6 +56,9 @@ func (p *PassVault) Get(id string) (string, error) {
 
 // Set stores a credential via `pass insert -f nexus/<id>`.
 func (p *PassVault) Set(id string, credential string) error {
+	if err := validatePassID(id); err != nil {
+		return err
+	}
 	cmd := exec.Command("pass", "insert", "-f", "-m", passPrefix+id)
 	cmd.Stdin = strings.NewReader(credential + "\n")
 	out, err := cmd.CombinedOutput()
@@ -54,6 +70,9 @@ func (p *PassVault) Set(id string, credential string) error {
 
 // Delete removes a credential via `pass rm -f nexus/<id>`.
 func (p *PassVault) Delete(id string) error {
+	if err := validatePassID(id); err != nil {
+		return err
+	}
 	out, err := exec.Command("pass", "rm", "-f", passPrefix+id).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("pass rm: %w: %s", err, strings.TrimSpace(string(out)))

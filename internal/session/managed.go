@@ -238,7 +238,8 @@ type ManagedSession struct {
 	resizeTimer    *time.Timer // debounce timer for SetPaneSize
 	resizeMu       sync.Mutex  // protects resizeTimer
 
-	droppedBytes int64 // accessed atomically
+	// Telemetry
+	droppedBytes int64 // bytes dropped due to OutputCh backpressure; accessed via sync/atomic
 }
 
 // NewManagedSession creates a new managed session ready to connect.
@@ -579,7 +580,11 @@ func (m *ManagedSession) readOutput() {
 				copy(dataCopy, data)
 				select {
 				case m.OutputCh <- dataCopy:
+					// sent successfully
 				case <-time.After(50 * time.Millisecond):
+					// Consumer too slow — record dropped bytes and continue reading
+					// so the SSH pipe never stalls. VTerm state may drift, but the
+					// reader goroutine stays alive and the session doesn't deadlock.
 					atomic.AddInt64(&m.droppedBytes, int64(len(dataCopy)))
 				case <-m.doneCh:
 					return
@@ -1059,7 +1064,10 @@ func (m *ManagedSession) OutputChan() <-chan []byte {
 	return m.OutputCh
 }
 
-// DroppedBytes returns the total bytes dropped due to OutputCh backpressure.
+// DroppedBytes returns the cumulative number of bytes that were dropped
+// because OutputCh was full and the consumer did not drain it within the
+// backpressure timeout. A non-zero value indicates the pane consumer is
+// falling behind SSH output throughput.
 func (m *ManagedSession) DroppedBytes() int64 {
 	return atomic.LoadInt64(&m.droppedBytes)
 }

@@ -298,7 +298,7 @@ func SampleConfig() *Config {
 func Save(cfg *Config) error {
 	path := ConfigPath()
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 
@@ -315,7 +315,7 @@ func Save(cfg *Config) error {
 		}
 		derivedKey, err := crypto.DeriveKey(string(cfg.EncryptionKey), salt)
 		if err != nil {
-			return err
+			return fmt.Errorf("deriving encryption key: %w", err)
 		}
 
 		for i := range saveCfg.Connections {
@@ -341,6 +341,8 @@ func Save(cfg *Config) error {
 		return err
 	}
 
+	// Write atomically: temp file then rename so a crash mid-write cannot
+	// produce a truncated or partially-written config file.
 	tmpPath := path + ".tmp"
 	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
 		return err
