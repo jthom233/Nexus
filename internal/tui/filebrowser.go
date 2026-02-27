@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dr4zz/nexus/internal/config"
 	"github.com/dr4zz/nexus/internal/session"
 	"github.com/dr4zz/nexus/internal/theme"
 )
@@ -753,4 +754,35 @@ func truncatePath(path string, maxW int) string {
 // formatModTime is kept for potential future use.
 func formatModTime(t time.Time) string {
 	return t.Format("Jan 02 15:04")
+}
+
+// handleFileBrowserKey forwards key events to the file browser model.
+func (a App) handleFileBrowserKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	a.fileBrowser, cmd = a.fileBrowser.Update(msg)
+	return a, cmd
+}
+
+// openFileBrowser opens the SFTP file browser for the given connection.
+func (a App) openFileBrowser(c *config.Connection) (tea.Model, tea.Cmd) {
+	if c == nil {
+		a.statusBar.setFlash("No SSH connection selected", flashError)
+		return a, scheduleFlashClear()
+	}
+	if c.Protocol != config.ProtoSSH {
+		a.statusBar.setFlash("SFTP requires an SSH connection", flashError)
+		return a, scheduleFlashClear()
+	}
+	a.resolveProfileCredentials(c)
+	return a, func() tea.Msg {
+		return fileBrowserOpenMsg{
+			connName:     c.Name,
+			host:         c.Host,
+			port:         c.EffectivePort(),
+			username:     c.Username,
+			password:     c.Password,
+			identityFile: c.IdentityFile,
+			proxyJump:    c.ProxyJump,
+		}
+	}
 }

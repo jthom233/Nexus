@@ -2,8 +2,10 @@ package tui
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/charmbracelet/lipgloss"
@@ -1065,4 +1067,329 @@ func (m *PaneLayoutModel) RouteInput(data []byte) {
 	}
 
 	activePane.Session.WriteInput(data)
+}
+
+// handlePaneLayoutKey routes key events when the pane layout view is active.
+// In Normal mode, Space triggers the leader key menu.
+// In Insert mode, all key input is forwarded as raw bytes to the active pane.
+func (a App) handlePaneLayoutKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	k := msg.String()
+
+	if a.mode == ModeInsert {
+		// ESC (or alt+esc due to terminal escape-sequence timing ambiguity)
+		// exits insert mode without forwarding to the session.
+		// Check msg.Type directly to catch both "esc" and "alt+esc" variants.
+		// Do not pre-set a.mode here — let setMode() perform the transition so
+		// that a ModeChangedMsg is properly emitted for any listeners.
+		if msg.Type == tea.KeyEsc {
+			a.statusBar.mode = ModeNormal
+			return a, a.setMode(ModeNormal)
+		}
+		// Forward input as raw bytes to the active pane's session.
+		data := keyMsgToBytes(msg)
+		if len(data) > 0 {
+			a.paneLayout.RouteInput(data)
+		}
+		return a, nil
+	}
+
+	// When the active pane has an open connection picker, route picker keys
+	// before the normal mode handler so j/k/Enter/Esc go to the picker.
+	if active := a.paneLayout.ActivePane(); active != nil && active.Picker != nil && active.Picker.Active {
+		switch {
+		case key.Matches(msg, a.keys.Down):
+			active.Picker.MoveDown()
+			return a, nil
+		case key.Matches(msg, a.keys.Up):
+			active.Picker.MoveUp()
+			return a, nil
+		case key.Matches(msg, a.keys.Enter):
+			conn := active.Picker.Confirm()
+			if conn != nil {
+				// Deliver the selection as a message so PaneLayoutModel.Update
+				// can start the background session and transition the pane state.
+				pickerPaneID := active.ID
+				capturedConn := *conn
+				return a, func() tea.Msg {
+					return panePickerMsg{PaneID: pickerPaneID, Connection: capturedConn}
+				}
+			}
+			// No connections available — just close the picker.
+			active.Picker = nil
+			return a, nil
+		case key.Matches(msg, a.keys.Escape):
+			active.Picker.Cancel()
+			active.Picker = nil
+			return a, nil
+		}
+		return a, nil
+	}
+
+	// Normal mode key handling
+	switch {
+	case k == " ": // Space = leader key
+		if !a.leader.active {
+			cmd := a.leader.activate()
+			return a, cmd
+		}
+	case key.Matches(msg, a.keys.Escape):
+		// Pop the pane layout view (return to connection list)
+		a.popView()
+		return a, nil
+	case key.Matches(msg, a.keys.Quit):
+		a.confirmQuit()
+		return a, nil
+	case k == "i":
+		// Enter insert mode to send input to the active pane.
+		// Do not pre-set a.mode — let setMode() perform the transition so that
+		// a ModeChangedMsg is properly emitted for any listeners.
+		a.statusBar.mode = ModeInsert
+		return a, a.setMode(ModeInsert)
+	case key.Matches(msg, a.keys.Enter):
+		active := a.paneLayout.ActivePane()
+		if active == nil {
+			return a, nil
+		}
+		switch active.State {
+		case PaneEmpty:
+			// Open the connection picker so the user can select a connection.
+			a.paneLayout.OpenPickerForPane(active.ID, a.cfg.Connections)
+		case PaneDisconnected:
+			// Attempt to reconnect using the previously selected connection.
+			if active.Connection != nil {
+				capturedConn := *active.Connection
+				capturedPaneID := active.ID
+				return a, func() tea.Msg {
+					return panePickerMsg{PaneID: capturedPaneID, Connection: capturedConn}
+				}
+			}
+			// No stored connection — re-open the picker to let the user choose.
+			a.paneLayout.OpenPickerForPane(active.ID, a.cfg.Connections)
+		}
+		return a, nil
+	}
+
+	return a, nil
+}
+
+// translateModifyOtherKeys replaces xterm modifyOtherKeys escape sequences
+// (\x1b[27;modifier;keycode~) with the plain character they represent.
+func translateModifyOtherKeys(raw []byte) []byte {
+	out := make([]byte, 0, len(raw))
+	i := 0
+	for i < len(raw) {
+		if i+4 < len(raw) && raw[i] == 0x1b && raw[i+1] == '[' && raw[i+2] == '2' && raw[i+3] == '7' && raw[i+4] == ';' {
+			j := i + 5
+			for j < len(raw) && raw[j] >= '0' && raw[j] <= '9' {
+				j++
+			}
+			if j < len(raw) && raw[j] == ';' {
+				j++
+				codeStart := j
+				for j < len(raw) && raw[j] >= '0' && raw[j] <= '9' {
+					j++
+				}
+				if j < len(raw) && raw[j] == '~' && j > codeStart {
+					keycode := 0
+					for _, c := range raw[codeStart:j] {
+						keycode = keycode*10 + int(c-'0')
+					}
+					if keycode > 0 && keycode < 128 {
+						out = append(out, byte(keycode))
+					}
+					i = j + 1
+					continue
+				}
+			}
+		}
+		out = append(out, raw[i])
+		i++
+	}
+	return out
+}
+
+// extractRawBytes extracts raw byte data from a tea.Msg whose underlying type
+// is []byte (e.g. Bubbletea's unexported unknownCSISequenceMsg) or byte
+// (unknownInputByteMsg). Returns nil for all other message types.
+func extractRawBytes(msg tea.Msg) []byte {
+	v := reflect.ValueOf(msg)
+	switch v.Kind() {
+	case reflect.Slice:
+		if v.Type().Elem().Kind() == reflect.Uint8 {
+			return v.Bytes()
+		}
+	case reflect.Uint8:
+		return []byte{byte(v.Uint())}
+	}
+	return nil
+}
+
+// keyMsgToBytes converts a bubbletea KeyMsg to the raw bytes that a terminal
+// program expects. Printable runes are encoded as UTF-8; special keys are
+// mapped to their ANSI/VT100 escape sequences.
+func keyMsgToBytes(msg tea.KeyMsg) []byte {
+	k := msg.String()
+
+	// Printable runes — encode as UTF-8
+	if msg.Type == tea.KeyRunes {
+		s := string(msg.Runes)
+		return []byte(s)
+	}
+
+	switch k {
+	case "enter":
+		return []byte{'\r'}
+	case "shift+enter", "ctrl+enter", "alt+enter", "ctrl+alt+enter":
+		// Modified Enter — most remote shells treat these as plain Enter.
+		return []byte{'\r'}
+	case "shift+tab":
+		return []byte{0x1b, '[', 'Z'}
+	case "tab":
+		return []byte{'\t'}
+	case "backspace":
+		return []byte{0x7f}
+	case "space":
+		return []byte{' '}
+
+	// Common control keys
+	case "ctrl+a":
+		return []byte{0x01}
+	case "ctrl+b":
+		return []byte{0x02}
+	case "ctrl+c":
+		return []byte{0x03}
+	case "ctrl+d":
+		return []byte{0x04}
+	case "ctrl+e":
+		return []byte{0x05}
+	case "ctrl+f":
+		return []byte{0x06}
+	case "ctrl+g":
+		return []byte{0x07}
+	case "ctrl+h":
+		return []byte{0x08}
+	case "ctrl+i":
+		return []byte{0x09}
+	case "ctrl+j":
+		return []byte{0x0a}
+	case "ctrl+k":
+		return []byte{0x0b}
+	case "ctrl+l":
+		return []byte{0x0c}
+	case "ctrl+m":
+		return []byte{0x0d}
+	case "ctrl+n":
+		return []byte{0x0e}
+	case "ctrl+o":
+		return []byte{0x0f}
+	case "ctrl+p":
+		return []byte{0x10}
+	case "ctrl+q":
+		return []byte{0x11}
+	case "ctrl+r":
+		return []byte{0x12}
+	case "ctrl+s":
+		return []byte{0x13}
+	case "ctrl+t":
+		return []byte{0x14}
+	case "ctrl+u":
+		return []byte{0x15}
+	case "ctrl+v":
+		return []byte{0x16}
+	case "ctrl+w":
+		return []byte{0x17}
+	case "ctrl+x":
+		return []byte{0x18}
+	case "ctrl+y":
+		return []byte{0x19}
+	case "ctrl+z":
+		return []byte{0x1a}
+
+	// Escape
+	case "esc":
+		return []byte{0x1b}
+
+	// Arrow keys (ANSI)
+	case "up":
+		return []byte{0x1b, '[', 'A'}
+	case "down":
+		return []byte{0x1b, '[', 'B'}
+	case "right":
+		return []byte{0x1b, '[', 'C'}
+	case "left":
+		return []byte{0x1b, '[', 'D'}
+
+	// Modified arrow keys (xterm)
+	case "shift+up":
+		return []byte{0x1b, '[', '1', ';', '2', 'A'}
+	case "shift+down":
+		return []byte{0x1b, '[', '1', ';', '2', 'B'}
+	case "shift+right":
+		return []byte{0x1b, '[', '1', ';', '2', 'C'}
+	case "shift+left":
+		return []byte{0x1b, '[', '1', ';', '2', 'D'}
+	case "alt+up":
+		return []byte{0x1b, '[', '1', ';', '3', 'A'}
+	case "alt+down":
+		return []byte{0x1b, '[', '1', ';', '3', 'B'}
+	case "alt+right":
+		return []byte{0x1b, '[', '1', ';', '3', 'C'}
+	case "alt+left":
+		return []byte{0x1b, '[', '1', ';', '3', 'D'}
+	case "ctrl+up":
+		return []byte{0x1b, '[', '1', ';', '5', 'A'}
+	case "ctrl+down":
+		return []byte{0x1b, '[', '1', ';', '5', 'B'}
+	case "ctrl+right":
+		return []byte{0x1b, '[', '1', ';', '5', 'C'}
+	case "ctrl+left":
+		return []byte{0x1b, '[', '1', ';', '5', 'D'}
+
+	// Navigation keys
+	case "home":
+		return []byte{0x1b, '[', 'H'}
+	case "end":
+		return []byte{0x1b, '[', 'F'}
+	case "pgup":
+		return []byte{0x1b, '[', '5', '~'}
+	case "pgdown":
+		return []byte{0x1b, '[', '6', '~'}
+	case "delete":
+		return []byte{0x1b, '[', '3', '~'}
+	case "insert":
+		return []byte{0x1b, '[', '2', '~'}
+
+	// Function keys
+	case "f1":
+		return []byte{0x1b, 'O', 'P'}
+	case "f2":
+		return []byte{0x1b, 'O', 'Q'}
+	case "f3":
+		return []byte{0x1b, 'O', 'R'}
+	case "f4":
+		return []byte{0x1b, 'O', 'S'}
+	case "f5":
+		return []byte{0x1b, '[', '1', '5', '~'}
+	case "f6":
+		return []byte{0x1b, '[', '1', '7', '~'}
+	case "f7":
+		return []byte{0x1b, '[', '1', '8', '~'}
+	case "f8":
+		return []byte{0x1b, '[', '1', '9', '~'}
+	case "f9":
+		return []byte{0x1b, '[', '2', '0', '~'}
+	case "f10":
+		return []byte{0x1b, '[', '2', '1', '~'}
+	case "f11":
+		return []byte{0x1b, '[', '2', '3', '~'}
+	case "f12":
+		return []byte{0x1b, '[', '2', '4', '~'}
+	}
+
+	// Single printable ASCII character
+	if len(k) == 1 {
+		return []byte(k)
+	}
+
+	return nil
 }

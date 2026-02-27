@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dr4zz/nexus/internal/config"
 )
 
@@ -203,4 +204,189 @@ func FilterByTags(connections []config.Connection, filter TagFilter) []config.Co
 		}
 	}
 	return result
+}
+
+// handleTagCommand processes :tag add/remove commands.
+func (a App) handleTagCommand(args string) (tea.Model, tea.Cmd) {
+	parts := strings.SplitN(args, " ", 2)
+	if len(parts) < 2 {
+		a.statusBar.setFlash("Usage: :tag <add|remove|list> <tag>", flashError)
+		return a, scheduleFlashClear()
+	}
+
+	subcmd := strings.ToLower(parts[0])
+	tagArg := strings.TrimSpace(parts[1])
+
+	switch subcmd {
+	case "add":
+		if tagArg == "" {
+			a.statusBar.setFlash("Usage: :tag add <tag>", flashError)
+			return a, scheduleFlashClear()
+		}
+		// Apply to selection if any, otherwise to current connection.
+		if a.selectionSet.HasSelection() {
+			return a.tagAddVisual(tagArg)
+		}
+		c := a.list.selectedConnection()
+		if c == nil {
+			a.statusBar.setFlash("No connection selected", flashError)
+			return a, scheduleFlashClear()
+		}
+		before := *c
+		if a.tagManager.AddTag(c, tagArg) {
+			// Persist the change.
+			if err := a.cfg.UpdateConnection(*c); err != nil {
+				a.log.error("Failed to save tag: %v", err)
+				a.statusBar.setFlash("Error saving tag", flashError)
+			} else {
+				a.undoStack.Push(Operation{
+					Type:   UndoOpTagChange,
+					ConnID: c.ID,
+					Name:   c.Name,
+					Before: before,
+					After:  *c,
+				})
+				a.log.info("Added tag '%s' to %s", tagArg, c.Name)
+				a.statusBar.setFlash(fmt.Sprintf("Added tag '%s' to %s", tagArg, c.Name), flashInfo)
+			}
+			a.list.rebuildTable()
+		} else {
+			a.statusBar.setFlash(fmt.Sprintf("Tag '%s' already exists on %s", tagArg, c.Name), flashInfo)
+		}
+		return a, scheduleFlashClear()
+
+	case "remove":
+		if tagArg == "" {
+			a.statusBar.setFlash("Usage: :tag remove <tag>", flashError)
+			return a, scheduleFlashClear()
+		}
+		if a.selectionSet.HasSelection() {
+			return a.tagRemoveVisual(tagArg)
+		}
+		c := a.list.selectedConnection()
+		if c == nil {
+			a.statusBar.setFlash("No connection selected", flashError)
+			return a, scheduleFlashClear()
+		}
+		before := *c
+		if a.tagManager.RemoveTag(c, tagArg) {
+			if err := a.cfg.UpdateConnection(*c); err != nil {
+				a.log.error("Failed to save tag removal: %v", err)
+				a.statusBar.setFlash("Error saving tag removal", flashError)
+			} else {
+				a.undoStack.Push(Operation{
+					Type:   UndoOpTagChange,
+					ConnID: c.ID,
+					Name:   c.Name,
+					Before: before,
+					After:  *c,
+				})
+				a.log.info("Removed tag '%s' from %s", tagArg, c.Name)
+				a.statusBar.setFlash(fmt.Sprintf("Removed tag '%s' from %s", tagArg, c.Name), flashInfo)
+			}
+			a.list.rebuildTable()
+		} else {
+			a.statusBar.setFlash(fmt.Sprintf("Tag '%s' not found on %s", tagArg, c.Name), flashInfo)
+		}
+		return a, scheduleFlashClear()
+
+	case "list":
+		return a.handleTagsListCommand()
+
+	default:
+		a.statusBar.setFlash("Usage: :tag <add|remove|list> <tag>", flashError)
+		return a, scheduleFlashClear()
+	}
+}
+
+// tagAddVisual adds a tag to all visually selected connections.
+func (a App) tagAddVisual(tag string) (tea.Model, tea.Cmd) {
+	ids := a.selectionSet.SelectedIDs(a.list.table.rows)
+	var children []Operation
+	for _, id := range ids {
+		c := a.cfg.FindConnection(id)
+		if c == nil {
+			continue
+		}
+		before := *c
+		if a.tagManager.AddTag(c, tag) {
+			children = append(children, Operation{
+				Type:   UndoOpTagChange,
+				ConnID: c.ID,
+				Name:   c.Name,
+				Before: before,
+				After:  *c,
+			})
+		}
+	}
+	if len(children) > 0 {
+		if err := config.Save(a.cfg); err != nil {
+			a.log.error("Failed to save tags: %v", err)
+			a.statusBar.setFlash("Error saving tags", flashError)
+			return a, scheduleFlashClear()
+		}
+		a.undoStack.PushBatch("bulk tag add: "+tag, children)
+		a.log.info("Added tag '%s' to %d connections", tag, len(children))
+		a.statusBar.setFlash(fmt.Sprintf("Added tag '%s' to %d connections", tag, len(children)), flashInfo)
+		a.list.rebuildTable()
+	} else {
+		a.statusBar.setFlash(fmt.Sprintf("Tag '%s' already exists on all selected connections", tag), flashInfo)
+	}
+	return a, scheduleFlashClear()
+}
+
+// tagRemoveVisual removes a tag from all visually selected connections.
+func (a App) tagRemoveVisual(tag string) (tea.Model, tea.Cmd) {
+	ids := a.selectionSet.SelectedIDs(a.list.table.rows)
+	var children []Operation
+	for _, id := range ids {
+		c := a.cfg.FindConnection(id)
+		if c == nil {
+			continue
+		}
+		before := *c
+		if a.tagManager.RemoveTag(c, tag) {
+			children = append(children, Operation{
+				Type:   UndoOpTagChange,
+				ConnID: c.ID,
+				Name:   c.Name,
+				Before: before,
+				After:  *c,
+			})
+		}
+	}
+	if len(children) > 0 {
+		if err := config.Save(a.cfg); err != nil {
+			a.log.error("Failed to save tag removal: %v", err)
+			a.statusBar.setFlash("Error saving tag removal", flashError)
+			return a, scheduleFlashClear()
+		}
+		a.undoStack.PushBatch("bulk tag remove: "+tag, children)
+		a.log.info("Removed tag '%s' from %d connections", tag, len(children))
+		a.statusBar.setFlash(fmt.Sprintf("Removed tag '%s' from %d connections", tag, len(children)), flashInfo)
+		a.list.rebuildTable()
+	} else {
+		a.statusBar.setFlash(fmt.Sprintf("Tag '%s' not found on any selected connections", tag), flashInfo)
+	}
+	return a, scheduleFlashClear()
+}
+
+func (a App) handleTagsListCommand() (tea.Model, tea.Cmd) {
+	tags := a.tagManager.AllTags(a.cfg.Connections)
+	if len(tags) == 0 {
+		a.statusBar.setFlash("No tags found", flashInfo)
+		return a, scheduleFlashClear()
+	}
+	// Format a compact summary for the status bar.
+	var parts []string
+	for _, t := range tags {
+		parts = append(parts, fmt.Sprintf("%s(%d)", t.Name, t.Count))
+	}
+	summary := "Tags: " + strings.Join(parts, ", ")
+	if len(summary) > 120 {
+		summary = summary[:117] + "..."
+	}
+	a.log.info("%s", a.tagManager.FormatTagList(tags))
+	a.statusBar.setFlash(summary, flashInfo)
+	return a, scheduleFlashClear()
 }
