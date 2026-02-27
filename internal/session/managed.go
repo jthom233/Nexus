@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -236,6 +237,8 @@ type ManagedSession struct {
 	PaneHeight     int         // current pane height for SSH WindowChange
 	resizeTimer    *time.Timer // debounce timer for SetPaneSize
 	resizeMu       sync.Mutex  // protects resizeTimer
+
+	droppedBytes int64 // accessed atomically
 }
 
 // NewManagedSession creates a new managed session ready to connect.
@@ -257,7 +260,7 @@ func NewManagedSession(id, name, connID, protocol, host string, port int, userna
 		replayBuf:    newReplayBuffer(256 * 1024), // 256KB session history
 		doneCh:       make(chan struct{}),
 		status:       StatusConnecting,
-		OutputCh:     make(chan []byte, 256),
+		OutputCh:     make(chan []byte, 1024),
 	}
 }
 
@@ -576,8 +579,10 @@ func (m *ManagedSession) readOutput() {
 				copy(dataCopy, data)
 				select {
 				case m.OutputCh <- dataCopy:
-				default:
-					// Channel full — drop the chunk to avoid blocking the reader.
+				case <-time.After(50 * time.Millisecond):
+					atomic.AddInt64(&m.droppedBytes, int64(len(dataCopy)))
+				case <-m.doneCh:
+					return
 				}
 			} else {
 				m.outputBuf.Write(data) // incremental: drained by ticker while attached
@@ -1052,4 +1057,9 @@ func (m *ManagedSession) SetPaneSize(width, height int) {
 // Only valid when the session was started with StartBackground(). (T014)
 func (m *ManagedSession) OutputChan() <-chan []byte {
 	return m.OutputCh
+}
+
+// DroppedBytes returns the total bytes dropped due to OutputCh backpressure.
+func (m *ManagedSession) DroppedBytes() int64 {
+	return atomic.LoadInt64(&m.droppedBytes)
 }
