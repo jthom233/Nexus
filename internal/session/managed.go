@@ -242,20 +242,35 @@ type ManagedSession struct {
 	droppedBytes int64 // bytes dropped due to OutputCh backpressure; accessed via sync/atomic
 }
 
+// ManagedSessionOptions holds the parameters for creating a new ManagedSession.
+type ManagedSessionOptions struct {
+	ID           string
+	Name         string
+	ConnID       string
+	Protocol     string
+	Host         string
+	Port         int
+	Username     string
+	Password     string
+	IdentityFile string
+	ProxyJump    string
+	ProxyCommand string
+}
+
 // NewManagedSession creates a new managed session ready to connect.
-func NewManagedSession(id, name, connID, protocol, host string, port int, username, password, identityFile, proxyJump, proxyCommand string) *ManagedSession {
+func NewManagedSession(opts ManagedSessionOptions) *ManagedSession {
 	return &ManagedSession{
-		ID:           id,
-		Name:         name,
-		ConnID:       connID,
-		Protocol:     protocol,
-		Host:         host,
-		Port:         port,
-		Username:     username,
-		Password:     password,
-		IdentityFile: identityFile,
-		ProxyJump:    proxyJump,
-		ProxyCommand: proxyCommand,
+		ID:           opts.ID,
+		Name:         opts.Name,
+		ConnID:       opts.ConnID,
+		Protocol:     opts.Protocol,
+		Host:         opts.Host,
+		Port:         opts.Port,
+		Username:     opts.Username,
+		Password:     opts.Password,
+		IdentityFile: opts.IdentityFile,
+		ProxyJump:    opts.ProxyJump,
+		ProxyCommand: opts.ProxyCommand,
 		outputBuf:    newRingBuffer(1000),
 		stderrBuf:    newRingBuffer(100),
 		replayBuf:    newReplayBuffer(256 * 1024), // 256KB session history

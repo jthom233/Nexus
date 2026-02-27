@@ -538,6 +538,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case filterDebounceMsg:
 		// Only apply if this tick matches the latest keystroke sequence.
 		if a.filter.active && msg.seq == a.filter.debounceSeq {
+			a.clearAllSelection()
 			a.list.applyFilter(a.filter.value())
 			a.header.setFilter(a.filter.value())
 			a.header.setItemCount(len(a.list.filtered))
@@ -868,6 +869,8 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case viewGroupList:
 		return a.handleGroupListKey(msg)
+	case viewPulse:
+		return a.handlePulseKey(msg)
 	}
 	return a, nil
 }
@@ -1176,20 +1179,67 @@ func (a App) handleOperatorLine(result *MotionResult) (tea.Model, tea.Cmd) {
 // handleOperatorRange handles operator+motion range results (e.g., dG, ygg).
 func (a App) handleOperatorRange(result *MotionResult) (tea.Model, tea.Cmd) {
 	op := a.list.table.lastOperator
+
+	// Collect IDs for the range [result.From, result.To] from table rows.
+	rows := a.list.table.rows
+	var ids []string
+	for i := result.From; i <= result.To && i < len(rows); i++ {
+		if rows[i].ID != "" {
+			ids = append(ids, rows[i].ID)
+		}
+	}
+	if len(ids) == 0 {
+		return a, nil
+	}
+
 	switch op {
 	case OpDelete:
-		// For range delete, still confirm for the selected connection
-		if c := a.list.selectedConnection(); c != nil {
-			a.confirm.show(
-				"Delete connection '"+c.Name+"'?",
-				"delete",
-				c.ID,
-			)
+		if len(ids) == 1 {
+			c := a.cfg.FindConnection(ids[0])
+			if c != nil {
+				a.confirm.show(
+					"Delete connection '"+c.Name+"'?",
+					"delete",
+					c.ID,
+				)
+				a.confirm.width = a.width
+				a.confirm.height = a.height
+			}
+		} else {
+			prompt := fmt.Sprintf("Delete %d connections?", len(ids))
+			idStr := strings.Join(ids, ",")
+			a.confirm.show(prompt, "delete-visual", idStr)
 			a.confirm.width = a.width
 			a.confirm.height = a.height
 		}
 	case OpYank:
-		return a.yankCommand()
+		if len(ids) == 1 {
+			return a.yankCommand()
+		}
+		var lines []string
+		for _, id := range ids {
+			c := a.cfg.FindConnection(id)
+			if c == nil {
+				continue
+			}
+			l, err := launcher.ForProtocol(c.Protocol)
+			if err != nil {
+				continue
+			}
+			lines = append(lines, l.Command(*c))
+		}
+		if len(lines) == 0 {
+			return a, nil
+		}
+		text := strings.Join(lines, "\n")
+		if err := termcap.DefaultClipboard().WriteAll(text); err != nil {
+			a.log.error("Clipboard error: %v", err)
+			a.statusBar.setFlash("Clipboard error: "+err.Error(), flashError)
+		} else {
+			a.log.info("Copied %d connection commands to clipboard", len(lines))
+			a.statusBar.setFlash(fmt.Sprintf("Copied %d commands", len(lines)), flashInfo)
+		}
+		return a, scheduleFlashClear()
 	}
 	return a, nil
 }
@@ -2124,19 +2174,19 @@ func (a App) connectManaged(c config.Connection) (tea.Model, tea.Cmd) {
 	// Resolve credentials from profile (group-profile then named-profile then inline).
 	a.resolveProfileCredentials(&c)
 
-	managed := session.NewManagedSession(
-		"", // ID assigned by SessionManager
-		c.Name,
-		c.ID,
-		string(c.Protocol),
-		c.Host,
-		c.EffectivePort(),
-		c.Username,
-		c.Password,
-		c.IdentityFile,
-		c.ProxyJump,
-		c.ProxyCommand,
-	)
+	managed := session.NewManagedSession(session.ManagedSessionOptions{
+		ID:           "", // ID assigned by SessionManager
+		Name:         c.Name,
+		ConnID:       c.ID,
+		Protocol:     string(c.Protocol),
+		Host:         c.Host,
+		Port:         c.EffectivePort(),
+		Username:     c.Username,
+		Password:     c.Password,
+		IdentityFile: c.IdentityFile,
+		ProxyJump:    c.ProxyJump,
+		ProxyCommand: c.ProxyCommand,
+	})
 	managed.PortForwards = c.PortForwards
 	if !c.Hooks.IsEmpty() {
 		managed.SetHooks(c.Hooks)

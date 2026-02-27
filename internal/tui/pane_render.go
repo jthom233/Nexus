@@ -126,19 +126,19 @@ func (p *PaneConnectionPicker) View() string {
 // startBackgroundSession creates and starts a ManagedSession in background mode
 // for the given connection. The caller must wire up output forwarding.
 func startBackgroundSession(c config.Connection) (*session.ManagedSession, error) {
-	sess := session.NewManagedSession(
-		"",
-		c.Name,
-		c.ID,
-		string(c.Protocol),
-		c.Host,
-		c.EffectivePort(),
-		c.Username,
-		c.Password,
-		c.IdentityFile,
-		c.ProxyJump,
-		c.ProxyCommand,
-	)
+	sess := session.NewManagedSession(session.ManagedSessionOptions{
+		ID:           "",
+		Name:         c.Name,
+		ConnID:       c.ID,
+		Protocol:     string(c.Protocol),
+		Host:         c.Host,
+		Port:         c.EffectivePort(),
+		Username:     c.Username,
+		Password:     c.Password,
+		IdentityFile: c.IdentityFile,
+		ProxyJump:    c.ProxyJump,
+		ProxyCommand: c.ProxyCommand,
+	})
 	sess.PortForwards = c.PortForwards
 	if err := sess.StartBackground(); err != nil {
 		return nil, err
