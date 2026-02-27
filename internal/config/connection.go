@@ -222,6 +222,16 @@ func (c Connection) HostPort() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.EffectivePort())
 }
 
+// SanitizeID produces a kebab-cased ID from a connection name.
+// It replaces spaces and dots with hyphens and lowercases the result.
+// The optional prefix is prepended (e.g., "ssh-").
+func SanitizeID(name, prefix string) string {
+	id := strings.ToLower(name)
+	id = strings.ReplaceAll(id, " ", "-")
+	id = strings.ReplaceAll(id, ".", "-")
+	return prefix + id
+}
+
 // Group represents a named group with a display color.
 type Group struct {
 	Name  string `yaml:"name"`
