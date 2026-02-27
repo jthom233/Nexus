@@ -401,7 +401,7 @@ func (m *ManagedSession) connect() error {
 	config := &ssh.ClientConfig{
 		User:            m.Username,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: HostKeyCallback(),
 		Timeout:         10 * time.Second,
 	}
 
@@ -449,7 +449,7 @@ func (m *ManagedSession) connectViaJumpHosts() error {
 		ncc, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(hopHost, hopPort), &ssh.ClientConfig{
 			User:            hopUser,
 			Auth:            authMethods,
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			HostKeyCallback: HostKeyCallback(),
 			Timeout:         10 * time.Second,
 		})
 		if err != nil {
@@ -481,7 +481,7 @@ func (m *ManagedSession) connectViaJumpHosts() error {
 	ncc, chans, reqs, err := ssh.NewClientConn(conn, targetAddr, &ssh.ClientConfig{
 		User:            m.Username,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: HostKeyCallback(),
 		Timeout:         10 * time.Second,
 	})
 	if err != nil {
