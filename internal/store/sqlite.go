@@ -33,6 +33,12 @@ func NewSQLiteStore(path string) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("set WAL mode: %w", err)
 	}
 
+	db.SetMaxOpenConns(1)
+	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		db.Close()
+		return nil, err
+	}
+
 	s := &SQLiteStore{db: db, path: path}
 	if err := s.createSchema(); err != nil {
 		db.Close()
@@ -152,16 +158,25 @@ func (s *SQLiteStore) GetConnection(id string) (config.Connection, error) {
 }
 
 func (s *SQLiteStore) AddConnection(conn config.Connection) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
 	// Append: position = max(position) + 1
 	var maxPos sql.NullInt64
-	if err := s.db.QueryRow("SELECT MAX(position) FROM connections").Scan(&maxPos); err != nil {
+	if err := tx.QueryRow("SELECT MAX(position) FROM connections").Scan(&maxPos); err != nil {
 		return err
 	}
 	pos := int64(0)
 	if maxPos.Valid {
 		pos = maxPos.Int64 + 1
 	}
-	return s.insertConn(conn, int(pos))
+	if err := insertConnTx(tx, conn, int(pos)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *SQLiteStore) UpdateConnection(conn config.Connection) error {
@@ -210,9 +225,15 @@ func (s *SQLiteStore) DeleteConnection(id string) error {
 }
 
 func (s *SQLiteStore) InsertConnectionAt(conn config.Connection, index int) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
 	// Count existing rows.
 	var count int
-	if err := s.db.QueryRow("SELECT COUNT(*) FROM connections").Scan(&count); err != nil {
+	if err := tx.QueryRow("SELECT COUNT(*) FROM connections").Scan(&count); err != nil {
 		return err
 	}
 
@@ -221,11 +242,14 @@ func (s *SQLiteStore) InsertConnectionAt(conn config.Connection, index int) erro
 		pos = count // append
 	} else {
 		// Shift everything at pos and above up by 1.
-		if _, err := s.db.Exec("UPDATE connections SET position = position + 1 WHERE position >= ?", pos); err != nil {
+		if _, err := tx.Exec("UPDATE connections SET position = position + 1 WHERE position >= ?", pos); err != nil {
 			return err
 		}
 	}
-	return s.insertConn(conn, pos)
+	if err := insertConnTx(tx, conn, pos); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *SQLiteStore) SearchConnections(query string) ([]config.Connection, error) {
@@ -264,7 +288,15 @@ func (s *SQLiteStore) Close() error {
 // Helpers
 // ---------------------------------------------------------------------------
 
-func (s *SQLiteStore) insertConn(conn config.Connection, pos int) error {
+// execer is satisfied by both *sql.DB and *sql.Tx, allowing insertConnTx to
+// be called from within a transaction or directly.
+type execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+// insertConnTx inserts a connection at the given position using the supplied
+// execer (a *sql.Tx or *sql.DB).
+func insertConnTx(e execer, conn config.Connection, pos int) error {
 	tagsJSON, _ := json.Marshal(conn.Tags)
 	pfJSON, _ := json.Marshal(conn.PortForwards)
 	rdpJSON, _ := json.Marshal(conn.RDPOptions)
@@ -272,7 +304,7 @@ func (s *SQLiteStore) insertConn(conn config.Connection, pos int) error {
 	lastConn := formatTime(conn.LastConnectedAt)
 	fav := boolToInt(conn.Favorite)
 
-	_, err := s.db.Exec(`INSERT INTO connections (
+	_, err := e.Exec(`INSERT INTO connections (
 		id, position, name, protocol, host, port, username, password,
 		identity_file, proxy_jump, proxy_command, port_forwards, domain,
 		grp, tags, rdp_options, vnc_password, credential_profile, hooks, favorite,
@@ -285,6 +317,12 @@ func (s *SQLiteStore) insertConn(conn config.Connection, pos int) error {
 		fav, lastConn, conn.ConnectCount,
 	)
 	return err
+}
+
+// insertConn inserts a connection at the given position using the store's
+// underlying DB. Kept for use by migrate.go.
+func (s *SQLiteStore) insertConn(conn config.Connection, pos int) error {
+	return insertConnTx(s.db, conn, pos)
 }
 
 // scanConnections reads all rows into a Connection slice.

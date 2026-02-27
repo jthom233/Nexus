@@ -48,7 +48,11 @@ func (s *YAMLStore) save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, data, 0o600)
+	tmpPath := s.path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, s.path)
 }
 
 // Config returns the underlying Config (useful for migrations).
