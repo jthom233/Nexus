@@ -535,6 +535,15 @@ func (r *RDPSession) Close() {
 	}
 }
 
+// OwnsWindow reports whether this session manages its own native window.
+func (r *RDPSession) OwnsWindow() bool { return false }
+
+// Show is a no-op for framebuffer-based sessions.
+func (r *RDPSession) Show() {}
+
+// Hide is a no-op for framebuffer-based sessions.
+func (r *RDPSession) Hide() {}
+
 // done returns a channel that is closed when the session ends.
 func (r *RDPSession) done() <-chan struct{} {
 	return r.doneCh
