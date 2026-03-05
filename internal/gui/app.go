@@ -111,9 +111,13 @@ type App struct {
 	pendingMinimize        atomic.Bool // minimize (only fires when not in fullscreen)
 
 	// Fullscreen overlay state.
-	overlayVisible bool    // whether the expanded overlay bar is showing
-	overlayPinned  bool    // whether the overlay is pinned open
-	overlayAlpha   float64 // fade animation target (0.0 = hidden, 1.0 = visible)
+	overlayVisible      bool    // whether the expanded overlay bar is showing
+	overlayPinned       bool    // whether the overlay is pinned open
+	overlayAlpha        float64 // fade animation target (0.0 = hidden, 1.0 = visible)
+	overlayOffsetX      int     // horizontal offset from the default centered position
+	overlayDragging     bool    // whether a drag is in progress
+	overlayDragStartMouseX  int // mouse X when drag started
+	overlayDragStartOffsetX int // overlayOffsetX when drag started
 
 	// shouldQuit is set by goroutines/callbacks that cannot return to Ebiten
 	// directly (e.g. IPC handlers, click handlers). Update() checks this flag
@@ -370,7 +374,14 @@ func (a *App) sessionTransform() (scaleX, scaleY, offsetX, offsetY float64, ok b
 // The thin handle is always overlayHandleH tall (used for trigger detection).
 func (a *App) overlayRect() (x, y, w, h int) {
 	w = a.width * overlayWidthPc / 100
-	x = (a.width - w) / 2
+	x = (a.width-w)/2 + a.overlayOffsetX
+	// Clamp so the bar stays fully on screen.
+	if x < 0 {
+		x = 0
+	}
+	if x > a.width-w {
+		x = a.width - w
+	}
 	y = 0
 	if a.overlayVisible || a.overlayPinned {
 		h = overlayHeight
@@ -408,27 +419,23 @@ func (a *App) handleOverlay() {
 		a.overlayVisible = true
 	}
 
-	// Hide overlay when mouse leaves the expanded bar (unless pinned).
-	if !a.overlayPinned && a.overlayVisible {
-		_, _, ow, oh := a.overlayRect()
-		ox := (a.width - ow) / 2
+	// Hide overlay when mouse leaves the expanded bar (unless pinned or dragging).
+	if !a.overlayPinned && !a.overlayDragging && a.overlayVisible {
+		ox, _, ow, oh := a.overlayRect()
 		if mx < ox || mx >= ox+ow || my < 0 || my >= oh {
 			a.overlayVisible = false
 		}
 	}
 
-	// Handle clicks on overlay buttons.
-	if !inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		return
-	}
 	if !a.overlayVisible && !a.overlayPinned {
+		// Stop any in-progress drag if the overlay is no longer shown.
+		if a.overlayDragging && !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			a.overlayDragging = false
+		}
 		return
 	}
 
 	ox, _, ow, oh := a.overlayRect()
-	if mx < ox || mx >= ox+ow || my < 0 || my >= oh {
-		return
-	}
 
 	// Button layout within the overlay bar (from left and right edges).
 	// Left side: [Pin] [Ctrl+Alt+Del] [TaskMgr]
@@ -449,6 +456,57 @@ func (a *App) handleOverlay() {
 
 	btnY := 0
 	btnH := oh
+
+	// isOnButton returns true if (px, py) is within any button rect.
+	isOnButton := func(px, py int) bool {
+		inBtn := func(bx int) bool {
+			return px >= bx && px < bx+btnW && py >= btnY && py < btnY+btnH
+		}
+		return inBtn(pinBtnX) || inBtn(cadBtnX) || inBtn(tmBtnX) ||
+			inBtn(minBtnX) || inBtn(restoreBtnX) || inBtn(closeBtnX)
+	}
+
+	// --- Drag start ---
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		inOverlay := mx >= ox && mx < ox+ow && my >= 0 && my < oh
+		if inOverlay && !isOnButton(mx, my) {
+			a.overlayDragging = true
+			a.overlayDragStartMouseX = mx
+			a.overlayDragStartOffsetX = a.overlayOffsetX
+		}
+	}
+
+	// --- Drag update ---
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && a.overlayDragging {
+		newOffset := a.overlayDragStartOffsetX + (mx - a.overlayDragStartMouseX)
+		// Compute the centered base position to derive clamping bounds.
+		baseX := (a.width - ow) / 2
+		minOffset := -baseX          // left edge flush with screen left
+		maxOffset := a.width - ow - baseX // right edge flush with screen right
+		if newOffset < minOffset {
+			newOffset = minOffset
+		}
+		if newOffset > maxOffset {
+			newOffset = maxOffset
+		}
+		a.overlayOffsetX = newOffset
+		// Don't process button clicks while dragging.
+		return
+	}
+
+	// --- Drag end ---
+	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) && a.overlayDragging {
+		a.overlayDragging = false
+		return
+	}
+
+	// --- Button click handling ---
+	if !inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		return
+	}
+	if mx < ox || mx >= ox+ow || my < 0 || my >= oh {
+		return
+	}
 
 	activeTab := a.tabs.Active()
 
