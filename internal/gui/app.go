@@ -71,6 +71,9 @@ type Session interface {
 	Update()
 	Framebuffer() *ebiten.Image
 	NativeSize() (int, int) // Returns the session's native resolution
+	OwnsWindow() bool       // Returns true if session manages its own native window (mstsc), false if Ebiten renders framebuffer
+	Show()                  // Make the session visible (used for self-rendering sessions on tab switch)
+	Hide()                  // Hide the session (used for self-rendering sessions on tab switch)
 	HandleKeyPress(key ebiten.Key)
 	HandleKeyRelease(key ebiten.Key)
 	HandleHookKey(scancode uint16, extended bool, release bool)
@@ -249,7 +252,7 @@ func (a *App) Draw(screen *ebiten.Image) {
 	}
 
 	// Draw active session framebuffer stretched to fill available area
-	if activeTab.Session != nil {
+	if activeTab.Session != nil && !activeTab.Session.OwnsWindow() {
 		fb := activeTab.Session.Framebuffer()
 		if fb != nil {
 			nw, nh := activeTab.Session.NativeSize()
@@ -312,7 +315,7 @@ func (a *App) drawFullscreen(screen *ebiten.Image) {
 	}
 
 	// Draw session framebuffer filling the entire screen (y=0)
-	if activeTab.Session != nil {
+	if activeTab.Session != nil && !activeTab.Session.OwnsWindow() {
 		fb := activeTab.Session.Framebuffer()
 		if fb != nil {
 			nw, nh := activeTab.Session.NativeSize()
@@ -921,7 +924,7 @@ func (a *App) OpenTab(connID, protocol, host string, port int, username, passwor
 	var sess Session
 	switch protocol {
 	case "rdp":
-		sess = NewRDPSession(host, port, username, password, domain, options)
+		sess = NewPlatformRDPSession(host, port, username, password, domain, options)
 	case "vnc":
 		sess = NewVNCSession(host, port, password)
 	default:

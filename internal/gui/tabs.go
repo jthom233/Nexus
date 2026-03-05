@@ -81,13 +81,27 @@ func (tm *TabManager) Active() *Tab {
 	return nil
 }
 
-// Focus sets the active tab.
+// Focus sets the active tab, hiding the previous session and showing the new one.
 func (tm *TabManager) Focus(connID string) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
+
+	// Hide the previously active session.
+	if tm.activeID != "" && tm.activeID != connID {
+		for _, tab := range tm.tabs {
+			if tab.ConnID == tm.activeID && tab.Session != nil {
+				tab.Session.Hide()
+				break
+			}
+		}
+	}
+
 	for _, tab := range tm.tabs {
 		if tab.ConnID == connID {
 			tm.activeID = connID
+			if tab.Session != nil {
+				tab.Session.Show()
+			}
 			return
 		}
 	}
