@@ -29,6 +29,11 @@ CLAUDE.md
 # Serena
 .serena/
 
+# Local tool-generated metadata
+.codegiraffe/
+.codelynx/
+.codeshrike/
+
 # Editor / IDE
 .vscode/
 .idea/
