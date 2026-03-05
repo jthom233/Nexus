@@ -28,6 +28,9 @@ var (
 	// GetWindowRect / GetClientRect for coordinate queries.
 	procGetWindowRect = user32.NewProc("GetWindowRect")
 	procGetClientRect = user32.NewProc("GetClientRect")
+
+	// GetActiveWindow returns the HWND of the currently active foreground window.
+	procGetActiveWindow = user32.NewProc("GetActiveWindow")
 )
 
 const (
@@ -550,8 +553,8 @@ func (m *MsTscSession) Close() {
 // getEbitenWindowHandle returns the HWND of the Ebiten/GLFW window.
 // Ebiten v2 exposes the HWND via ebiten.WindowHandle() on Windows.
 func getEbitenWindowHandle() uintptr {
-	hwnd := ebiten.WindowHandle()
-	return uintptr(hwnd)
+	r, _, _ := procGetActiveWindow.Call()
+	return r
 }
 
 // wndClassRegistered guards the one-time RegisterClassEx call.
