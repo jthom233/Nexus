@@ -29,8 +29,8 @@ var (
 	procGetWindowRect = user32.NewProc("GetWindowRect")
 	procGetClientRect = user32.NewProc("GetClientRect")
 
-	// GetActiveWindow returns the HWND of the currently active foreground window.
-	procGetActiveWindow = user32.NewProc("GetActiveWindow")
+	// FindWindowW finds a top-level window by class name; works from any thread.
+	procFindWindowW = user32.NewProc("FindWindowW")
 )
 
 const (
@@ -67,8 +67,7 @@ type MsTscSession struct {
 	height   int
 
 	// COM object references — only touched from comLoop goroutine.
-	rdpClient *ole.IDispatch   // IMsRdpClient
-	rdpObj    *ole.IUnknown   // root IUnknown; kept for Release on teardown
+	rdpClient *ole.IDispatch // IMsRdpClient
 
 	// childHWND is the Win32 HWND hosting the ActiveX control.
 	// Written once during Connect, read from multiple goroutines (Update, etc.).
@@ -166,7 +165,6 @@ func (m *MsTscSession) comLoop(errCh chan<- error) {
 		errCh <- fmt.Errorf("CreateInstance MsTscAx: %w", err)
 		return
 	}
-	m.rdpObj = unknown
 	rdpLog.Printf("MsTsc COM object created")
 
 	// QI for IDispatch (IMsRdpClient inherits IDispatch).
@@ -176,6 +174,7 @@ func (m *MsTscSession) comLoop(errCh chan<- error) {
 		errCh <- fmt.Errorf("QueryInterface IDispatch: %w", err)
 		return
 	}
+	unknown.Release() // Release original IUnknown; we only need IDispatch from here.
 	m.rdpClient = disp
 
 	// --- 3. Set connection properties ---
@@ -367,7 +366,7 @@ func (m *MsTscSession) getSubDispatch(name string) *ole.IDispatch {
 func (m *MsTscSession) embedInWindow(hwnd uintptr) error {
 	// QI for IOleObject ({00000112-0000-0000-C000-000000000046})
 	iidIOleObject := ole.NewGUID("{00000112-0000-0000-C000-000000000046}")
-	oleObj, err := m.rdpObj.QueryInterface(iidIOleObject)
+	oleObj, err := m.rdpClient.IUnknown.QueryInterface(iidIOleObject)
 	if err != nil {
 		// If QI fails the control may still work without explicit embedding.
 		rdpLog.Printf("MsTsc embedInWindow: IOleObject QI failed (%v) — skipping DoVerb", err)
@@ -434,10 +433,6 @@ func (m *MsTscSession) release() {
 	if m.rdpClient != nil {
 		m.rdpClient.Release()
 		m.rdpClient = nil
-	}
-	if m.rdpObj != nil {
-		m.rdpObj.Release()
-		m.rdpObj = nil
 	}
 }
 
@@ -550,11 +545,14 @@ func (m *MsTscSession) Close() {
 
 // --- Win32 helpers ---
 
-// getEbitenWindowHandle returns the HWND of the Ebiten/GLFW window.
-// Ebiten v2 exposes the HWND via ebiten.WindowHandle() on Windows.
+// getEbitenWindowHandle returns the HWND of the Ebiten/GLFW window by
+// searching for the well-known GLFW window class "GLFW30". FindWindowW is
+// system-wide and works correctly from any thread, unlike GetActiveWindow
+// which only sees windows on the calling thread's message queue.
 func getEbitenWindowHandle() uintptr {
-	r, _, _ := procGetActiveWindow.Call()
-	return r
+	className, _ := syscall.UTF16PtrFromString("GLFW30")
+	hwnd, _, _ := procFindWindowW.Call(uintptr(unsafe.Pointer(className)), 0)
+	return hwnd
 }
 
 // wndClassRegistered guards the one-time RegisterClassEx call.
