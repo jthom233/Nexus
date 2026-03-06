@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -55,6 +56,13 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not open credential vault: %v\n", err)
 		v = nil
+	}
+	if v != nil {
+		defer func() {
+			if err := v.Close(); err != nil {
+				log.Printf("warning: vault close failed: %v", err)
+			}
+		}()
 	}
 
 	// Detect terminal capabilities
