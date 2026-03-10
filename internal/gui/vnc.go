@@ -322,15 +322,6 @@ func (v *VNCSession) Close() {
 	}
 }
 
-// OwnsWindow reports whether this session manages its own native window.
-func (v *VNCSession) OwnsWindow() bool { return false }
-
-// Show is a no-op for framebuffer-based sessions.
-func (v *VNCSession) Show() {}
-
-// Hide is a no-op for framebuffer-based sessions.
-func (v *VNCSession) Hide() {}
-
 func mouseButtonToVNC(button ebiten.MouseButton) uint8 {
 	switch button {
 	case ebiten.MouseButtonLeft:
